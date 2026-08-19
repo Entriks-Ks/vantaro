@@ -1,0 +1,194 @@
+.faq-theme {
+  background: var(--white);
+  color: var(--foreground);
+  font-family: var(--font-body);
+}
+
+.faq-theme .faq-shadcn {
+  display: grid;
+  grid-template-columns: .73fr 1.27fr;
+  gap: 64px;
+  align-items: start;
+}
+
+.faq-theme .faq-intro h2 {
+  font-family: var(--font-heading);
+  font-size: clamp(32px, 4vw, 44px);
+  font-weight: 600;
+  letter-spacing: -0.04em;
+  line-height: 1.1;
+  margin: 0 0 16px;
+  color: var(--foreground);
+}
+
+.faq-theme .faq-intro h2 span {
+  color: var(--primary);
+}
+
+.faq-theme .faq-kicker {
+  margin: 0 0 12px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--primary);
+}
+
+.faq-theme .faq-lede {
+  margin: 0 0 28px;
+  max-width: 410px;
+  color: var(--muted-foreground);
+  font-size: 16px;
+  line-height: 1.6;
+}
+
+.faq-theme .faq-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 500;
+  box-shadow: var(--shadow-sm);
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.faq-theme .faq-cta:hover {
+  background: var(--accent);
+  border-color: var(--primary);
+  color: var(--accent-foreground);
+}
+
+.faq-theme .faq-card {
+  background: var(--card);
+  color: var(--card-foreground);
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) + 4px);
+  box-shadow: var(--shadow-md);
+  padding: 8px;
+}
+
+.faq-theme .faq-item {
+  border-bottom: 1px solid var(--border);
+}
+
+.faq-theme .faq-item:last-child {
+  border-bottom: 0;
+}
+
+.faq-theme .faq-item h3 {
+  margin: 0;
+  font-size: inherit;
+  font-weight: inherit;
+  letter-spacing: 0;
+  line-height: inherit;
+}
+
+.faq-theme .faq-trigger {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 16px;
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--foreground);
+  text-align: left;
+  font-family: var(--font-heading);
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+  outline: none;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.faq-theme .faq-trigger:hover {
+  color: var(--primary);
+}
+
+.faq-theme .faq-trigger:focus-visible {
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--ring) 50%, transparent);
+}
+
+.faq-theme .faq-icon {
+  position: relative;
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+}
+
+.faq-theme .faq-icon::before,
+.faq-theme .faq-icon::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  background: var(--muted-foreground);
+  border-radius: 1px;
+  transition: transform 0.25s ease, background 0.25s ease;
+}
+
+.faq-theme .faq-icon::before {
+  width: 14px;
+  height: 2px;
+  transform: translate(-50%, -50%);
+}
+
+.faq-theme .faq-icon::after {
+  width: 2px;
+  height: 14px;
+  transform: translate(-50%, -50%);
+}
+
+.faq-theme .faq-item[data-state="open"] .faq-icon::before,
+.faq-theme .faq-item[data-state="open"] .faq-icon::after {
+  background: var(--primary);
+}
+
+.faq-theme .faq-item[data-state="open"] .faq-icon::before {
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.faq-theme .faq-item[data-state="open"] .faq-icon::after {
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.faq-theme .faq-content {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.25s ease;
+}
+
+.faq-theme .faq-content[data-state="open"] {
+  grid-template-rows: 1fr;
+}
+
+.faq-theme .faq-content-inner {
+  overflow: hidden;
+}
+
+.faq-theme .faq-content p {
+  margin: 0;
+  padding: 0 16px 18px;
+  max-width: none;
+  color: var(--muted-foreground);
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+@media (max-width: 780px) {
+  .faq-theme .faq-shadcn {
+    grid-template-columns: 1fr;
+    gap: 32px;
+  }
+}
