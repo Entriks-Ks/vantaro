@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { CheckCircle2, X } from 'lucide-react';
+import DarkVeil from './DarkVeil';
 import './ContactUs.css';
 
 const FOCUS_OPTIONS = ['PKV', 'BU / Vorsorge', 'Gewerbe / Unternehmer', 'Mehrere Sparten'];
@@ -11,17 +13,69 @@ export default function ContactUs() {
     focus: '',
     message: '',
   });
+  const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (submitted) {
+      const timer = setTimeout(() => {
+        setSubmitted(false);
+      }, 6000);
+      return () => clearTimeout(timer);
+    }
+  }, [submitted]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    setSubmitted(true);
-    setTimeout(() => setSubmitted(false), 6000);
+    setLoading(true);
+    setError('');
+    setSubmitted(false);
+
+    try {
+      const response = await fetch('https://formsubmit.co/ajax/it.entriks@gmail.com', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify({
+          _subject: `Neue VANTARO Kapazitätsprüfung: ${formData.company || formData.name}`,
+          _template: 'table',
+          _captcha: 'false',
+          Name: formData.name,
+          'E-Mail': formData.email,
+          'Maklerhaus / Unternehmen': formData.company,
+          Fokus: formData.focus,
+          'Was möchten Sie mit VANTARO erreichen': formData.message,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (response.ok || result.success === 'true' || result.success === true) {
+        setSubmitted(true);
+        setFormData({
+          name: '',
+          email: '',
+          company: '',
+          focus: '',
+          message: '',
+        });
+      } else {
+        throw new Error(result.message || 'Fehler beim Senden');
+      }
+    } catch (err) {
+      console.error('Submission error:', err);
+      setError('Es gab ein Problem beim Übermitteln. Bitte versuchen Sie es erneut.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -56,7 +110,7 @@ export default function ContactUs() {
               <div className="contact-form-row">
                 <div className="contact-form-group">
                   <label className="contact-form-label" htmlFor="contact-name">
-                    Ihr Name
+                    Ihr Name <span className="required-star">*</span>
                   </label>
                   <input
                     id="contact-name"
@@ -73,7 +127,7 @@ export default function ContactUs() {
 
                 <div className="contact-form-group">
                   <label className="contact-form-label" htmlFor="contact-email">
-                    E-Mail
+                    E-Mail <span className="required-star">*</span>
                   </label>
                   <input
                     id="contact-email"
@@ -91,23 +145,24 @@ export default function ContactUs() {
 
               <div className="contact-form-group">
                 <label className="contact-form-label" htmlFor="contact-company">
-                  Maklerhaus / Unternehmen
+                  Maklerhaus / Unternehmen <span className="required-star">*</span>
                 </label>
                 <input
                   id="contact-company"
                   name="company"
                   type="text"
                   className="contact-form-input"
-                    placeholder="Maklerhaus / Unternehmen"
-                    value={formData.company}
-                    onChange={handleInputChange}
-                    autoComplete="organization"
+                  placeholder="Maklerhaus / Unternehmen"
+                  value={formData.company}
+                  onChange={handleInputChange}
+                  autoComplete="organization"
+                  required
                 />
               </div>
 
               <div className="contact-form-group">
                 <label className="contact-form-label" htmlFor="contact-focus">
-                  Ihr Fokus
+                  Ihr Fokus <span className="required-star">*</span>
                 </label>
                 <select
                   id="contact-focus"
@@ -115,8 +170,11 @@ export default function ContactUs() {
                   className="contact-form-input contact-form-select"
                   value={formData.focus}
                   onChange={handleInputChange}
+                  required
                 >
-                  <option value="">Ihr Fokus</option>
+                  <option value="" disabled hidden>
+                    Ihr Fokus
+                  </option>
                   {FOCUS_OPTIONS.map((option) => (
                     <option key={option} value={option}>
                       {option}
@@ -127,7 +185,7 @@ export default function ContactUs() {
 
               <div className="contact-form-group">
                 <label className="contact-form-label" htmlFor="contact-message">
-                  Was möchten Sie mit VANTARO erreichen?
+                  Was möchten Sie mit VANTARO erreichen? <span className="required-star">*</span>
                 </label>
                 <textarea
                   id="contact-message"
@@ -137,22 +195,27 @@ export default function ContactUs() {
                   value={formData.message}
                   onChange={handleInputChange}
                   rows={4}
+                  required
                 />
               </div>
 
-              <button type="submit" className="contact-submit-btn">
-                Demo-Anfrage vorbereiten <span className="arrow">↗</span>
+              <button type="submit" className="contact-submit-btn" disabled={loading}>
+                {loading ? 'Wird gesendet...' : (
+                  <>
+                    Demo-Anfrage senden <span className="arrow">↗</span>
+                  </>
+                )}
               </button>
 
-              {submitted && (
-                <div className="contact-form-feedback">
-                  Danke — Ihre Anfrage ist vorbereitet. Bitte nutzen Sie den E-Mail-Kontakt, um sie abzusenden.
+              {error && (
+                <div className="contact-form-feedback error">
+                  {error}
                 </div>
               )}
             </form>
 
             <p className="contact-legal-note">
-              Ihre Angaben werden in dieser Demo nicht an einen Server übertragen. Es gelten unser{' '}
+              Ihre Angaben werden vertraulich behandelt. Es gelten unser{' '}
               <a href="#impressum">Impressum</a> und die{' '}
               <a href="#datenschutz">Datenschutzerklärung</a>.
             </p>
@@ -161,30 +224,69 @@ export default function ContactUs() {
           <div className="contact-visual-col">
             <div className="contact-image-wrapper">
               <div className="contact-cutout-panel">
-                <div className="eyebrow light">Der nächste sinnvolle Schritt</div>
-                <h2>
-                  Prüfen Sie nicht, ob VANTARO groß klingt.{' '}
-                  <span>Prüfen Sie, ob es für Sie funktioniert.</span>
-                </h2>
-                <p>
-                  Starten Sie mit einem strukturierten Pilotgespräch. Wir schauen auf Sparte, Region, Kapazität, Qualitätsstufe und die Kennzahlen, die für Ihr Haus wirklich zählen.
-                </p>
-                <div className="contact-cutout-actions">
-                  <a
-                    className="btn btn-primary"
-                    href="mailto:rene.schirner@entriks.com?subject=VANTARO%20Pilotgespr%C3%A4ch"
-                  >
-                    Pilotgespräch per E-Mail <span className="arrow">↗</span>
-                  </a>
-                  <a className="btn btn-outline-light" href="#preise">
-                    Preise ansehen <span className="arrow">↓</span>
-                  </a>
+                <div className="contact-veil-bg" aria-hidden="true">
+                  <DarkVeil
+                    hueShift={46}
+                    noiseIntensity={0.01}
+                    scanlineIntensity={0.25}
+                    scanlineFrequency={1.2}
+                    warpAmount={0.25}
+                    speed={0.35}
+                  />
+                  <div className="contact-veil-overlay" />
+                </div>
+                <div className="contact-cutout-content">
+                  <div className="eyebrow light">Der nächste sinnvolle Schritt</div>
+                  <h2>
+                    Prüfen Sie nicht, ob VANTARO groß klingt.{' '}
+                    <span>Prüfen Sie, ob es für Sie funktioniert.</span>
+                  </h2>
+                  <p>
+                    Starten Sie mit einem strukturierten Pilotgespräch. Wir schauen auf Sparte, Region, Kapazität, Qualitätsstufe und die Kennzahlen, die für Ihr Haus wirklich zählen.
+                  </p>
+                  <div className="contact-cutout-actions">
+                    <a
+                      className="btn btn-primary"
+                      href="mailto:it.entriks@gmail.com?subject=VANTARO%20Pilotgespr%C3%A4ch"
+                    >
+                      Pilotgespräch per E-Mail <span className="arrow">↗</span>
+                    </a>
+                    <a className="btn btn-outline-light" href="#preise">
+                      Preise ansehen <span className="arrow">↓</span>
+                    </a>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
         </div>
       </div>
+
+      {/* Floating Toast Notification */}
+      {submitted && (
+        <div className="vantaro-toast-container" role="alert">
+          <div className="vantaro-toast">
+            <div className="vantaro-toast-icon">
+              <CheckCircle2 size={20} />
+            </div>
+            <div className="vantaro-toast-body">
+              <div className="vantaro-toast-title">Anfrage erfolgreich übermittelt</div>
+              <div className="vantaro-toast-message">
+                Vielen Dank! Ihre Anfrage wurde erfolgreich an uns übermittelt. Wir werden uns zeitnah bei Ihnen melden.
+              </div>
+            </div>
+            <button
+              type="button"
+              className="vantaro-toast-close"
+              onClick={() => setSubmitted(false)}
+              aria-label="Schließen"
+            >
+              <X size={16} />
+            </button>
+            <div className="vantaro-toast-progress" />
+          </div>
+        </div>
+      )}
     </section>
   );
 }

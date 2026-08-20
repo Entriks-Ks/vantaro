@@ -127,11 +127,18 @@ export default function DarkVeil({
     const resize = () => {
       const w = parent.clientWidth;
       const h = parent.clientHeight;
+      if (!w || !h) return;
       renderer.setSize(w * resolutionScale, h * resolutionScale);
       program.uniforms.uResolution.value.set(w, h);
     };
 
-    window.addEventListener('resize', resize);
+    let resizeObserver;
+    if (typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver(() => resize());
+      resizeObserver.observe(parent);
+    } else {
+      window.addEventListener('resize', resize);
+    }
     resize();
 
     const start = performance.now();
@@ -152,7 +159,11 @@ export default function DarkVeil({
 
     return () => {
       cancelAnimationFrame(frame);
-      window.removeEventListener('resize', resize);
+      if (resizeObserver) {
+        resizeObserver.disconnect();
+      } else {
+        window.removeEventListener('resize', resize);
+      }
       delete canvas.dataset.fallback;
     };
   }, [

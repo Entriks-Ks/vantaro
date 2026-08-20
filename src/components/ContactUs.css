@@ -60,6 +60,12 @@
   margin-bottom: 8px;
 }
 
+.required-star {
+  color: #ef4444;
+  font-weight: 700;
+  margin-left: 2px;
+}
+
 .contact-form-input,
 .contact-form-textarea {
   width: 100%;
@@ -124,6 +130,12 @@
   background: #4bc4b6;
 }
 
+.contact-submit-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+  transform: none;
+}
+
 .contact-submit-btn:active {
   transform: translateY(0);
 }
@@ -139,6 +151,12 @@
   font-weight: 500;
   text-align: center;
   animation: fadeIn 0.3s ease;
+}
+
+.contact-form-feedback.error {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #991b1b;
 }
 
 .contact-legal-note {
@@ -181,19 +199,42 @@
 }
 
 .contact-cutout-panel {
+  position: relative;
   width: 100%;
   height: auto;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
-  gap: 14px;
   padding: 72px 32px 36px 28px;
   color: #ffffff;
-  background:
-    radial-gradient(circle at 82% 12%, rgba(86, 211, 196, 0.22), transparent 42%),
-    linear-gradient(165deg, #121a28 0%, #070c16 58%, #0b1220 100%);
+  background: #070c16;
   clip-path: url(#contact-shape-clip);
   -webkit-clip-path: url(#contact-shape-clip);
+}
+
+.contact-veil-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.contact-veil-overlay {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 82% 12%, rgba(86, 211, 196, 0.22), transparent 45%),
+    linear-gradient(165deg, rgba(18, 26, 40, 0.76) 0%, rgba(7, 12, 22, 0.88) 58%, rgba(11, 18, 32, 0.82) 100%);
+  pointer-events: none;
+}
+
+.contact-cutout-content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
 }
 
 .contact-cutout-panel .eyebrow {
@@ -271,5 +312,126 @@
 
   .contact-cutout-actions .btn {
     width: 100%;
+  }
+}
+
+/* Floating Toast Notification */
+.vantaro-toast-container {
+  position: fixed;
+  top: 28px;
+  right: 28px;
+  z-index: 10000;
+  max-width: 440px;
+  width: calc(100vw - 48px);
+  pointer-events: auto;
+  animation: toastSlideDown 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.vantaro-toast {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 18px 20px 20px;
+  background: rgba(15, 23, 42, 0.94);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(86, 211, 196, 0.35);
+  border-radius: 16px;
+  box-shadow:
+    0 20px 40px -10px rgba(0, 0, 0, 0.5),
+    0 0 24px rgba(86, 211, 196, 0.15);
+  color: #ffffff;
+  overflow: hidden;
+}
+
+.vantaro-toast-icon {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: rgba(86, 211, 196, 0.15);
+  color: #56d3c4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(86, 211, 196, 0.3);
+}
+
+.vantaro-toast-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.vantaro-toast-title {
+  font-family: var(--font-heading, "Space Grotesk", sans-serif);
+  font-size: 14.5px;
+  font-weight: 600;
+  color: #ffffff;
+  margin-bottom: 4px;
+  letter-spacing: -0.01em;
+}
+
+.vantaro-toast-message {
+  font-size: 13px;
+  line-height: 1.5;
+  color: #c5d2e0;
+}
+
+.vantaro-toast-close {
+  flex-shrink: 0;
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  padding: 4px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.vantaro-toast-close:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.vantaro-toast-progress {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #56d3c4, #22d3ee);
+  width: 100%;
+  animation: toastProgress 6s linear forwards;
+}
+
+@keyframes toastSlideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes toastProgress {
+  from {
+    width: 100%;
+  }
+  to {
+    width: 0%;
+  }
+}
+
+@media (max-width: 600px) {
+  .vantaro-toast-container {
+    top: 20px;
+    right: 16px;
+    left: 16px;
+    width: auto;
   }
 }

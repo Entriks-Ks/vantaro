@@ -7,10 +7,11 @@ export default function Hero() {
       <div className="hero-veil" aria-hidden="true">
         <DarkVeil
           hueShift={46}
-          scanlineIntensity={0.93}
+          noiseIntensity={0.01}
+          scanlineIntensity={0.35}
           scanlineFrequency={1.1}
           warpAmount={0.35}
-          speed={0.5}
+          speed={0.45}
         />
       </div>
       <div className="wrap hero-content">
