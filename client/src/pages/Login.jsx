@@ -1,47 +1,49 @@
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { useAuth } from '../hooks/useAuth';
 import useNavigate from '../hooks/useNavigate';
 
-export default function Register() {
-  const [formData, setFormData] = useState({
-    fullName: '',
-    email: '',
-    password: '',
-    confirmPassword: '',
-  });
+export default function Login() {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [searchParams] = useSearchParams();
+  const verified = searchParams.get('verified') === '1';
+  const { user, loading, login } = useAuth();
   const navigate = useNavigate();
 
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-  };
+  useEffect(() => {
+    if (!loading && user) navigate('/', { replace: true });
+  }, [loading, user, navigate]);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
 
-    // Validation
-    if (!formData.fullName || !formData.email || !formData.password || !formData.confirmPassword) {
+    if (!email || !password) {
       setError('Bitte alle Felder ausfüllen');
       return;
     }
-    if (formData.password.length < 8) {
-      setError('Passwort muss mindestens 8 Zeichen lang sein');
-      return;
-    }
-    if (formData.password !== formData.confirmPassword) {
-      setError('Passwörter stimmen nicht überein');
-      return;
-    }
 
-    // TODO: Implement actual registration logic
-    console.log('Registration attempt:', formData);
+    setSubmitting(true);
+    try {
+      await login(email, password);
+      navigate('/');
+    } catch (err) {
+      if (err.requiresVerification) {
+        navigate(`/verify-email?email=${encodeURIComponent(err.email || email)}`);
+        return;
+      }
+      setError(err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
-    // For demo purposes, redirect to login
-    navigate('/login');
+  const handleSocial = () => {
+    setError('Google- und Apple-Anmeldung sind noch nicht verfügbar.');
   };
 
   return (
@@ -66,9 +68,7 @@ export default function Register() {
       </svg>
 
       <div className="auth-layout">
-        {/* Left Side: Authentication Form */}
         <div className="auth-form-container">
-          {/* Logo Icon */}
           <div className="auth-logo">
             <img
               className="brand-mark"
@@ -79,50 +79,44 @@ export default function Register() {
             />
           </div>
 
-          {/* Title */}
-          <h1 className="auth-title">Konto erstellen</h1>
-          <p className="auth-subtitle">Starten Sie mit VANTARO.</p>
+          <h1 className="auth-title">Anmelden bei VANTARO</h1>
+          <p className="auth-subtitle">Willkommen zurück.</p>
 
+          {verified && !error && (
+            <div className="auth-success">E-Mail bestätigt. Sie können sich jetzt anmelden.</div>
+          )}
           {error && <div className="auth-error">{error}</div>}
           
           <form className="auth-form" onSubmit={handleSubmit}>
-            <div className="form-group">
-              <label htmlFor="fullName">Vollständiger Name</label>
-              <input
-                type="text"
-                id="fullName"
-                name="fullName"
-                value={formData.fullName}
-                onChange={handleInputChange}
-                placeholder="Vollständiger Name"
-                required
-              />
-            </div>
-
             <div className="form-group">
               <label htmlFor="email">E-Mail-Adresse</label>
               <input
                 type="email"
                 id="email"
-                name="email"
-                value={formData.email}
-                onChange={handleInputChange}
+                autoComplete="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 placeholder="E-Mail-Adresse"
                 required
+                disabled={submitting}
               />
             </div>
             
             <div className="form-group">
-              <label htmlFor="password">Passwort</label>
+              <div className="password-header">
+                <label htmlFor="password">Passwort</label>
+                <Link to="/forgot-password" className="forgot-password">Passwort vergessen?</Link>
+              </div>
               <div className="password-input-wrapper">
                 <input
                   type={showPassword ? 'text' : 'password'}
                   id="password"
-                  name="password"
-                  value={formData.password}
-                  onChange={handleInputChange}
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
                   placeholder="Passwort eingeben"
                   required
+                  disabled={submitting}
                 />
                 <button
                   type="button"
@@ -143,52 +137,18 @@ export default function Register() {
                 </button>
               </div>
             </div>
-
-            <div className="form-group">
-              <label htmlFor="confirmPassword">Passwort bestätigen</label>
-              <div className="password-input-wrapper">
-                <input
-                  type={showConfirmPassword ? 'text' : 'password'}
-                  id="confirmPassword"
-                  name="confirmPassword"
-                  value={formData.confirmPassword}
-                  onChange={handleInputChange}
-                  placeholder="Passwort bestätigen"
-                  required
-                />
-                <button
-                  type="button"
-                  className="password-toggle"
-                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                >
-                  {showConfirmPassword ? (
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
-                      <line x1="1" y1="1" x2="23" y2="23"/>
-                    </svg>
-                  ) : (
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                      <circle cx="12" cy="12" r="3"/>
-                    </svg>
-                  )}
-                </button>
-              </div>
-            </div>
-
-            <button type="submit" className="auth-submit">
-              Konto erstellen
+            
+            <button type="submit" className="auth-submit" disabled={submitting}>
+              {submitting ? 'Wird angemeldet…' : 'Anmelden'}
             </button>
           </form>
 
-          {/* Social Login Divider */}
           <div className="auth-divider">
             <span>Oder fortfahren mit</span>
           </div>
 
-          {/* Social Buttons */}
           <div className="social-buttons">
-            <button type="button" className="social-button google">
+            <button type="button" className="social-button google" onClick={handleSocial}>
               <svg width="20" height="20" viewBox="0 0 48 48">
                 <path fill="#FFC107" d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12c0-6.627,5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24c0,11.045,8.955,20,20,20c11.045,0,20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z" />
                 <path fill="#FF3D00" d="M6.306,14.691l6.571,4.819C14.655,15.108,18.961,12,24,12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C16.318,4,9.656,8.337,6.306,14.691z" />
@@ -197,7 +157,7 @@ export default function Register() {
               </svg>
               Google
             </button>
-            <button type="button" className="social-button apple">
+            <button type="button" className="social-button apple" onClick={handleSocial}>
               <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/>
               </svg>
@@ -205,24 +165,22 @@ export default function Register() {
             </button>
           </div>
 
-          {/* Bottom Text */}
           <div className="auth-footer">
-            <span>Bereits ein Konto?</span>
-            <Link to="/login">Anmelden</Link>
+            <span>Noch kein Konto?</span>
+            <Link to="/register">Registrieren</Link>
           </div>
         </div>
 
-        {/* Right Side: Visual Panel */}
         <div className="auth-visual-panel">
           <div className="auth-visual-wrapper">
             <div className="auth-cutout-panel">
-              <div className="eyebrow light">Starten Sie Ihre Erfolgsgeschichte</div>
+              <div className="eyebrow light">Ihr Zugang zu qualifizierten Chancen</div>
               <h2>
-                Werden Sie Teil von VANTARO und{' '}
-                <span>transformieren Sie Ihren Vertrieb.</span>
+                Melden Sie sich an, um{' '}
+                <span>Ihr erfolgreiches Matching zu starten.</span>
               </h2>
               <p>
-                Erstellen Sie Ihr Konto und erhalten Sie Zugang zu qualifizierten Beratungschancen, exklusivem Matching und messbarem Follow-up in einer durchgängigen Strecke.
+                Greifen Sie auf Ihren personalisierten Makler-Workspace zu, verwalten Sie Ihre Leads und nutzen Sie unsere intelligente Matching-Infrastruktur für nachhaltigen Erfolg.
               </p>
               <div className="auth-cutout-actions">
                 <Link className="btn btn-primary" to="/">
@@ -230,9 +188,9 @@ export default function Register() {
                 </Link>
                 <a
                   className="btn btn-outline-light"
-                  href="mailto:rene.schirner@entriks.com?subject=VANTARO%20Registrierung"
+                  href="mailto:rene.schirner@entriks.com?subject=VANTARO%20Support"
                 >
-                  Fragen zur Registrierung <span className="arrow">↗</span>
+                  Support kontaktieren <span className="arrow">↗</span>
                 </a>
               </div>
             </div>

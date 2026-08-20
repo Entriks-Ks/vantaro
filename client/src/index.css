@@ -461,6 +461,40 @@ p + p {
 .nav-links a.is-active {
     color: var(--thread);
 }
+.nav-auth {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-left: 8px;
+}
+.nav-auth-link {
+    color: #d9e0ea;
+    font-family: var(--font-body);
+    font-size: 14px;
+    transition: color var(--transition);
+}
+.nav-auth-link::after {
+    display: none !important;
+}
+.nav-auth-link:hover {
+    color: var(--thread);
+}
+.nav-auth a::after {
+    display: none !important;
+}
+.nav-user {
+    max-width: 160px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 13px;
+    color: #c5d2e0;
+}
+.nav-auth-btn {
+    padding: 8px 16px;
+    font-size: 13px;
+    white-space: nowrap;
+}
 .nav-actions {
     display: flex;
     align-items: center;
@@ -3812,6 +3846,44 @@ body.auth-page {
     border: 1px solid rgba(255, 117, 90, 0.3);
 }
 
+.auth-success {
+    background: rgba(86, 211, 196, 0.14);
+    color: var(--thread);
+    padding: 12px 16px;
+    border-radius: 10px;
+    margin-bottom: 8px;
+    font-size: 14px;
+    text-align: center;
+    border: 1px solid rgba(86, 211, 196, 0.3);
+}
+
+.auth-code-input {
+    text-align: center;
+    letter-spacing: 0.42em;
+    font-size: 22px;
+    font-weight: 700;
+    font-family: var(--font-mono, var(--font-body));
+}
+
+.auth-resend {
+    margin-top: 8px;
+    background: transparent;
+    border: 0;
+    color: #8ea0b8;
+    font-size: 14px;
+    cursor: pointer;
+    font-family: var(--font-body);
+}
+
+.auth-resend:hover:not(:disabled) {
+    color: var(--thread);
+}
+
+.auth-resend:disabled {
+    cursor: not-allowed;
+    opacity: 0.65;
+}
+
 .auth-form {
     display: flex;
     flex-direction: column;
@@ -3852,6 +3924,11 @@ body.auth-page {
     border-color: var(--thread);
     background: rgba(7, 12, 22, 0.9);
     box-shadow: 0 0 0 3px rgba(86, 211, 196, 0.18);
+}
+
+.form-group input:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
 }
 
 .password-header {
@@ -3925,6 +4002,12 @@ body.auth-page {
     background: var(--thread-dark);
     transform: translateY(-1px);
     box-shadow: 0 16px 32px rgba(86, 211, 196, .40);
+}
+
+.auth-submit:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
+    transform: none;
 }
 
 .auth-submit.secondary {
@@ -4566,6 +4649,18 @@ body.cookie-open {
     }
     .nav-links a::after {
         display: none;
+    }
+    .nav-auth {
+        flex-direction: column;
+        align-items: stretch;
+        margin: 16px 0 0;
+        gap: 12px;
+    }
+    .nav-user {
+        max-width: none;
+    }
+    .nav-auth-btn {
+        text-align: center;
     }
     .nav-contact {
         display: none;

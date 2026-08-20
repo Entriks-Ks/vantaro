@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Menu, X } from 'lucide-react';
 import Brand from './Brand';
+import { useAuth } from '../hooks/useAuth';
 
 const LINKS = [
   { href: '#system', label: 'Das System' },
@@ -16,6 +18,7 @@ export default function Header({ solid = false }) {
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [active, setActive] = useState('');
+  const { user, logout } = useAuth();
 
   useEffect(() => {
     document.body.classList.toggle('menu-open', open);
@@ -105,6 +108,32 @@ export default function Header({ solid = false }) {
               {link.label}
             </a>
           ))}
+          <div className="nav-auth">
+            {user ? (
+              <>
+                <span className="nav-user">{user.fullName || user.email}</span>
+                <button
+                  type="button"
+                  className="btn btn-outline-light nav-auth-btn"
+                  onClick={async () => {
+                    close();
+                    await logout();
+                  }}
+                >
+                  Abmelden
+                </button>
+              </>
+            ) : (
+              <>
+                <Link to="/login" className="nav-auth-link" onClick={close}>
+                  Anmelden
+                </Link>
+                <Link to="/register" className="btn btn-primary nav-auth-btn" onClick={close}>
+                  Registrieren
+                </Link>
+              </>
+            )}
+          </div>
         </nav>
         <button
           type="button"

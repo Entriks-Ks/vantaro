@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
 import Header from './components/Header';
 import Hero from './components/Hero';
@@ -10,6 +10,9 @@ import Impressum from './pages/Impressum';
 import Datenschutz from './pages/Datenschutz';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import ForgotPassword from './pages/ForgotPassword';
+import VerifyEmail from './pages/VerifyEmail';
+import { AuthProvider } from './hooks/useAuth';
 import useSectionReveal from './hooks/useSectionReveal';
 
 function AppContent() {
@@ -18,8 +21,10 @@ function AppContent() {
   const isDatenschutz = location.hash === '#datenschutz' || location.pathname === '/datenschutz';
   const isLogin = location.pathname === '/login';
   const isRegister = location.pathname === '/register';
+  const isForgotPassword = location.pathname === '/forgot-password';
+  const isVerifyEmail = location.pathname === '/verify-email';
   const isLegal = isImpressum || isDatenschutz;
-  const isAuth = isLogin || isRegister;
+  const isAuth = isLogin || isRegister || isForgotPassword || isVerifyEmail;
 
   useSectionReveal([location.pathname, location.hash, isLegal]);
 
@@ -34,7 +39,11 @@ function AppContent() {
           ? 'Anmelden — VANTARO'
           : isRegister
             ? 'Registrieren — VANTARO'
-            : 'VANTARO — Qualifizierte Beratungschancen & Makler-Matching für Finanzdienstleister';
+            : isForgotPassword
+              ? 'Passwort zurücksetzen — VANTARO'
+              : isVerifyEmail
+                ? 'E-Mail bestätigen — VANTARO'
+                : 'VANTARO — Qualifizierte Beratungschancen & Makler-Matching für Finanzdienstleister';
 
     if (isLegal || isAuth) {
       window.scrollTo(0, 0);
@@ -51,7 +60,7 @@ function AppContent() {
       document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, 120);
     return () => window.clearTimeout(timer);
-  }, [location.pathname, location.hash, isLegal, isAuth, isImpressum, isDatenschutz, isLogin, isRegister]);
+  }, [location.pathname, location.hash, isLegal, isAuth, isImpressum, isDatenschutz, isLogin, isRegister, isForgotPassword, isVerifyEmail]);
 
   return (
     <>
@@ -59,6 +68,8 @@ function AppContent() {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/verify-email" element={<VerifyEmail />} />
         <Route path="*" element={
           <>
             <a className="skip-link" href="#inhalt">Zum Inhalt springen</a>
@@ -130,7 +141,9 @@ function AppContent() {
 export default function App() {
   return (
     <BrowserRouter>
-      <AppContent />
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
     </BrowserRouter>
   );
 }
