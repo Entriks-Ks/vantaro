@@ -1,7 +1,8 @@
 import { Router } from 'express';
-import { supabase, supabaseAuth } from '../lib/supabase.js';
 import { getBearerToken, mapAuthError, publicSession, publicUser, requireAuth } from '../lib/auth.js';
+import { getClientOrigin } from '../lib/clientOrigin.js';
 import { DEFAULT_ROLE } from '../lib/roles.js';
+import { supabase, supabaseAuth } from '../lib/supabase.js';
 import { createUserSession, ensureUserRole, findUserByEmail, isEmailVerified, revokeSession } from '../lib/users.js';
 import { issueVerificationCode, secondsUntilResend, verifyUserCode, verifyUserToken } from '../lib/verification.js';
 
@@ -281,7 +282,7 @@ router.post('/forgot-password', async (req, res) => {
     return res.status(400).json({ error: 'Bitte geben Sie eine gültige E-Mail-Adresse ein.' });
   }
 
-  const origin = process.env.CLIENT_ORIGIN || 'http://localhost:5173';
+  const origin = getClientOrigin();
   const { error } = await supabaseAuth.auth.resetPasswordForEmail(email, {
     redirectTo: `${origin}/login`,
   });

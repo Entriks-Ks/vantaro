@@ -1,3 +1,5 @@
+import { apiUrl } from './api';
+
 const STORAGE_KEY = 'vantaro-auth';
 
 function readStoredSession() {
@@ -31,7 +33,7 @@ async function parseAuthResponse(response) {
 }
 
 export async function loginRequest(email, password) {
-  const response = await fetch('/api/auth/login', {
+  const response = await fetch(apiUrl('/api/auth/login'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, password }),
@@ -42,7 +44,7 @@ export async function loginRequest(email, password) {
 }
 
 export async function registerRequest({ fullName, email, password }) {
-  const response = await fetch('/api/auth/register', {
+  const response = await fetch(apiUrl('/api/auth/register'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ fullName, email, password }),
@@ -51,7 +53,7 @@ export async function registerRequest({ fullName, email, password }) {
 }
 
 export async function verifyEmailRequest(email, code) {
-  const response = await fetch('/api/auth/verify-email', {
+  const response = await fetch(apiUrl('/api/auth/verify-email'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, code }),
@@ -62,7 +64,7 @@ export async function verifyEmailRequest(email, code) {
 }
 
 export async function verifyEmailTokenRequest(email, token) {
-  const response = await fetch('/api/auth/verify-email', {
+  const response = await fetch(apiUrl('/api/auth/verify-email'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, token }),
@@ -73,7 +75,7 @@ export async function verifyEmailTokenRequest(email, token) {
 }
 
 export async function resendVerificationRequest(email) {
-  const response = await fetch('/api/auth/resend-verification', {
+  const response = await fetch(apiUrl('/api/auth/resend-verification'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email }),
@@ -84,7 +86,7 @@ export async function resendVerificationRequest(email) {
 export async function logoutRequest() {
   const session = readStoredSession();
   try {
-    await fetch('/api/auth/logout', {
+    await fetch(apiUrl('/api/auth/logout'), {
       method: 'POST',
       headers: session?.access_token
         ? { Authorization: `Bearer ${session.access_token}` }
@@ -96,7 +98,7 @@ export async function logoutRequest() {
 }
 
 export async function forgotPasswordRequest(email) {
-  const response = await fetch('/api/auth/forgot-password', {
+  const response = await fetch(apiUrl('/api/auth/forgot-password'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email }),
@@ -106,7 +108,7 @@ export async function forgotPasswordRequest(email) {
 
 export async function updateProfileRequest(payload) {
   const session = readStoredSession();
-  const response = await fetch('/api/auth/profile', {
+  const response = await fetch(apiUrl('/api/auth/profile'), {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
@@ -125,7 +127,7 @@ export async function restoreSession() {
   const session = readStoredSession();
   if (!session?.access_token) return null;
 
-  const meResponse = await fetch('/api/auth/me', {
+  const meResponse = await fetch(apiUrl('/api/auth/me'), {
     headers: { Authorization: `Bearer ${session.access_token}` },
   });
 
@@ -137,7 +139,7 @@ export async function restoreSession() {
   }
 
   if (session.refresh_token) {
-    const refreshResponse = await fetch('/api/auth/refresh', {
+    const refreshResponse = await fetch(apiUrl('/api/auth/refresh'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ refresh_token: session.refresh_token }),
@@ -156,7 +158,7 @@ export async function restoreSession() {
 
 export async function fetchDashboard() {
   const session = readStoredSession();
-  const response = await fetch('/api/dashboard', {
+  const response = await fetch(apiUrl('/api/dashboard'), {
     headers: session?.access_token
       ? { Authorization: `Bearer ${session.access_token}` }
       : {},

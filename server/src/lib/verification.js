@@ -1,4 +1,5 @@
 import { createHash, randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
+import { getClientOrigin } from './clientOrigin.js';
 import { supabase } from './supabase.js';
 import { sendVerificationCodeEmail } from './mailer.js';
 
@@ -38,7 +39,7 @@ export function generateVerificationToken() {
 }
 
 export function clientOrigin() {
-  return String(process.env.CLIENT_ORIGIN || 'http://localhost:5173').replace(/\/$/, '');
+  return getClientOrigin();
 }
 
 export function getVerificationState(user) {
