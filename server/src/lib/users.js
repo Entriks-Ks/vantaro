@@ -113,12 +113,20 @@ export async function ensureUserRole(user) {
 }
 
 export function toDirectoryUser(user) {
+  const metadata = user.user_metadata || {};
+  const fullName = metadata.full_name
+    || `${metadata.first_name || ''} ${metadata.last_name || ''}`.trim();
+
   return {
     id: user.id,
     email: user.email,
-    fullName: user.user_metadata?.full_name || '',
+    fullName,
+    company: metadata.company || '',
+    customerNumber: metadata.customer_number || '',
+    phone: metadata.phone || '',
     role: getUserRole(user),
     verified: isEmailVerified(user),
+    onboardingComplete: metadata.onboarding_complete === true,
     createdAt: user.created_at || null,
   };
 }

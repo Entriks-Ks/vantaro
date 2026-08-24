@@ -11,6 +11,7 @@ import Datenschutz from './pages/Datenschutz';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
 import VerifyEmail from './pages/VerifyEmail';
 import Dashboard from './pages/Dashboard';
 import RequireAuth from './pages/RequireAuth';
@@ -25,10 +26,11 @@ function AppContent() {
   const isLogin = location.pathname === '/login';
   const isRegister = location.pathname === '/register';
   const isForgotPassword = location.pathname === '/forgot-password';
+  const isResetPassword = location.pathname === '/reset-password';
   const isVerifyEmail = location.pathname === '/verify-email';
   const isDashboard = location.pathname.startsWith('/dashboard');
   const isLegal = isImpressum || isDatenschutz;
-  const isAuth = isLogin || isRegister || isForgotPassword || isVerifyEmail;
+  const isAuth = isLogin || isRegister || isForgotPassword || isResetPassword || isVerifyEmail;
   const isAppShell = isAuth || isDashboard;
 
   useSectionReveal([location.pathname, location.hash, isLegal]);
@@ -47,6 +49,8 @@ function AppContent() {
             ? 'Registrieren — VANTARO'
             : isForgotPassword
               ? 'Passwort zurücksetzen — VANTARO'
+              : isResetPassword
+                ? 'Neues Passwort — VANTARO'
               : isVerifyEmail
                 ? 'E-Mail bestätigen — VANTARO'
                 : isDashboard
@@ -68,7 +72,7 @@ function AppContent() {
       document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, 120);
     return () => window.clearTimeout(timer);
-  }, [location.pathname, location.hash, isLegal, isAuth, isDashboard, isImpressum, isDatenschutz, isLogin, isRegister, isForgotPassword, isVerifyEmail]);
+  }, [location.pathname, location.hash, isLegal, isAuth, isDashboard, isImpressum, isDatenschutz, isLogin, isRegister, isForgotPassword, isResetPassword, isVerifyEmail]);
 
   return (
     <>
@@ -78,8 +82,10 @@ function AppContent() {
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/verify-email" element={<VerifyEmail />} />
         <Route path="/welcome" element={<Navigate to="/dashboard" replace />} />
+        <Route path="/onboarding" element={<Navigate to="/dashboard" replace />} />
         <Route
           path="/dashboard/*"
           element={(

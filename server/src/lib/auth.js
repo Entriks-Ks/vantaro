@@ -1,4 +1,5 @@
 import { supabase } from './supabase.js';
+import { hasCompletedOnboarding, readProfileFields } from './profile.js';
 import { getUserRole } from './roles.js';
 import { ensureUserRole, isEmailVerified } from './users.js';
 
@@ -6,25 +7,29 @@ export function publicUser(user) {
   if (!user) return null;
 
   const metadata = user.user_metadata || {};
-  const radiusKm = Number(metadata.radius_km);
-  const products = Array.isArray(metadata.products)
-    ? metadata.products
-    : String(metadata.products || '')
-        .split(',')
-        .map((item) => item.trim())
-        .filter(Boolean);
+  const profile = readProfileFields(metadata, user.email);
 
   return {
     id: user.id,
     email: user.email,
-    fullName: metadata.full_name || '',
+    firstName: profile.firstName,
+    lastName: profile.lastName,
+    fullName: profile.fullName,
+    phone: profile.phone,
+    avatarUrl: profile.avatarUrl,
     role: getUserRole(user),
-    onboardingComplete: metadata.onboarding_complete === true,
+    onboardingComplete: hasCompletedOnboarding(metadata),
+    customerNumber: profile.customerNumber,
     profile: {
-      company: metadata.company || '',
-      location: metadata.location || '',
-      radiusKm: Number.isFinite(radiusKm) && radiusKm > 0 ? radiusKm : 10,
-      products: products.length ? products : ['PKV', 'bAV', 'BU'],
+      company: profile.company,
+      legalForm: profile.legalForm,
+      businessAddress: profile.businessAddress,
+      billingAddress: profile.billingAddress,
+      billingSame: profile.billingSame,
+      website: profile.website,
+      location: profile.location,
+      radiusKm: profile.radiusKm,
+      products: profile.products,
     },
   };
 }

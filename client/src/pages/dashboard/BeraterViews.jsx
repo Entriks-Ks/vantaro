@@ -1,6 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import PhoneField, { isValidMobile } from '../../components/PhoneField';
 import { useAuth } from '../../hooks/useAuth';
 import { useBroker } from '../../hooks/useBroker';
+import { LEGAL_FORMS, fileToAvatarDataUrl, formatAddress } from '../../lib/profile';
 import { formatEuroExact } from './helpers';
 import { formatDistance, LEADS, PRODUCT_FILTERS } from './leads';
 
@@ -129,41 +131,112 @@ export function BeraterPayments() {
   );
 }
 
+function profileForm(user) {
+  const business = user?.profile?.businessAddress || {};
+  const billing = user?.profile?.billingAddress || {};
+  return {
+    firstName: user?.firstName || '',
+    lastName: user?.lastName || '',
+    phone: user?.phone || '',
+    company: user?.profile?.company || '',
+    legalForm: user?.profile?.legalForm || '',
+    businessStreet: business.street || '',
+    businessZip: business.zip || '',
+    businessCity: business.city || '',
+    billingSame: user?.profile?.billingSame !== false,
+    billingStreet: billing.street || '',
+    billingZip: billing.zip || '',
+    billingCity: billing.city || '',
+    website: user?.profile?.website || '',
+    avatarUrl: user?.avatarUrl || '',
+    password: '',
+    confirmPassword: '',
+  };
+}
+
 export function BeraterProfile() {
-  const { user, updateProfile } = useAuth();
+  const { user, updateProfile, isAdmin } = useAuth();
   const { showToast } = useBroker();
-  const [fullName, setFullName] = useState(user?.fullName || '');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
+  const [form, setForm] = useState(() => profileForm(user));
   const [showPassword, setShowPassword] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [avatarName, setAvatarName] = useState('');
+
+  useEffect(() => {
+    setForm(profileForm(user));
+    setAvatarName('');
+  }, [user]);
+
+  const handleChange = (event) => {
+    const { name, value, type, checked } = event.target;
+    setForm((prev) => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
+  };
+
+  const handleAvatar = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    try {
+      const avatarUrl = await fileToAvatarDataUrl(file);
+      setForm((prev) => ({ ...prev, avatarUrl }));
+      setAvatarName(file.name);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      event.target.value = '';
+    }
+  };
 
   const save = async (event) => {
     event.preventDefault();
     setError('');
 
-    if (!fullName.trim() || fullName.trim().length < 2) {
-      setError('Bitte geben Sie Ihren Namen an.');
+    if (!form.firstName.trim() || form.firstName.trim().length < 2) {
+      setError('Bitte geben Sie Ihren Vornamen an.');
       return;
     }
-    if (password && password.length < 8) {
+    if (!form.lastName.trim() || form.lastName.trim().length < 2) {
+      setError('Bitte geben Sie Ihren Nachnamen an.');
+      return;
+    }
+    if (!isValidMobile(form.phone)) {
+      setError('Bitte geben Sie eine gültige Telefonnummer an.');
+      return;
+    }
+    if (!isAdmin) {
+      if (!form.company.trim() || !form.legalForm) {
+        setError('Firmenname und Rechtsform sind erforderlich.');
+        return;
+      }
+      if (!form.businessStreet.trim() || !form.businessZip.trim() || !form.businessCity.trim()) {
+        setError('Bitte geben Sie die vollständige Geschäftsadresse an.');
+        return;
+      }
+      if (!form.billingSame) {
+        if (!form.billingStreet.trim() || !form.billingZip.trim() || !form.billingCity.trim()) {
+          setError('Bitte geben Sie die vollständige Rechnungsadresse an.');
+          return;
+        }
+      }
+    }
+    if (form.password && form.password.length < 8) {
       setError('Passwort muss mindestens 8 Zeichen lang sein.');
       return;
     }
-    if (password !== confirmPassword) {
+    if (form.password !== form.confirmPassword) {
       setError('Die Passwörter stimmen nicht überein.');
       return;
     }
 
     setSaving(true);
     try {
+      const { password, confirmPassword, ...rest } = form;
       await updateProfile({
-        fullName: fullName.trim(),
+        ...rest,
         ...(password ? { password } : {}),
       });
-      setPassword('');
-      setConfirmPassword('');
+      setForm((prev) => ({ ...prev, password: '', confirmPassword: '' }));
+      setAvatarName('');
       showToast(password ? 'Profil und Passwort gespeichert' : 'Profil gespeichert');
     } catch (err) {
       setError(err.message);
@@ -177,36 +250,107 @@ export function BeraterProfile() {
       <div className="broker-heading">
         <div>
           <div className="broker-eyebrow">Einstellungen</div>
-          <h1>Profil</h1>
-          <p>Name, E-Mail und Passwort — mehr braucht Ihr Konto nicht.</p>
+          <h1>Profil &amp; Stammdaten</h1>
+          <p>
+            {isAdmin
+              ? 'Admin-Konto: Name, Telefon und Passwort. Unternehmensdaten sind optional.'
+              : user?.onboardingComplete
+                ? 'Ansprechpartner, Unternehmen und Erreichbarkeit für Ihr Maklerkonto.'
+                : 'Ergänzen Sie Telefon, Firma und Adresse — danach ist Ihr Konto vollständig.'}
+          </p>
         </div>
       </div>
 
-      <form className="broker-panel broker-settings" onSubmit={save}>
-        <h2>Kontodaten</h2>
+      <form className="broker-panel broker-settings broker-settings--wide" onSubmit={save}>
+        <h2>Benutzerkonto und Ansprechpartner</h2>
         {error && <div className="broker-alert">{error}</div>}
+
+        <div className="broker-avatar-edit">
+          <div className="broker-avatar-preview" aria-hidden="true">
+            {form.avatarUrl ? (
+              <img src={form.avatarUrl} alt="" />
+            ) : (
+              <span>
+                {(form.firstName[0] || '').toUpperCase()}
+                {(form.lastName[0] || '').toUpperCase()}
+              </span>
+            )}
+          </div>
+          <div>
+            <span className="broker-field-label">Profilbild</span>
+            <label className="broker-file-btn" htmlFor="profile-avatar">
+              <input
+                id="profile-avatar"
+                type="file"
+                accept="image/*"
+                onChange={handleAvatar}
+                disabled={saving}
+              />
+              <span>Bild auswählen</span>
+              <small>{avatarName || (form.avatarUrl ? 'Aktuelles Bild behalten' : 'Optional')}</small>
+            </label>
+            {form.avatarUrl ? (
+              <button
+                type="button"
+                className="broker-text-btn"
+                onClick={() => {
+                  setForm((prev) => ({ ...prev, avatarUrl: '' }));
+                  setAvatarName('');
+                }}
+                disabled={saving}
+              >
+                Bild entfernen
+              </button>
+            ) : null}
+          </div>
+        </div>
+
         <div className="broker-form-grid">
           <label>
-            Name
+            Vorname
             <input
-              value={fullName}
-              onChange={(event) => setFullName(event.target.value)}
-              autoComplete="name"
+              name="firstName"
+              value={form.firstName}
+              onChange={handleChange}
+              autoComplete="given-name"
               disabled={saving}
               required
             />
           </label>
           <label>
-            E-Mail-Adresse
+            Nachname
+            <input
+              name="lastName"
+              value={form.lastName}
+              onChange={handleChange}
+              autoComplete="family-name"
+              disabled={saving}
+              required
+            />
+          </label>
+          <label className="is-full">
+            Geschäftliche E-Mail-Adresse
             <input type="email" value={user?.email || ''} autoComplete="email" disabled />
+          </label>
+          <label className="is-full">
+            Mobilnummer / geschäftliche Telefonnummer
+            <PhoneField
+              id="profile-phone"
+              value={form.phone}
+              onChange={(phone) => setForm((prev) => ({ ...prev, phone }))}
+              disabled={saving}
+              required
+              className="vantaro-phone-input--light"
+            />
           </label>
           <label>
             Neues Passwort
             <div className="password-input-wrapper">
               <input
                 type={showPassword ? 'text' : 'password'}
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
+                name="password"
+                value={form.password}
+                onChange={handleChange}
                 autoComplete="new-password"
                 placeholder="Unverändert lassen"
                 disabled={saving}
@@ -235,14 +379,152 @@ export function BeraterProfile() {
             Passwort bestätigen
             <input
               type={showPassword ? 'text' : 'password'}
-              value={confirmPassword}
-              onChange={(event) => setConfirmPassword(event.target.value)}
+              name="confirmPassword"
+              value={form.confirmPassword}
+              onChange={handleChange}
               autoComplete="new-password"
               placeholder="Nur bei Änderung"
               disabled={saving}
             />
           </label>
         </div>
+
+        <h2>Unternehmens- und Maklerdaten{isAdmin ? ' (optional)' : ''}</h2>
+        {user?.customerNumber ? (
+          <p className="broker-customer-number">
+            Interne VANTARO-Kundennummer: <strong>{user.customerNumber}</strong>
+          </p>
+        ) : null}
+
+        <div className="broker-form-grid">
+          <label className="is-full">
+            Firmenname
+            <input
+              name="company"
+              value={form.company}
+              onChange={handleChange}
+              autoComplete="organization"
+              disabled={saving}
+              required={!isAdmin}
+            />
+          </label>
+          <label className="is-full">
+            Rechtsform
+            <select
+              name="legalForm"
+              value={form.legalForm}
+              onChange={handleChange}
+              disabled={saving}
+              required={!isAdmin}
+            >
+              <option value="">Bitte wählen</option>
+              {LEGAL_FORMS.map((formName) => (
+                <option key={formName} value={formName}>
+                  {formName}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="is-full">
+            Geschäftsadresse
+            <input
+              name="businessStreet"
+              value={form.businessStreet}
+              onChange={handleChange}
+              placeholder="Straße und Hausnummer"
+              disabled={saving}
+              required={!isAdmin}
+            />
+          </label>
+          <label>
+            PLZ
+            <input
+              name="businessZip"
+              value={form.businessZip}
+              onChange={handleChange}
+              disabled={saving}
+              required={!isAdmin}
+            />
+          </label>
+          <label>
+            Ort
+            <input
+              name="businessCity"
+              value={form.businessCity}
+              onChange={handleChange}
+              disabled={saving}
+              required={!isAdmin}
+            />
+          </label>
+          <label className="is-full broker-check">
+            <input
+              type="checkbox"
+              name="billingSame"
+              checked={form.billingSame}
+              onChange={handleChange}
+              disabled={saving}
+            />
+            Rechnungsadresse entspricht der Geschäftsadresse
+          </label>
+          {!form.billingSame && (
+            <>
+              <label className="is-full">
+                Rechnungsadresse
+                <input
+                  name="billingStreet"
+                  value={form.billingStreet}
+                  onChange={handleChange}
+                  placeholder="Straße und Hausnummer"
+                  disabled={saving}
+                  required={!isAdmin}
+                />
+              </label>
+              <label>
+                PLZ
+                <input
+                  name="billingZip"
+                  value={form.billingZip}
+                  onChange={handleChange}
+                  disabled={saving}
+                  required={!isAdmin}
+                />
+              </label>
+              <label>
+                Ort
+                <input
+                  name="billingCity"
+                  value={form.billingCity}
+                  onChange={handleChange}
+                  disabled={saving}
+                  required={!isAdmin}
+                />
+              </label>
+            </>
+          )}
+          <label className="is-full">
+            Website
+            <input
+              name="website"
+              type="url"
+              value={form.website}
+              onChange={handleChange}
+              placeholder="https://www.beispiel.de"
+              disabled={saving}
+            />
+          </label>
+        </div>
+
+        {(form.businessStreet || form.businessZip || form.businessCity) ? (
+          <p className="broker-muted-note">
+            Aktuelle Geschäftsadresse:{' '}
+            {formatAddress({
+              street: form.businessStreet,
+              zip: form.businessZip,
+              city: form.businessCity,
+            })}
+          </p>
+        ) : null}
+
         <button type="submit" className="broker-save" disabled={saving}>
           {saving ? 'Wird gespeichert…' : 'Profil speichern'}
         </button>

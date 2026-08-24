@@ -22,7 +22,7 @@ export default function ForgotPassword() {
     setSubmitting(true);
     try {
       const result = await forgotPassword(email);
-      setMessage(result.message);
+      setMessage(result.message || 'Bitte öffnen Sie den Link in der E-Mail.');
     } catch (err) {
       setError(err.message);
     } finally {
@@ -32,6 +32,25 @@ export default function ForgotPassword() {
 
   return (
     <section className="auth-page" id="inhalt">
+      <svg width="0" height="0" style={{ position: 'absolute', pointerEvents: 'none' }}>
+        <defs>
+          <clipPath id="auth-shape-clip" clipPathUnits="objectBoundingBox">
+            <path d="M 0.40,0 
+                     C 0.43,0 0.92,0 0.94,0 
+                     C 0.98,0 1,0.02 1,0.06 
+                     L 1,0.94 
+                     C 1,0.98 0.98,1 0.94,1 
+                     L 0.06,1 
+                     C 0.02,1 0,0.98 0,0.94 
+                     L 0,0.18 
+                     C 0,0.14 0.02,0.12 0.06,0.12 
+                     L 0.28,0.12 
+                     C 0.33,0.12 0.35,0.08 0.36,0.04 
+                     C 0.37,0.01 0.38,0 0.42,0 Z" />
+          </clipPath>
+        </defs>
+      </svg>
+
       <div className="auth-layout wrap">
         <div className="auth-form-container">
           <div className="auth-logo">
@@ -73,6 +92,32 @@ export default function ForgotPassword() {
           <div className="auth-footer">
             <span>Zurück zur</span>
             <Link to="/login">Anmeldung</Link>
+          </div>
+        </div>
+
+        <div className="auth-visual-panel">
+          <div className="auth-visual-wrapper">
+            <div className="auth-cutout-panel">
+              <div className="eyebrow light">Sicherer Zugang zu Ihrem Konto</div>
+              <h2>
+                Setzen Sie Ihr Passwort zurück und{' '}
+                <span>kehren Sie zu Ihrem Workspace zurück.</span>
+              </h2>
+              <p>
+                Wir senden Ihnen einen sicheren Link per E-Mail. Mit einem Klick legen Sie Ihr neues Passwort fest.
+              </p>
+              <div className="auth-cutout-actions">
+                <Link className="btn btn-primary" to="/">
+                  Zurück zur Startseite <span className="arrow">←</span>
+                </Link>
+                <a
+                  className="btn btn-outline-light"
+                  href="mailto:rene.schirner@entriks.com?subject=VANTARO%20Support"
+                >
+                  Support kontaktieren <span className="arrow">↗</span>
+                </a>
+              </div>
+            </div>
           </div>
         </div>
       </div>

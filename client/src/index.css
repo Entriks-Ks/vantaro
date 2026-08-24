@@ -3968,6 +3968,179 @@ body.auth-page {
     cursor: not-allowed;
 }
 
+.vantaro-phone-input {
+    display: flex;
+    align-items: stretch;
+    width: 100%;
+    min-height: 44px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 10px;
+    background: rgba(7, 12, 22, 0.65);
+    overflow: hidden;
+}
+
+.vantaro-phone-input:focus-within {
+    border-color: var(--thread);
+    background: rgba(7, 12, 22, 0.9);
+    box-shadow: 0 0 0 3px rgba(86, 211, 196, 0.18);
+}
+
+.vantaro-phone-input .PhoneInputCountry {
+    position: relative;
+    align-self: stretch;
+    margin: 0;
+    padding: 0 12px;
+    border-right: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.vantaro-phone-input .PhoneInputCountryIcon {
+    width: 22px;
+    height: 16px;
+    box-shadow: none;
+    border-radius: 2px;
+    overflow: hidden;
+    background: transparent;
+}
+
+.vantaro-phone-input .PhoneInputCountryIcon--border {
+    box-shadow: none;
+    background: transparent;
+    border: 0;
+}
+
+.vantaro-phone-input .PhoneInputCountrySelect {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    cursor: pointer;
+    border: 0;
+    background: transparent;
+    color: transparent;
+    font-size: 0;
+}
+
+.vantaro-phone-input .PhoneInputCountrySelectArrow {
+    width: 6px;
+    height: 6px;
+    margin-left: 6px;
+    border-color: #8ea0b8;
+    opacity: 1;
+}
+
+.vantaro-phone-input .PhoneInputInput {
+    flex: 1;
+    min-width: 0;
+    height: 44px;
+    border: none !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    color: var(--white);
+    font-size: 14px;
+    font-family: var(--font-body);
+    padding: 0 12px;
+}
+
+.vantaro-phone-input .PhoneInputInput::placeholder {
+    color: #64748b;
+}
+
+.vantaro-phone-input .PhoneInputInput:focus {
+    outline: none;
+}
+
+.vantaro-phone-input--light {
+    border: 1px solid var(--line);
+    background: white;
+    border-radius: 8px;
+}
+
+.vantaro-phone-input--light:focus-within {
+    border-color: var(--signal);
+    background: white;
+    box-shadow: 0 0 0 3px rgba(255, 117, 90, 0.12);
+}
+
+.vantaro-phone-input--light .PhoneInputCountry {
+    border-right: 1px solid var(--line);
+    background: #f8fafc;
+}
+
+.vantaro-phone-input--light .PhoneInputCountrySelectArrow {
+    border-color: #64748b;
+}
+
+.vantaro-phone-input--light .PhoneInputInput {
+    color: var(--ink);
+    font-size: 16px;
+    padding: 0 11px;
+}
+
+.broker-form-grid .vantaro-phone-input,
+.broker-form-grid .vantaro-phone-input input,
+.broker-form-grid .vantaro-phone-input select {
+    border: none;
+    box-shadow: none;
+    background: transparent;
+    padding: 0;
+    border-radius: 0;
+    font-size: inherit;
+}
+
+.broker-form-grid .vantaro-phone-input {
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: white;
+    padding: 0;
+    min-height: 46px;
+}
+
+.broker-form-grid .vantaro-phone-input .PhoneInputInput {
+    padding: 0 11px !important;
+    height: 46px;
+    font-size: 16px;
+}
+
+.broker-file-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 6px;
+}
+
+.broker-file-btn input[type="file"] {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    overflow: hidden;
+}
+
+.broker-file-btn span {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 36px;
+    padding: 0 14px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: #f8fafc;
+    color: var(--ink);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.broker-file-btn small {
+    color: #64748b;
+    font-size: 12px;
+    font-weight: 500;
+}
+
 .password-header {
     display: flex;
     justify-content: space-between;
@@ -4129,6 +4302,427 @@ body.auth-page {
     grid-template-columns: 1fr 1fr;
     gap: 12px;
     margin-top: 8px;
+}
+
+.auth-form-container--wide {
+    max-width: 520px;
+}
+
+.auth-optional {
+    color: #8ea0b8;
+    font-weight: 500;
+}
+
+.auth-hint {
+    margin: 6px 0 0;
+    font-size: 12px;
+    color: #8ea0b8;
+    line-height: 1.4;
+}
+
+.stammdaten-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 80;
+    display: grid;
+    place-items: center;
+    padding: 24px;
+}
+
+.stammdaten-modal__backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.55);
+    backdrop-filter: blur(6px);
+}
+
+.stammdaten-modal__panel {
+    position: relative;
+    z-index: 1;
+    width: min(440px, 100%);
+    max-height: min(92vh, 860px);
+    overflow: auto;
+    background: #fff;
+    color: var(--ink);
+    border-radius: 20px;
+    box-shadow: 0 28px 70px rgba(15, 23, 42, 0.28);
+    padding: 22px 22px 20px;
+}
+
+.stammdaten-modal__top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 18px;
+}
+
+.stammdaten-modal__badge {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    display: grid;
+    place-items: center;
+    background: rgba(86, 211, 196, 0.18);
+    color: #0f766e;
+    font-size: 18px;
+    font-weight: 800;
+}
+
+.stammdaten-modal__close,
+.stammdaten-modal__back {
+    border: 0;
+    background: transparent;
+    color: #64748b;
+    cursor: pointer;
+    padding: 6px;
+    border-radius: 8px;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.stammdaten-modal__close:hover,
+.stammdaten-modal__back:hover {
+    background: #f1f5f9;
+    color: var(--ink);
+}
+
+.stammdaten-modal__head h2 {
+    margin: 0 0 8px;
+    font-size: 26px;
+    line-height: 1.15;
+    letter-spacing: -0.02em;
+    color: #0f172a;
+}
+
+.stammdaten-modal__head p {
+    margin: 0;
+    color: #64748b;
+    font-size: 14px;
+    line-height: 1.55;
+}
+
+.stammdaten-checklist {
+    list-style: none;
+    margin: 22px 0 18px;
+    padding: 0;
+    display: grid;
+    gap: 10px;
+}
+
+.stammdaten-check {
+    width: 100%;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    text-align: left;
+    border: 1px solid #e8eef5;
+    background: #f8fafc;
+    border-radius: 14px;
+    padding: 12px 14px;
+    cursor: pointer;
+    transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease;
+}
+
+.stammdaten-check:hover {
+    background: #fff;
+    border-color: #cfe8e3;
+    transform: translateY(-1px);
+}
+
+.stammdaten-check__icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    background: rgba(86, 211, 196, 0.16);
+    color: #0f766e;
+}
+
+.stammdaten-check__copy {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+}
+
+.stammdaten-check__copy strong {
+    font-size: 14px;
+    color: #0f172a;
+    font-weight: 700;
+}
+
+.stammdaten-check__copy small {
+    font-size: 12px;
+    line-height: 1.45;
+    color: #64748b;
+}
+
+.stammdaten-modal__primary {
+    width: 100%;
+    min-height: 48px;
+    border: 0;
+    border-radius: 12px;
+    background: #0f766e;
+    color: #fff;
+    font-weight: 700;
+    font-size: 15px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    box-shadow: 0 10px 24px rgba(15, 118, 110, 0.28);
+}
+
+.stammdaten-modal__primary:hover {
+    background: #0d9488;
+}
+
+.stammdaten-modal__primary:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
+    box-shadow: none;
+}
+
+.stammdaten-modal__later {
+    display: block;
+    width: 100%;
+    margin-top: 12px;
+    border: 0;
+    background: transparent;
+    color: #0f172a;
+    font: inherit;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    padding: 8px;
+}
+
+.stammdaten-modal__later:hover {
+    color: #0f766e;
+}
+
+.stammdaten-modal__error {
+    margin-top: 14px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: #fff1ee;
+    color: #b42318;
+    font-size: 13px;
+}
+
+.stammdaten-modal__form {
+    display: grid;
+    gap: 16px;
+    margin-top: 18px;
+}
+
+.stammdaten-section {
+    display: grid;
+    gap: 12px;
+    padding: 14px;
+    border: 1px solid #e8eef5;
+    border-radius: 14px;
+    background: #f8fafc;
+}
+
+.stammdaten-section h3 {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 700;
+    color: #0f766e;
+}
+
+.stammdaten-modal__form label {
+    display: grid;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #334155;
+}
+
+.stammdaten-modal__form label span {
+    font-weight: 500;
+    color: #94a3b8;
+}
+
+.stammdaten-modal__form input,
+.stammdaten-modal__form select {
+    width: 100%;
+    height: 44px;
+    border: 1px solid #dbe4ef;
+    border-radius: 10px;
+    padding: 0 12px;
+    background: #fff;
+    color: var(--ink);
+    font: inherit;
+    font-size: 15px;
+    font-weight: 500;
+}
+
+.stammdaten-modal__form .vantaro-phone-input,
+.stammdaten-modal__form .vantaro-phone-input input,
+.stammdaten-modal__form .vantaro-phone-input select {
+    border: none;
+    box-shadow: none;
+    background: transparent;
+    padding: 0;
+    border-radius: 0;
+}
+
+.stammdaten-modal__form .vantaro-phone-input {
+    border: 1px solid #dbe4ef;
+    border-radius: 10px;
+    background: #fff;
+    min-height: 44px;
+}
+
+.stammdaten-modal__form .vantaro-phone-input .PhoneInputCountrySelect {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    font-size: 0;
+    color: transparent;
+}
+
+.stammdaten-modal__form .vantaro-phone-input .PhoneInputInput {
+    height: 44px;
+    padding: 0 12px !important;
+}
+
+.stammdaten-modal__row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+.stammdaten-modal__check {
+    display: flex !important;
+    align-items: center;
+    gap: 10px;
+    font-weight: 500 !important;
+}
+
+.stammdaten-modal__check input {
+    width: auto;
+    height: auto;
+}
+
+@media (max-width: 640px) {
+    .stammdaten-modal {
+        padding: 12px;
+    }
+
+    .stammdaten-modal__panel {
+        width: 100%;
+        padding: 18px 16px;
+        border-radius: 16px;
+    }
+
+    .stammdaten-modal__head h2 {
+        font-size: 22px;
+    }
+
+    .stammdaten-modal__row {
+        grid-template-columns: 1fr;
+    }
+}
+
+.auth-steps {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin: 0 0 8px;
+}
+
+.auth-steps span {
+    height: 4px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.12);
+}
+
+.auth-steps span.is-active,
+.auth-steps span.is-done {
+    background: var(--thread);
+}
+
+.auth-step-labels {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin: 0 0 16px;
+    font-size: 12px;
+    color: #8ea0b8;
+}
+
+.auth-step-labels strong {
+    display: block;
+    color: #d7e1ee;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.auth-step-labels .is-active strong {
+    color: var(--thread);
+}
+
+.auth-avatar-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.auth-avatar-preview,
+.broker-avatar-preview {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    overflow: hidden;
+    display: grid;
+    place-items: center;
+    background: rgba(86, 211, 196, 0.16);
+    color: var(--thread);
+    font-weight: 700;
+    flex-shrink: 0;
+}
+
+.auth-avatar-preview img,
+.broker-avatar-preview img,
+.dash-avatar img,
+.broker-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.auth-text-button {
+    background: none;
+    border: none;
+    color: var(--thread);
+    cursor: pointer;
+    font: inherit;
+    padding: 0;
+}
+
+.auth-text-button:hover {
+    text-decoration: underline;
+}
+
+.auth-page .form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+@media (max-width: 640px) {
+    .auth-page .form-row,
+    .auth-step-buttons {
+        grid-template-columns: 1fr;
+    }
 }
 
 .auth-divider {
@@ -5513,6 +6107,7 @@ body.dashboard-page:has(.broker) {
     width: 36px;
     height: 36px;
     border-radius: 50%;
+    overflow: hidden;
     background: #5b6d82;
     color: #f3f7ff;
     font-size: 11px;
@@ -6046,6 +6641,7 @@ body.dashboard-page:has(.broker) {
     background: #5b6d82;
     color: #f3f7ff;
     border-radius: 50%;
+    overflow: hidden;
     display: grid;
     place-items: center;
     font-family: var(--font-heading);
@@ -6436,6 +7032,59 @@ body.dashboard-page:has(.broker) {
 .broker-settings {
     max-width: 650px;
     padding: 24px;
+}
+.broker-settings--wide {
+    max-width: 760px;
+}
+.broker-avatar-edit {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-top: 16px;
+}
+.broker-avatar-preview {
+    background: #eef6f4;
+    color: #0f766e;
+}
+.broker-text-btn {
+    display: block;
+    margin-top: 8px;
+    background: none;
+    border: none;
+    color: #0f766e;
+    cursor: pointer;
+    padding: 0;
+    font: inherit;
+    font-size: 13px;
+}
+.broker-field-label {
+    display: block;
+    font-size: 14px;
+    font-weight: 600;
+    font-family: var(--font-body);
+}
+.broker-customer-number {
+    margin: 12px 0 0;
+    font-size: 14px;
+    color: #475569;
+}
+.broker-settings .password-toggle {
+    color: #64748b;
+}
+.broker-check {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center;
+    gap: 10px !important;
+    font-weight: 500 !important;
+}
+.broker-check input {
+    width: auto;
+}
+.broker-muted-note {
+    margin: 16px 0 0;
+    font-size: 13px;
+    color: #64748b;
 }
 .broker-form-grid {
     display: grid;

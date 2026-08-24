@@ -1,7 +1,20 @@
 import { Router } from 'express';
 import { getBearerToken, mapAuthError, publicSession, publicUser, requireAuth } from '../lib/auth.js';
-import { getClientOrigin } from '../lib/clientOrigin.js';
-import { DEFAULT_ROLE } from '../lib/roles.js';
+import { hasCustomMailer } from '../lib/mailer.js';
+import {
+  issuePasswordReset,
+  resetPasswordWithToken,
+  secondsUntilPasswordResetResend,
+} from '../lib/passwordReset.js';
+import {
+  buildMetadataPatch,
+  normalizePhone,
+  readProfileFields,
+  validateAccountFields,
+  validateCompanyFields,
+  validatePassword,
+} from '../lib/profile.js';
+import { DEFAULT_ROLE, isAdmin } from '../lib/roles.js';
 import { supabase, supabaseAuth } from '../lib/supabase.js';
 import { createUserSession, ensureUserRole, findUserByEmail, isEmailVerified, revokeSession } from '../lib/users.js';
 import { issueVerificationCode, secondsUntilResend, verifyUserCode, verifyUserToken } from '../lib/verification.js';
@@ -27,18 +40,33 @@ function verificationResponse(email) {
 router.use(requireSupabase);
 
 router.post('/register', async (req, res) => {
-  const fullName = String(req.body?.fullName ?? '').trim();
+  const firstName = String(req.body?.firstName ?? '').trim();
+  const lastName = String(req.body?.lastName ?? '').trim();
+  const legacyFullName = String(req.body?.fullName ?? '').trim();
   const email = String(req.body?.email ?? '').trim().toLowerCase();
   const password = String(req.body?.password ?? '');
 
-  if (!fullName || !email || !password) {
-    return res.status(400).json({ error: 'Name, E-Mail und Passwort sind erforderlich.' });
+  const resolvedFirst = firstName || legacyFullName.split(/\s+/)[0] || '';
+  const resolvedLast = lastName || legacyFullName.split(/\s+/).slice(1).join(' ') || '';
+  const fullName = `${resolvedFirst} ${resolvedLast}`.trim() || legacyFullName;
+
+  if (!email || !password) {
+    return res.status(400).json({ error: 'E-Mail und Passwort sind erforderlich.' });
+  }
+  const accountErrors = validateAccountFields({
+    firstName: resolvedFirst,
+    lastName: resolvedLast,
+    requirePhone: false,
+  });
+  if (accountErrors.length) {
+    return res.status(400).json({ error: accountErrors[0] });
   }
   if (!EMAIL_PATTERN.test(email)) {
     return res.status(400).json({ error: 'Bitte geben Sie eine gültige E-Mail-Adresse ein.' });
   }
-  if (password.length < 8) {
-    return res.status(400).json({ error: 'Passwort muss mindestens 8 Zeichen lang sein.' });
+  const passwordError = validatePassword(password);
+  if (passwordError) {
+    return res.status(400).json({ error: passwordError });
   }
 
   try {
@@ -63,7 +91,13 @@ router.post('/register', async (req, res) => {
       email,
       password,
       email_confirm: false,
-      user_metadata: { full_name: fullName, email_verified: false },
+      user_metadata: {
+        first_name: resolvedFirst,
+        last_name: resolvedLast,
+        full_name: fullName,
+        email_verified: false,
+        onboarding_complete: false,
+      },
       app_metadata: { role: DEFAULT_ROLE },
     });
 
@@ -213,21 +247,70 @@ router.post('/logout', async (req, res) => {
 });
 
 router.put('/profile', requireAuth, async (req, res) => {
-  const fullName = String(req.body?.fullName ?? req.authUser.user_metadata?.full_name ?? '').trim();
   const password = String(req.body?.password ?? '');
+  const completeOnboarding = req.body?.completeOnboarding === true;
+  const existing = req.authUser.user_metadata || {};
+  const current = readProfileFields(existing, req.authUser.email);
 
-  if (!fullName || fullName.length < 2) {
-    return res.status(400).json({ error: 'Bitte geben Sie Ihren Namen an.' });
+  const firstName = String(req.body?.firstName ?? current.firstName).trim();
+  const lastName = String(req.body?.lastName ?? current.lastName).trim();
+  const phone = normalizePhone(req.body?.phone ?? current.phone);
+
+  const accountErrors = validateAccountFields({ firstName, lastName, phone });
+  if (accountErrors.length) {
+    return res.status(400).json({ error: accountErrors[0] });
   }
+
+  const companyPayload = {
+    company: req.body?.company ?? current.company,
+    legalForm: req.body?.legalForm ?? current.legalForm,
+    businessStreet: req.body?.businessStreet
+      ?? req.body?.businessAddress?.street
+      ?? current.businessAddress.street,
+    businessZip: req.body?.businessZip
+      ?? req.body?.businessAddress?.zip
+      ?? current.businessAddress.zip,
+    businessCity: req.body?.businessCity
+      ?? req.body?.businessAddress?.city
+      ?? current.businessAddress.city,
+    billingSame: req.body?.billingSame ?? current.billingSame,
+    billingStreet: req.body?.billingStreet
+      ?? req.body?.billingAddress?.street
+      ?? current.billingAddress.street,
+    billingZip: req.body?.billingZip
+      ?? req.body?.billingAddress?.zip
+      ?? current.billingAddress.zip,
+    billingCity: req.body?.billingCity
+      ?? req.body?.billingAddress?.city
+      ?? current.billingAddress.city,
+    website: req.body?.website ?? current.website,
+    avatarUrl: req.body?.avatarUrl === undefined ? current.avatarUrl : req.body.avatarUrl,
+    firstName,
+    lastName,
+    phone,
+  };
+
+  const companyTouched = completeOnboarding
+    || req.body?.company !== undefined
+    || req.body?.legalForm !== undefined
+    || req.body?.businessStreet !== undefined;
+  const companyErrors = validateCompanyFields(companyPayload);
+  const stammdatenReady = companyErrors.length === 0;
+  const adminUser = isAdmin(req.authUser);
+
+  if (companyTouched && !stammdatenReady && !adminUser) {
+    return res.status(400).json({ error: companyErrors[0] });
+  }
+
   if (password && password.length < 8) {
     return res.status(400).json({ error: 'Passwort muss mindestens 8 Zeichen lang sein.' });
   }
 
   const updates = {
-    user_metadata: {
-      ...(req.authUser.user_metadata || {}),
-      full_name: fullName,
-    },
+    user_metadata: buildMetadataPatch(existing, companyPayload, {
+      userId: req.authUser.id,
+      completeOnboarding: adminUser || stammdatenReady || existing.onboarding_complete === true,
+    }),
   };
   if (password) updates.password = password;
 
@@ -282,19 +365,114 @@ router.post('/forgot-password', async (req, res) => {
     return res.status(400).json({ error: 'Bitte geben Sie eine gültige E-Mail-Adresse ein.' });
   }
 
-  const origin = getClientOrigin();
-  const { error } = await supabaseAuth.auth.resetPasswordForEmail(email, {
-    redirectTo: `${origin}/login`,
-  });
+  const generic = {
+    ok: true,
+    email,
+    message: 'Wenn ein Konto mit dieser E-Mail existiert, senden wir einen Link zum Zurücksetzen.',
+  };
 
-  if (error) {
-    return res.status(400).json({ error: mapAuthError(error) });
+  if (!hasCustomMailer()) {
+    return res.status(503).json({
+      error: 'E-Mail-Versand ist nicht konfiguriert. Bitte RESEND_API_KEY und EMAIL_FROM setzen.',
+    });
   }
 
-  res.json({
+  try {
+    const user = await findUserByEmail(email);
+    if (!user) {
+      return res.json(generic);
+    }
+
+    try {
+      await issuePasswordReset(user);
+    } catch (error) {
+      if (error.code === 'cooldown') {
+        return res.json({
+          ...generic,
+          retryAfter: error.retryAfter || secondsUntilPasswordResetResend(user),
+        });
+      }
+      throw error;
+    }
+
+    return res.json(generic);
+  } catch (error) {
+    console.error('Forgot password failed:', error.message);
+    return res.status(400).json({ error: mapAuthError(error) });
+  }
+});
+
+router.post('/reset-password', async (req, res) => {
+  const email = String(req.body?.email ?? '').trim().toLowerCase();
+  const password = String(req.body?.password ?? '');
+  const token = String(req.body?.token ?? req.body?.confirm ?? '').trim();
+
+  if (!email || !EMAIL_PATTERN.test(email)) {
+    return res.status(400).json({ error: 'Bitte geben Sie eine gültige E-Mail-Adresse ein.' });
+  }
+  if (password.length < 8) {
+    return res.status(400).json({ error: 'Passwort muss mindestens 8 Zeichen lang sein.' });
+  }
+  if (!token) {
+    return res.status(400).json({
+      error: 'Bitte öffnen Sie den Link aus der E-Mail, um Ihr Passwort zurückzusetzen.',
+    });
+  }
+
+  try {
+    const user = await findUserByEmail(email);
+    if (!user) {
+      return res.status(400).json({ error: 'Der Link ist ungültig oder abgelaufen.' });
+    }
+
+    await resetPasswordWithToken(user, token, password);
+
+    return res.json({
+      ok: true,
+      message: 'Ihr Passwort wurde aktualisiert. Bitte melden Sie sich an.',
+    });
+  } catch (error) {
+    console.error('Reset password failed:', error.message);
+    return res.status(400).json({ error: mapAuthError(error) });
+  }
+});
+
+router.post('/resend-password-reset', async (req, res) => {
+  const email = String(req.body?.email ?? '').trim().toLowerCase();
+
+  if (!email || !EMAIL_PATTERN.test(email)) {
+    return res.status(400).json({ error: 'Bitte geben Sie eine gültige E-Mail-Adresse ein.' });
+  }
+
+  const generic = {
     ok: true,
-    message: 'Wenn ein Konto mit dieser E-Mail existiert, senden wir einen Link zum Zurücksetzen.',
-  });
+    email,
+    message: 'Wenn ein Konto mit dieser E-Mail existiert, senden wir einen neuen Link.',
+  };
+
+  try {
+    const user = await findUserByEmail(email);
+    if (!user) {
+      return res.json(generic);
+    }
+
+    try {
+      await issuePasswordReset(user);
+    } catch (error) {
+      if (error.code === 'cooldown') {
+        return res.status(429).json({
+          error: error.message,
+          retryAfter: error.retryAfter || secondsUntilPasswordResetResend(user),
+        });
+      }
+      throw error;
+    }
+
+    return res.json(generic);
+  } catch (error) {
+    console.error('Resend password reset failed:', error.message);
+    return res.status(400).json({ error: mapAuthError(error) });
+  }
 });
 
 export default router;

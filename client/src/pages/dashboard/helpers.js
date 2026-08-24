@@ -1,10 +1,17 @@
 export function firstName(user) {
+  const direct = String(user?.firstName || '').trim();
+  if (direct) return direct;
   const name = String(user?.fullName || '').trim();
   if (name) return name.split(/\s+/)[0];
   return user?.email?.split('@')[0] || 'dort';
 }
 
 export function initials(user) {
+  const first = String(user?.firstName || '').trim();
+  const last = String(user?.lastName || '').trim();
+  if (first || last) {
+    return `${first[0] || ''}${last[0] || ''}`.toUpperCase() || 'V';
+  }
   const name = String(user?.fullName || '').trim();
   if (name) {
     return name

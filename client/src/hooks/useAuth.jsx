@@ -4,7 +4,9 @@ import {
   loginRequest,
   logoutRequest,
   registerRequest,
+  resendPasswordResetRequest,
   resendVerificationRequest,
+  resetPasswordRequest,
   restoreSession,
   updateProfileRequest,
   verifyEmailRequest,
@@ -76,6 +78,14 @@ export function AuthProvider({ children }) {
     forgotPasswordRequest(email)
   ), []);
 
+  const resetPassword = useCallback(async (payload) => (
+    resetPasswordRequest(payload)
+  ), []);
+
+  const resendPasswordReset = useCallback(async (email) => (
+    resendPasswordResetRequest(email)
+  ), []);
+
   const role = normalizeRole(user?.role);
 
   const value = useMemo(
@@ -93,8 +103,10 @@ export function AuthProvider({ children }) {
       resendVerification,
       logout,
       forgotPassword,
+      resetPassword,
+      resendPasswordReset,
     }),
-    [user, role, loading, login, register, verifyEmail, verifyEmailToken, updateProfile, resendVerification, logout, forgotPassword],
+    [user, role, loading, login, register, verifyEmail, verifyEmailToken, updateProfile, resendVerification, logout, forgotPassword, resetPassword, resendPasswordReset],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

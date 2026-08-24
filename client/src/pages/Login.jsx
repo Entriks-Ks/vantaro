@@ -18,7 +18,7 @@ export default function Login() {
     : '';
 
   useEffect(() => {
-    if (!loading && user) navigate(nextPath, { replace: true });
+    if (!loading && user) navigate(nextPath.startsWith('/onboarding') ? '/dashboard' : nextPath, { replace: true });
   }, [loading, user, navigate, nextPath]);
 
   const handleSubmit = async (e) => {
@@ -33,7 +33,7 @@ export default function Login() {
     setSubmitting(true);
     try {
       await login(email, password);
-      navigate(nextPath, { replace: true });
+      navigate(nextPath.startsWith('/onboarding') ? '/dashboard' : nextPath, { replace: true });
     } catch (err) {
       if (err.requiresVerification) {
         navigate(`/verify-email?email=${encodeURIComponent(err.email || email)}`);

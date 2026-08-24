@@ -180,3 +180,105 @@ export async function sendVerificationCodeEmail({ to, code, fullName, confirmUrl
   });
   return 'resend';
 }
+
+function passwordResetEmail({ fullName, resetUrl }) {
+  const year = new Date().getFullYear();
+  const safeName = escapeHtml(fullName);
+  const safeUrl = escapeHtml(resetUrl);
+  const greeting = safeName ? `Hallo ${safeName}` : 'Hallo';
+
+  const text = `${greeting},
+
+wir haben eine Anfrage erhalten, Ihr VANTARO-Passwort zurückzusetzen.
+
+Klicken Sie auf diesen Link, um ein neues Passwort festzulegen:
+${resetUrl}
+
+Der Link ist 30 Minuten gültig.
+Wenn Sie kein neues Passwort angefordert haben, ignorieren Sie diese E-Mail.
+
+© ${year} VANTARO. Alle Rechte vorbehalten.`;
+
+  const html = `<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="color-scheme" content="light" />
+    <title>Passwort zurücksetzen für VANTARO</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
+  </head>
+  <body style="margin:0;padding:0;background:#ffffff;color:#101827;">
+    <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">
+            Klicken Sie auf „Passwort zurücksetzen“, um ein neues Passwort festzulegen.
+    </div>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff;">
+      <tr>
+        <td align="center" style="background:#070b14;padding:22px 24px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;">
+            <tr>
+              <td align="center">
+                <img src="cid:vantaro-wordmark" width="168" height="18" alt="VANTARO" style="display:block;margin:0 auto;width:168px;height:18px;border:0;" />
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+      <tr>
+        <td align="center" style="padding:36px 24px 40px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;">
+            <tr>
+              <td align="left" style="padding:0 0 12px;font-family:${HEADING_FONT};font-size:28px;font-weight:600;line-height:1.2;letter-spacing:-0.04em;color:#101827;">
+                Passwort zurücksetzen
+              </td>
+            </tr>
+            <tr>
+              <td align="left" style="padding:0 0 24px;font-family:${BODY_FONT};font-size:16px;line-height:1.6;color:#3d4b5c;">
+                ${greeting}, wir haben eine Anfrage erhalten, Ihr Passwort zurückzusetzen. Klicken Sie auf den Button, um ein neues Passwort festzulegen.
+              </td>
+            </tr>
+            <tr>
+              <td align="center" style="padding:4px 0 28px;">
+                <a href="${safeUrl}" style="display:inline-block;background:#101827;color:#ffffff;font-family:${HEADING_FONT};font-size:15px;font-weight:700;letter-spacing:-0.02em;text-decoration:none;border-radius:10px;padding:14px 22px;">
+                  Passwort zurücksetzen
+                </a>
+              </td>
+            </tr>
+            <tr>
+              <td align="left" style="padding:0 0 8px;font-family:${BODY_FONT};font-size:14px;line-height:1.6;color:#5a6b7c;">
+                Der Link ist 30 Minuten gültig. Teilen Sie ihn mit niemandem.
+              </td>
+            </tr>
+            <tr>
+              <td align="left" style="padding:0 0 36px;font-family:${BODY_FONT};font-size:14px;line-height:1.6;color:#5a6b7c;">
+                Wenn Sie kein neues Passwort angefordert haben, können Sie diese E-Mail ignorieren.
+              </td>
+            </tr>
+            <tr>
+              <td align="center" style="padding:24px 0 0;border-top:1px solid #e6e8eb;font-family:${BODY_FONT};font-size:12px;line-height:1.7;color:#8b9aaa;">
+                © ${year} VANTARO. Alle Rechte vorbehalten.
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`;
+
+  return { text, html };
+}
+
+export async function sendPasswordResetEmail({ to, fullName, resetUrl }) {
+  const subject = 'Passwort zurücksetzen für VANTARO';
+  const content = passwordResetEmail({ fullName, resetUrl });
+  await sendWithResend({
+    to,
+    subject,
+    ...content,
+    attachments: logoAttachments,
+  });
+  return 'resend';
+}

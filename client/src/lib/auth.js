@@ -43,11 +43,11 @@ export async function loginRequest(email, password) {
   return session;
 }
 
-export async function registerRequest({ fullName, email, password }) {
+export async function registerRequest(payload) {
   const response = await fetch(apiUrl('/api/auth/register'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ fullName, email, password }),
+    body: JSON.stringify(payload),
   });
   return parseAuthResponse(response);
 }
@@ -99,6 +99,24 @@ export async function logoutRequest() {
 
 export async function forgotPasswordRequest(email) {
   const response = await fetch(apiUrl('/api/auth/forgot-password'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email }),
+  });
+  return parseAuthResponse(response);
+}
+
+export async function resetPasswordRequest({ email, password, token }) {
+  const response = await fetch(apiUrl('/api/auth/reset-password'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password, token }),
+  });
+  return parseAuthResponse(response);
+}
+
+export async function resendPasswordResetRequest(email) {
+  const response = await fetch(apiUrl('/api/auth/resend-password-reset'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email }),

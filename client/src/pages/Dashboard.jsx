@@ -1,4 +1,5 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
+import StammdatenModal from '../components/StammdatenModal';
 import { useAuth } from '../hooks/useAuth';
 import { BrokerProvider } from '../hooks/useBroker';
 import { DashboardProvider } from '../hooks/useDashboard';
@@ -43,6 +44,7 @@ export default function Dashboard() {
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>
         </DashboardLayout>
+        <StammdatenModal />
       </BrokerProvider>
     </DashboardProvider>
   );

@@ -68,10 +68,12 @@ function AdminShell({ user, logout, children }) {
         <div className="dash-sidebar-foot">
           <Link className="dash-site-link" to="/">Zur Startseite</Link>
           <div className="dash-user-card">
-            <span className="dash-avatar">{initials(user)}</span>
+            <span className="dash-avatar">
+              {user.avatarUrl ? <img src={user.avatarUrl} alt="" /> : initials(user)}
+            </span>
             <span>
               <strong>{user.fullName || user.email}</strong>
-              <small>{roleLabel(user.role)}</small>
+              <small>{user.profile?.company || roleLabel(user.role)}</small>
             </span>
           </div>
           <button
@@ -129,7 +131,9 @@ function AccountMenu({ user, logout }) {
         aria-expanded={open}
         onClick={() => setOpen((value) => !value)}
       >
-        <span className="broker-avatar">{initials(user)}</span>
+        <span className="broker-avatar">
+          {user.avatarUrl ? <img src={user.avatarUrl} alt="" /> : initials(user)}
+        </span>
         <span className="broker-profile-name">{user.fullName || firstName(user)}</span>
         <svg className="broker-caret-icon" width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
           <path d="M2.5 4.5 6 8l3.5-3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />

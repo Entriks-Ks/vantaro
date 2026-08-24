@@ -38,6 +38,7 @@ function UsersTable({ users, empty }) {
         <thead>
           <tr>
             <th>Name</th>
+            <th>Firma</th>
             <th>E-Mail</th>
             <th>Rolle</th>
             <th>Status</th>
@@ -47,7 +48,11 @@ function UsersTable({ users, empty }) {
         <tbody>
           {users.map((entry) => (
             <tr key={entry.id}>
-              <td>{entry.fullName || '—'}</td>
+              <td>
+                <div>{entry.fullName || '—'}</div>
+                {entry.customerNumber ? <small>{entry.customerNumber}</small> : null}
+              </td>
+              <td>{entry.company || '—'}</td>
               <td>{entry.email}</td>
               <td>
                 <span className={`dash-badge dash-badge--${entry.role}`}>
@@ -55,7 +60,9 @@ function UsersTable({ users, empty }) {
                 </span>
               </td>
               <td className={entry.verified ? undefined : 'dash-unverified'}>
-                {entry.verified ? 'Bestätigt' : 'Unbestätigt'}
+                {entry.verified
+                  ? (entry.onboardingComplete ? 'Verifiziert' : 'E-Mail ok')
+                  : 'Unbestätigt'}
               </td>
               <td>{formatDate(entry.createdAt)}</td>
             </tr>
