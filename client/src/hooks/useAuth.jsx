@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import {
   forgotPasswordRequest,
   loginRequest,
@@ -6,9 +6,11 @@ import {
   registerRequest,
   resendVerificationRequest,
   restoreSession,
+  updateProfileRequest,
   verifyEmailRequest,
   verifyEmailTokenRequest,
 } from '../lib/auth';
+import { ROLES, normalizeRole } from '../lib/roles';
 
 const AuthContext = createContext(null);
 
@@ -35,36 +37,64 @@ export function AuthProvider({ children }) {
     };
   }, []);
 
+  const login = useCallback(async (email, password) => {
+    const session = await loginRequest(email, password);
+    setUser(session.user);
+    return session;
+  }, []);
+
+  const register = useCallback(async (payload) => registerRequest(payload), []);
+
+  const verifyEmail = useCallback(async (email, code) => {
+    const payload = await verifyEmailRequest(email, code);
+    if (payload.user) setUser(payload.user);
+    return payload;
+  }, []);
+
+  const verifyEmailToken = useCallback(async (email, token) => {
+    const payload = await verifyEmailTokenRequest(email, token);
+    if (payload.user) setUser(payload.user);
+    return payload;
+  }, []);
+
+  const updateProfile = useCallback(async (payload) => {
+    const next = await updateProfileRequest(payload);
+    if (next.user) setUser(next.user);
+    return next;
+  }, []);
+
+  const resendVerification = useCallback(async (email) => (
+    resendVerificationRequest(email)
+  ), []);
+
+  const logout = useCallback(async () => {
+    await logoutRequest();
+    window.location.replace('/');
+  }, []);
+
+  const forgotPassword = useCallback(async (email) => (
+    forgotPasswordRequest(email)
+  ), []);
+
+  const role = normalizeRole(user?.role);
+
   const value = useMemo(
     () => ({
-      user,
+      user: user ? { ...user, role } : null,
+      role: user ? role : null,
+      isBerater: Boolean(user) && role === ROLES.BERATER,
+      isAdmin: Boolean(user) && role === ROLES.ADMIN,
       loading,
-      async login(email, password) {
-        const session = await loginRequest(email, password);
-        setUser(session.user);
-        return session;
-      },
-      async register(payload) {
-        return registerRequest(payload);
-      },
-      async verifyEmail(email, code) {
-        return verifyEmailRequest(email, code);
-      },
-      async verifyEmailToken(tokenHash, type) {
-        return verifyEmailTokenRequest(tokenHash, type);
-      },
-      async resendVerification(email) {
-        return resendVerificationRequest(email);
-      },
-      async logout() {
-        await logoutRequest();
-        setUser(null);
-      },
-      async forgotPassword(email) {
-        return forgotPasswordRequest(email);
-      },
+      login,
+      register,
+      verifyEmail,
+      verifyEmailToken,
+      updateProfile,
+      resendVerification,
+      logout,
+      forgotPassword,
     }),
-    [user, loading],
+    [user, role, loading, login, register, verifyEmail, verifyEmailToken, updateProfile, resendVerification, logout, forgotPassword],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

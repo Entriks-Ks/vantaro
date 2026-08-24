@@ -29,18 +29,20 @@ export default function CookieConsent() {
   const [hasChoice, setHasChoice] = useState(true);
 
   useEffect(() => {
-    const saved = readConsent();
-    if (!saved) {
-      setHasChoice(false);
-      setOpen(true);
-    } else {
+    const applySaved = () => {
+      const saved = readConsent();
+      if (!saved) {
+        setHasChoice(false);
+        setOpen(true);
+        return;
+      }
       setHasChoice(true);
       setPrefs({
         necessary: true,
         analytics: Boolean(saved.analytics),
         marketing: Boolean(saved.marketing),
       });
-    }
+    };
 
     const onOpen = () => {
       const current = readConsent();
@@ -54,8 +56,21 @@ export default function CookieConsent() {
       setOpen(true);
     };
 
+    const waiting =
+      document.documentElement.classList.contains('is-preloading') &&
+      document.getElementById('preloader')?.dataset.settled !== 'true';
+
+    if (waiting) {
+      window.addEventListener('vantaro:app-ready', applySaved, { once: true });
+    } else {
+      applySaved();
+    }
+
     window.addEventListener('vantaro:cookies', onOpen);
-    return () => window.removeEventListener('vantaro:cookies', onOpen);
+    return () => {
+      window.removeEventListener('vantaro:app-ready', applySaved);
+      window.removeEventListener('vantaro:cookies', onOpen);
+    };
   }, []);
 
   useEffect(() => {

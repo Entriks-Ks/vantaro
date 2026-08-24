@@ -91,18 +91,11 @@ export default function DarkVeil({
     if (!canvas) return undefined;
     const parent = canvas.parentElement;
     if (!parent) return undefined;
-    let renderer;
 
-    try {
-      renderer = new Renderer({
-        dpr: Math.min(window.devicePixelRatio, 2),
-        canvas,
-      });
-    } catch (error) {
-      console.warn('DarkVeil disabled: unable to initialize WebGL renderer.', error);
-      canvas.dataset.fallback = 'true';
-      return undefined;
-    }
+    const renderer = new Renderer({
+      dpr: Math.min(window.devicePixelRatio, 2),
+      canvas,
+    });
 
     const gl = renderer.gl;
     const geometry = new Triangle(gl);
@@ -122,27 +115,20 @@ export default function DarkVeil({
     });
 
     const mesh = new Mesh(gl, { geometry, program });
-    canvas.dataset.fallback = 'false';
 
     const resize = () => {
       const w = parent.clientWidth;
       const h = parent.clientHeight;
-      if (!w || !h) return;
       renderer.setSize(w * resolutionScale, h * resolutionScale);
       program.uniforms.uResolution.value.set(w, h);
     };
 
-    let resizeObserver;
-    if (typeof ResizeObserver !== 'undefined') {
-      resizeObserver = new ResizeObserver(() => resize());
-      resizeObserver.observe(parent);
-    } else {
-      window.addEventListener('resize', resize);
-    }
+    window.addEventListener('resize', resize);
     resize();
 
     const start = performance.now();
     let frame = 0;
+    let announced = false;
 
     const loop = () => {
       program.uniforms.uTime.value = ((performance.now() - start) / 1000) * speed;
@@ -152,6 +138,11 @@ export default function DarkVeil({
       program.uniforms.uScanFreq.value = scanlineFrequency;
       program.uniforms.uWarp.value = warpAmount;
       renderer.render({ scene: mesh });
+      if (!announced) {
+        announced = true;
+        document.documentElement.dataset.veilReady = 'true';
+        window.dispatchEvent(new Event('vantaro:veil-ready'));
+      }
       frame = requestAnimationFrame(loop);
     };
 
@@ -159,22 +150,9 @@ export default function DarkVeil({
 
     return () => {
       cancelAnimationFrame(frame);
-      if (resizeObserver) {
-        resizeObserver.disconnect();
-      } else {
-        window.removeEventListener('resize', resize);
-      }
-      delete canvas.dataset.fallback;
+      window.removeEventListener('resize', resize);
     };
-  }, [
-    hueShift,
-    noiseIntensity,
-    scanlineIntensity,
-    speed,
-    scanlineFrequency,
-    warpAmount,
-    resolutionScale,
-  ]);
+  }, [hueShift, noiseIntensity, scanlineIntensity, speed, scanlineFrequency, warpAmount, resolutionScale]);
 
   return <canvas ref={ref} className="darkveil-canvas" />;
 }

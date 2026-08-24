@@ -1,6 +1,9 @@
-export default function Brand() {
-  return (
-    <a className="brand" href="#top" aria-label="VANTARO Startseite">
+import { Link } from 'react-router-dom';
+
+export default function Brand({ href = '#top', to, className = '' }) {
+  const classes = className ? `brand ${className}` : 'brand';
+  const inner = (
+    <>
       <img
         className="brand-mark"
         src="/favicon.svg"
@@ -15,6 +18,20 @@ export default function Brand() {
         width={148}
         height={16}
       />
+    </>
+  );
+
+  if (to) {
+    return (
+      <Link className={classes} to={to} aria-label="VANTARO">
+        {inner}
+      </Link>
+    );
+  }
+
+  return (
+    <a className={classes} href={href} aria-label="VANTARO Startseite">
+      {inner}
     </a>
   );
 }

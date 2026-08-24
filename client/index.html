@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="de">
+<html lang="de" class="is-preloading">
   <head>
     <!-- Google tag (gtag.js) + Consent Mode v2 — Reihenfolge laut Google Developers -->
     <script>
@@ -95,6 +95,49 @@
       href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=IBM+Plex+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
+    <style>
+      html.is-preloading,
+      html.is-preloading body {
+        background: #070b14 !important;
+        overflow: hidden;
+      }
+      #preloader {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        display: grid;
+        place-items: center;
+        background: #070b14;
+      }
+      #preloader .loader {
+        --color-1: #fff;
+        --size: 1px;
+        width: calc(48 * var(--size));
+        height: calc(48 * var(--size));
+        border: calc(5 * var(--size)) solid var(--color-1);
+        border-bottom-color: transparent;
+        border-radius: 50%;
+        display: inline-block;
+        box-sizing: border-box;
+        animation: rotation 1s linear infinite;
+      }
+      #preloader.is-done {
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+      }
+      @keyframes rotation {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        #preloader .loader {
+          animation: none;
+          border-bottom-color: #fff;
+          opacity: .55;
+        }
+      }
+    </style>
 
     <script type="application/ld+json">
       {
@@ -207,8 +250,19 @@
   </head>
   <body>
     <noscript>
+      <style>
+        html.is-preloading,
+        html.is-preloading body {
+          overflow: auto !important;
+          background: #f5f7f3 !important;
+        }
+        #preloader { display: none !important; }
+      </style>
       VANTARO ist die Vertriebsinfrastruktur für Finanzdienstleister: qualifizierte Beratungschancen, exklusives Matching und messbares Makler-Follow-up. Bitte aktivieren Sie JavaScript, um die Seite vollständig zu nutzen.
     </noscript>
+    <div id="preloader" class="preloader" role="status" aria-live="polite" aria-busy="true" aria-label="VANTARO wird geladen">
+      <span class="loader" aria-hidden="true"></span>
+    </div>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>

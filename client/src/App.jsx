@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
+import { BrowserRouter, Navigate, Routes, Route, useLocation } from 'react-router-dom';
 import Header from './components/Header';
 import Hero from './components/Hero';
 import Brand from './components/Brand';
@@ -12,8 +12,11 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import ForgotPassword from './pages/ForgotPassword';
 import VerifyEmail from './pages/VerifyEmail';
+import Dashboard from './pages/Dashboard';
+import RequireAuth from './pages/RequireAuth';
 import { AuthProvider } from './hooks/useAuth';
 import useSectionReveal from './hooks/useSectionReveal';
+import Preloader from './components/Preloader';
 
 function AppContent() {
   const location = useLocation();
@@ -23,14 +26,17 @@ function AppContent() {
   const isRegister = location.pathname === '/register';
   const isForgotPassword = location.pathname === '/forgot-password';
   const isVerifyEmail = location.pathname === '/verify-email';
+  const isDashboard = location.pathname.startsWith('/dashboard');
   const isLegal = isImpressum || isDatenschutz;
   const isAuth = isLogin || isRegister || isForgotPassword || isVerifyEmail;
+  const isAppShell = isAuth || isDashboard;
 
   useSectionReveal([location.pathname, location.hash, isLegal]);
 
   useEffect(() => {
-    document.body.classList.toggle('legal-page', isLegal);
+    document.body.classList.toggle('is-legal', isLegal);
     document.body.classList.toggle('auth-page', isAuth);
+    document.body.classList.toggle('dashboard-page', isDashboard);
     document.title = isImpressum
       ? 'Impressum — VANTARO'
       : isDatenschutz
@@ -43,9 +49,11 @@ function AppContent() {
               ? 'Passwort zurücksetzen — VANTARO'
               : isVerifyEmail
                 ? 'E-Mail bestätigen — VANTARO'
-                : 'VANTARO — Qualifizierte Beratungschancen & Makler-Matching für Finanzdienstleister';
+                : isDashboard
+                  ? 'Workspace — VANTARO'
+                  : 'VANTARO — Qualifizierte Beratungschancen & Makler-Matching für Finanzdienstleister';
 
-    if (isLegal || isAuth) {
+    if (isLegal || isAuth || isDashboard) {
       window.scrollTo(0, 0);
       return undefined;
     }
@@ -60,16 +68,26 @@ function AppContent() {
       document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, 120);
     return () => window.clearTimeout(timer);
-  }, [location.pathname, location.hash, isLegal, isAuth, isImpressum, isDatenschutz, isLogin, isRegister, isForgotPassword, isVerifyEmail]);
+  }, [location.pathname, location.hash, isLegal, isAuth, isDashboard, isImpressum, isDatenschutz, isLogin, isRegister, isForgotPassword, isVerifyEmail]);
 
   return (
     <>
-      {!isAuth && <Header solid={isLegal} />}
+      <Preloader />
+      {!isAppShell && <Header solid={isLegal} />}
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/verify-email" element={<VerifyEmail />} />
+        <Route path="/welcome" element={<Navigate to="/dashboard" replace />} />
+        <Route
+          path="/dashboard/*"
+          element={(
+            <RequireAuth>
+              <Dashboard />
+            </RequireAuth>
+          )}
+        />
         <Route path="*" element={
           <>
             <a className="skip-link" href="#inhalt">Zum Inhalt springen</a>
@@ -86,7 +104,7 @@ function AppContent() {
           </>
         } />
       </Routes>
-      {!isAuth && (
+      {!isAppShell && (
         <footer>
           <div className="wrap footer-main">
             <div className="footer-brand">
@@ -132,7 +150,7 @@ function AppContent() {
           </div>
         </footer>
       )}
-      <CookieConsent />
+      {!isDashboard && <CookieConsent />}
       <Analytics />
     </>
   );

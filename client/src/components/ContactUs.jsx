@@ -227,11 +227,11 @@ export default function ContactUs() {
                 <div className="contact-veil-bg" aria-hidden="true">
                   <DarkVeil
                     hueShift={46}
-                    noiseIntensity={0.01}
-                    scanlineIntensity={0.25}
-                    scanlineFrequency={1.2}
-                    warpAmount={0.25}
-                    speed={0.35}
+                    noiseIntensity={0.02}
+                    scanlineIntensity={0.1}
+                    scanlineFrequency={0.7}
+                    warpAmount={0.22}
+                    speed={0.5}
                   />
                   <div className="contact-veil-overlay" />
                 </div>

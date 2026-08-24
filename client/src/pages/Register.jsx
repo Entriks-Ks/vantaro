@@ -18,7 +18,7 @@ export default function Register() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (!loading && user) navigate('/', { replace: true });
+    if (!loading && user) navigate('/dashboard', { replace: true });
   }, [loading, user, navigate]);
 
   const handleInputChange = (e) => {
@@ -87,7 +87,7 @@ export default function Register() {
         </defs>
       </svg>
 
-      <div className="auth-layout">
+      <div className="auth-layout wrap">
         <div className="auth-form-container">
           <div className="auth-logo">
             <img
@@ -106,7 +106,7 @@ export default function Register() {
           
           <form className="auth-form" onSubmit={handleSubmit}>
             <div className="form-group">
-              <label htmlFor="fullName">Vollständiger Name</label>
+              <label htmlFor="fullName">Vollständiger Name <span className="auth-required">*</span></label>
               <input
                 type="text"
                 id="fullName"
@@ -121,7 +121,7 @@ export default function Register() {
             </div>
 
             <div className="form-group">
-              <label htmlFor="email">E-Mail-Adresse</label>
+              <label htmlFor="email">E-Mail-Adresse <span className="auth-required">*</span></label>
               <input
                 type="email"
                 id="email"
@@ -136,7 +136,7 @@ export default function Register() {
             </div>
             
             <div className="form-group">
-              <label htmlFor="password">Passwort</label>
+              <label htmlFor="password">Passwort <span className="auth-required">*</span></label>
               <div className="password-input-wrapper">
                 <input
                   type={showPassword ? 'text' : 'password'}
@@ -170,7 +170,7 @@ export default function Register() {
             </div>
 
             <div className="form-group">
-              <label htmlFor="confirmPassword">Passwort bestätigen</label>
+              <label htmlFor="confirmPassword">Passwort bestätigen <span className="auth-required">*</span></label>
               <div className="password-input-wrapper">
                 <input
                   type={showConfirmPassword ? 'text' : 'password'}

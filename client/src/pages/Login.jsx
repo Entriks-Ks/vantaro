@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import useNavigate from '../hooks/useNavigate';
 
@@ -9,14 +9,17 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [searchParams] = useSearchParams();
-  const verified = searchParams.get('verified') === '1';
   const { user, loading, login } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const nextPath = location.state?.from || '/dashboard';
+  const info = new URLSearchParams(location.search).get('verified') === '1'
+    ? 'Ihre E-Mail-Adresse ist bestätigt. Bitte melden Sie sich an.'
+    : '';
 
   useEffect(() => {
-    if (!loading && user) navigate('/', { replace: true });
-  }, [loading, user, navigate]);
+    if (!loading && user) navigate(nextPath, { replace: true });
+  }, [loading, user, navigate, nextPath]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -30,7 +33,7 @@ export default function Login() {
     setSubmitting(true);
     try {
       await login(email, password);
-      navigate('/');
+      navigate(nextPath, { replace: true });
     } catch (err) {
       if (err.requiresVerification) {
         navigate(`/verify-email?email=${encodeURIComponent(err.email || email)}`);
@@ -67,7 +70,7 @@ export default function Login() {
         </defs>
       </svg>
 
-      <div className="auth-layout">
+      <div className="auth-layout wrap">
         <div className="auth-form-container">
           <div className="auth-logo">
             <img
@@ -82,14 +85,12 @@ export default function Login() {
           <h1 className="auth-title">Anmelden bei VANTARO</h1>
           <p className="auth-subtitle">Willkommen zurück.</p>
 
-          {verified && !error && (
-            <div className="auth-success">E-Mail bestätigt. Sie können sich jetzt anmelden.</div>
-          )}
           {error && <div className="auth-error">{error}</div>}
+          {info && <div className="auth-success">{info}</div>}
           
           <form className="auth-form" onSubmit={handleSubmit}>
             <div className="form-group">
-              <label htmlFor="email">E-Mail-Adresse</label>
+              <label htmlFor="email">E-Mail-Adresse <span className="auth-required">*</span></label>
               <input
                 type="email"
                 id="email"
@@ -103,10 +104,7 @@ export default function Login() {
             </div>
             
             <div className="form-group">
-              <div className="password-header">
-                <label htmlFor="password">Passwort</label>
-                <Link to="/forgot-password" className="forgot-password">Passwort vergessen?</Link>
-              </div>
+              <label htmlFor="password">Passwort <span className="auth-required">*</span></label>
               <div className="password-input-wrapper">
                 <input
                   type={showPassword ? 'text' : 'password'}
@@ -136,6 +134,7 @@ export default function Login() {
                   )}
                 </button>
               </div>
+              <Link to="/forgot-password" className="forgot-password">Passwort vergessen?</Link>
             </div>
             
             <button type="submit" className="auth-submit" disabled={submitting}>

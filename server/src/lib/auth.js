@@ -1,10 +1,31 @@
+import { supabase } from './supabase.js';
+import { getUserRole } from './roles.js';
+import { ensureUserRole, isEmailVerified } from './users.js';
+
 export function publicUser(user) {
   if (!user) return null;
+
+  const metadata = user.user_metadata || {};
+  const radiusKm = Number(metadata.radius_km);
+  const products = Array.isArray(metadata.products)
+    ? metadata.products
+    : String(metadata.products || '')
+        .split(',')
+        .map((item) => item.trim())
+        .filter(Boolean);
 
   return {
     id: user.id,
     email: user.email,
-    fullName: user.user_metadata?.full_name || '',
+    fullName: metadata.full_name || '',
+    role: getUserRole(user),
+    onboardingComplete: metadata.onboarding_complete === true,
+    profile: {
+      company: metadata.company || '',
+      location: metadata.location || '',
+      radiusKm: Number.isFinite(radiusKm) && radiusKm > 0 ? radiusKm : 10,
+      products: products.length ? products : ['PKV', 'bAV', 'BU'],
+    },
   };
 }
 
@@ -53,4 +74,42 @@ export function getBearerToken(req) {
   const [scheme, token] = header.split(' ');
   if (!token || scheme?.toLowerCase() !== 'bearer') return null;
   return token;
+}
+
+export async function requireAuth(req, res, next) {
+  const token = getBearerToken(req);
+
+  if (!token) {
+    return res.status(401).json({ error: 'Nicht angemeldet.' });
+  }
+
+  try {
+    const { data, error } = await supabase.auth.getUser(token);
+
+    if (error || !data.user || !isEmailVerified(data.user)) {
+      return res.status(401).json({ error: 'Sitzung ungültig oder abgelaufen.' });
+    }
+
+    const user = await ensureUserRole(data.user);
+    req.authUser = user;
+    req.user = publicUser(user);
+    next();
+  } catch (error) {
+    console.error('requireAuth failed:', error.message);
+    return res.status(401).json({ error: 'Sitzung ungültig oder abgelaufen.' });
+  }
+}
+
+export function requireRole(...roles) {
+  const allowed = roles.map((role) => String(role).toLowerCase());
+
+  return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Nicht angemeldet.' });
+    }
+    if (!allowed.includes(req.user.role)) {
+      return res.status(403).json({ error: 'Keine Berechtigung.' });
+    }
+    next();
+  };
 }

@@ -32,7 +32,7 @@ export default function ForgotPassword() {
 
   return (
     <section className="auth-page" id="inhalt">
-      <div className="auth-layout">
+      <div className="auth-layout wrap">
         <div className="auth-form-container">
           <div className="auth-logo">
             <img
@@ -52,7 +52,7 @@ export default function ForgotPassword() {
 
           <form className="auth-form" onSubmit={handleSubmit}>
             <div className="form-group">
-              <label htmlFor="email">E-Mail-Adresse</label>
+              <label htmlFor="email">E-Mail-Adresse <span className="auth-required">*</span></label>
               <input
                 type="email"
                 id="email"

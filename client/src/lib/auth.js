@@ -56,16 +56,20 @@ export async function verifyEmailRequest(email, code) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, code }),
   });
-  return parseAuthResponse(response);
+  const payload = await parseAuthResponse(response);
+  if (payload.access_token) writeStoredSession(payload);
+  return payload;
 }
 
-export async function verifyEmailTokenRequest(tokenHash, type = 'signup') {
+export async function verifyEmailTokenRequest(email, token) {
   const response = await fetch('/api/auth/verify-email', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ token_hash: tokenHash, type }),
+    body: JSON.stringify({ email, token }),
   });
-  return parseAuthResponse(response);
+  const payload = await parseAuthResponse(response);
+  if (payload.access_token) writeStoredSession(payload);
+  return payload;
 }
 
 export async function resendVerificationRequest(email) {
@@ -100,6 +104,23 @@ export async function forgotPasswordRequest(email) {
   return parseAuthResponse(response);
 }
 
+export async function updateProfileRequest(payload) {
+  const session = readStoredSession();
+  const response = await fetch('/api/auth/profile', {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+    },
+    body: JSON.stringify(payload),
+  });
+  const next = await parseAuthResponse(response);
+  if (next.user && session) {
+    writeStoredSession({ ...session, user: next.user });
+  }
+  return next;
+}
+
 export async function restoreSession() {
   const session = readStoredSession();
   if (!session?.access_token) return null;
@@ -131,6 +152,16 @@ export async function restoreSession() {
 
   writeStoredSession(null);
   return null;
+}
+
+export async function fetchDashboard() {
+  const session = readStoredSession();
+  const response = await fetch('/api/dashboard', {
+    headers: session?.access_token
+      ? { Authorization: `Bearer ${session.access_token}` }
+      : {},
+  });
+  return parseAuthResponse(response);
 }
 
 export { readStoredSession, writeStoredSession };

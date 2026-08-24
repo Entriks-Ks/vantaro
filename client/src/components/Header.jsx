@@ -18,7 +18,7 @@ export default function Header({ solid = false }) {
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [active, setActive] = useState('');
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
 
   useEffect(() => {
     document.body.classList.toggle('menu-open', open);
@@ -60,7 +60,7 @@ export default function Header({ solid = false }) {
   useEffect(() => {
     const closeMenu = () => setOpen(false);
     const onResize = () => {
-      if (window.innerWidth > 1020) closeMenu();
+      if (window.innerWidth > 1180) closeMenu();
     };
     window.addEventListener('hashchange', closeMenu);
     window.addEventListener('resize', onResize);
@@ -108,43 +108,28 @@ export default function Header({ solid = false }) {
               {link.label}
             </a>
           ))}
-          <div className="nav-auth">
-            {user ? (
-              <>
-                <span className="nav-user">{user.fullName || user.email}</span>
-                <button
-                  type="button"
-                  className="btn btn-outline-light nav-auth-btn"
-                  onClick={async () => {
-                    close();
-                    await logout();
-                  }}
-                >
-                  Abmelden
-                </button>
-              </>
-            ) : (
-              <>
-                <Link to="/login" className="nav-auth-link" onClick={close}>
-                  Anmelden
-                </Link>
-                <Link to="/register" className="btn btn-primary nav-auth-btn" onClick={close}>
-                  Registrieren
-                </Link>
-              </>
-            )}
-          </div>
         </nav>
-        <button
-          type="button"
-          className="menu-toggle"
-          aria-label={open ? 'Menü schließen' : 'Menü öffnen'}
-          aria-expanded={open}
-          aria-controls="nav-links"
-          onClick={() => setOpen((value) => !value)}
-        >
-          {open ? <X size={26} strokeWidth={1.8} /> : <Menu size={26} strokeWidth={1.8} />}
-        </button>
+        <div className="nav-end">
+          {user ? (
+            <Link to="/dashboard" className="btn btn-primary nav-auth-btn" onClick={close}>
+              Workspace
+            </Link>
+          ) : (
+            <Link to="/login" className="btn btn-primary nav-auth-btn" onClick={close}>
+              Anmelden
+            </Link>
+          )}
+          <button
+            type="button"
+            className="menu-toggle"
+            aria-label={open ? 'Menü schließen' : 'Menü öffnen'}
+            aria-expanded={open}
+            aria-controls="nav-links"
+            onClick={() => setOpen((value) => !value)}
+          >
+            {open ? <X size={26} strokeWidth={1.8} /> : <Menu size={26} strokeWidth={1.8} />}
+          </button>
+        </div>
       </div>
     </header>
   );
