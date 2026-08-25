@@ -3,12 +3,9 @@ import { NavLink, Link, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
   Users,
-  ShieldCheck,
-  GitMerge,
   LogOut,
   ListChecks,
   Landmark,
-  User,
 } from 'lucide-react';
 import Brand from '../../components/Brand';
 import { useAuth } from '../../hooks/useAuth';
@@ -21,11 +18,10 @@ const BERATER_LINKS = [
 ];
 
 const ADMIN_LINKS = [
-  { to: '/dashboard', end: true, label: 'Übersicht', icon: LayoutDashboard },
+  { to: '/dashboard', end: true, label: 'Dashboard', icon: LayoutDashboard },
   { to: '/dashboard/nutzer', label: 'Nutzer', icon: Users },
-  { to: '/dashboard/qualitaet', label: 'Qualität', icon: ShieldCheck },
-  { to: '/dashboard/matching', label: 'Matching', icon: GitMerge },
-  { to: '/dashboard/profil', label: 'Profil', icon: User },
+  { to: '/dashboard/leads', label: 'Leads', icon: ListChecks },
+  { to: '/dashboard/zahlung', label: 'Zahlung', icon: Landmark },
 ];
 
 function pageCopy(pathname) {
@@ -38,18 +34,55 @@ function pageCopy(pathname) {
   return { title: 'Meine Leads', subtitle: 'Ihre gekauften Chancen an einem Ort.' };
 }
 
+const ADMIN_SIDEBAR_KEY = 'vantaro-admin-sidebar';
+
+function readAdminSidebarCollapsed() {
+  try {
+    return localStorage.getItem(ADMIN_SIDEBAR_KEY) === 'collapsed';
+  } catch {
+    return false;
+  }
+}
+
 function AdminShell({ user, logout, children }) {
+  const [collapsed, setCollapsed] = useState(readAdminSidebarCollapsed);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(ADMIN_SIDEBAR_KEY, collapsed ? 'collapsed' : 'open');
+    } catch {
+      /* ignore quota / private mode */
+    }
+  }, [collapsed]);
+
   return (
-    <div className="dash">
+    <div className={`dash${collapsed ? ' is-collapsed' : ''}`}>
       <aside className="dash-sidebar">
-        <Link className="dash-brand" to="/dashboard" aria-label="VANTARO Workspace">
-          <span className="dash-brand-mark">V</span>
-          <span>
-            <strong>VANTARO</strong>
-            <small>Admin</small>
-          </span>
-        </Link>
-        <nav className="dash-nav" aria-label="Workspace">
+        <button
+          type="button"
+          className="dash-brand"
+          onClick={() => setCollapsed((value) => !value)}
+          aria-expanded={!collapsed}
+          aria-controls="dash-sidebar-nav"
+          aria-label={collapsed ? 'Seitenleiste öffnen' : 'Seitenleiste schließen'}
+          title={collapsed ? 'Seitenleiste öffnen' : 'Seitenleiste schließen'}
+        >
+          <img
+            className="dash-brand-icon"
+            src="/favicon.svg"
+            alt=""
+            width={36}
+            height={36}
+          />
+          <img
+            className="dash-brand-logo"
+            src="/logo.svg"
+            alt="VANTARO"
+            width={148}
+            height={16}
+          />
+        </button>
+        <nav className="dash-nav" id="dash-sidebar-nav" aria-label="Workspace">
           {ADMIN_LINKS.map((link) => {
             const Icon = link.icon;
             return (
@@ -57,33 +90,40 @@ function AdminShell({ user, logout, children }) {
                 key={link.to}
                 to={link.to}
                 end={link.end}
+                title={link.label}
                 className={({ isActive }) => (isActive ? 'is-active' : undefined)}
               >
                 <Icon size={16} />
-                {link.label}
+                <span>{link.label}</span>
               </NavLink>
             );
           })}
         </nav>
         <div className="dash-sidebar-foot">
-          <Link className="dash-site-link" to="/">Zur Startseite</Link>
-          <div className="dash-user-card">
-            <span className="dash-avatar">
-              {user.avatarUrl ? <img src={user.avatarUrl} alt="" /> : initials(user)}
-            </span>
-            <span>
-              <strong>{user.fullName || user.email}</strong>
-              <small>{user.profile?.company || roleLabel(user.role)}</small>
-            </span>
+          <div className="dash-account">
+            <Link
+              className="dash-account-profile"
+              to="/dashboard/profil"
+              title="Profil"
+            >
+              <span className="dash-avatar">
+                {user.avatarUrl ? <img src={user.avatarUrl} alt="" /> : initials(user)}
+              </span>
+              <span className="dash-user-copy">
+                <strong>{user.fullName || user.email}</strong>
+                <small>{user.profile?.company || roleLabel(user.role)}</small>
+              </span>
+            </Link>
+            <button
+              type="button"
+              className="dash-account-logout"
+              onClick={() => logout()}
+              title="Abmelden"
+              aria-label="Abmelden"
+            >
+              <LogOut size={16} />
+            </button>
           </div>
-          <button
-            type="button"
-            className="dash-logout"
-            onClick={() => logout()}
-          >
-            <LogOut size={16} />
-            Abmelden
-          </button>
         </div>
       </aside>
       <div className="dash-main">

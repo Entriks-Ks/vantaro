@@ -81,8 +81,8 @@ export function AdminOverview() {
     <div className="dash-stack">
       <div className="dash-intro">
         <div>
-          <h2>Betrieb im Blick</h2>
-          <p>Konten, Quality Gate und Matching — ohne Rohzugriff auf die Datenbank.</p>
+          <h2>Dashboard</h2>
+          <p>Konten, Leads und Zahlungen im Überblick.</p>
         </div>
       </div>
 
@@ -104,10 +104,10 @@ export function AdminOverview() {
           <UsersTable users={admin?.recentUsers} empty="Noch keine Nutzer geladen." />
         </section>
         <EmptyPanel
-          title="Quality Gate"
+          title="Leads"
           action="Öffnen"
-          to="/dashboard/qualitaet"
-          text="Keine Vorgänge in Prüfung. Qualifizierte Kontakte erscheinen hier, bevor sie einem Berater zugeordnet werden."
+          to="/dashboard/leads"
+          text="Noch keine Leads in der Warteschlange. Qualifizierte Kontakte erscheinen hier."
         />
       </div>
     </div>
@@ -136,35 +136,35 @@ export function AdminUsers() {
   );
 }
 
-export function AdminQuality() {
+export function AdminLeads() {
   return (
     <div className="dash-stack">
       <div className="dash-intro">
         <div>
-          <h2>Qualität</h2>
-          <p>Dubletten, Mindestkriterien und Nachweis vor der Übergabe.</p>
+          <h2>Leads</h2>
+          <p>Eingehende Leads prüfen und verwalten.</p>
         </div>
       </div>
       <EmptyPanel
-        title="Quality Gate"
-        text="Die Prüfungswarteschlange ist leer. Sobald Kontakte aus der Telefonie eintreffen, können Sie sie hier freigeben oder zurückweisen."
+        title="Lead-Warteschlange"
+        text="Noch keine Leads. Eingehende Kontakte erscheinen hier."
       />
     </div>
   );
 }
 
-export function AdminMatching() {
+export function AdminPayment() {
   return (
     <div className="dash-stack">
       <div className="dash-intro">
         <div>
-          <h2>Matching</h2>
-          <p>Sparte, Region, Kapazität und Profil bestimmen die Zuordnung.</p>
+          <h2>Zahlung</h2>
+          <p>Guthaben und Zahlungen der Berater im Blick behalten.</p>
         </div>
       </div>
       <EmptyPanel
-        title="Unzugeordnet"
-        text="Keine offenen Chancen. Freigegebene Kontakte warten hier auf die exklusive Zuordnung an einen Berater."
+        title="Zahlungen"
+        text="Noch keine Zahlungsaktivitäten."
       />
     </div>
   );

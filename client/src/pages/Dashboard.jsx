@@ -12,8 +12,8 @@ import {
 import {
   AdminOverview,
   AdminUsers,
-  AdminQuality,
-  AdminMatching,
+  AdminLeads,
+  AdminPayment,
 } from './dashboard/AdminViews';
 
 export default function Dashboard() {
@@ -28,9 +28,11 @@ export default function Dashboard() {
             {isAdmin ? (
               <>
                 <Route path="nutzer" element={<AdminUsers />} />
-                <Route path="qualitaet" element={<AdminQuality />} />
-                <Route path="matching" element={<AdminMatching />} />
+                <Route path="leads" element={<AdminLeads />} />
+                <Route path="zahlung" element={<AdminPayment />} />
                 <Route path="profil" element={<BeraterProfile />} />
+                <Route path="users" element={<Navigate to="/dashboard/nutzer" replace />} />
+                <Route path="payment" element={<Navigate to="/dashboard/zahlung" replace />} />
               </>
             ) : (
               <>
