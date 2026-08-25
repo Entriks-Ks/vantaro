@@ -1,14 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
-import { NavLink, Link, useLocation } from 'react-router-dom';
+import { NavLink, Link } from 'react-router-dom';
 import {
   LayoutDashboard,
   Users,
   ShieldCheck,
+  Shield,
   GitMerge,
   LogOut,
   ListChecks,
   Landmark,
   User,
+  Building2,
+  Settings,
 } from 'lucide-react';
 import Brand from '../../components/Brand';
 import { useAuth } from '../../hooks/useAuth';
@@ -16,7 +19,8 @@ import { roleLabel } from '../../lib/roles';
 import { firstName, initials } from './helpers';
 
 const BERATER_LINKS = [
-  { to: '/dashboard', end: true, label: 'Meine Leads', icon: ListChecks },
+  { to: '/dashboard', end: true, label: 'Dashboard', icon: LayoutDashboard },
+  { to: '/dashboard/leads', label: 'Meine Leads', icon: ListChecks },
   { to: '/dashboard/zahlung', label: 'Zahlung', icon: Landmark },
 ];
 
@@ -26,17 +30,9 @@ const ADMIN_LINKS = [
   { to: '/dashboard/qualitaet', label: 'Qualität', icon: ShieldCheck },
   { to: '/dashboard/matching', label: 'Matching', icon: GitMerge },
   { to: '/dashboard/profil', label: 'Profil', icon: User },
+  { to: '/dashboard/unternehmen', label: 'Unternehmen', icon: Building2 },
+  { to: '/dashboard/sicherheit', label: 'Sicherheit', icon: Shield },
 ];
-
-function pageCopy(pathname) {
-  if (pathname.startsWith('/dashboard/zahlung')) {
-    return { title: 'Zahlung', subtitle: 'Guthaben für den nächsten Lead bereithalten.' };
-  }
-  if (pathname.startsWith('/dashboard/profil')) {
-    return { title: 'Profil', subtitle: 'Name, E-Mail und Passwort verwalten.' };
-  }
-  return { title: 'Meine Leads', subtitle: 'Ihre gekauften Chancen an einem Ort.' };
-}
 
 function AdminShell({ user, logout, children }) {
   return (
@@ -146,7 +142,8 @@ function AccountMenu({ user, logout }) {
             role="menuitem"
             onClick={() => setOpen(false)}
           >
-            Profil
+            <Settings size={16} />
+            Einstellungen
           </Link>
           <button
             type="button"
@@ -156,6 +153,7 @@ function AccountMenu({ user, logout }) {
               logout();
             }}
           >
+            <LogOut size={16} />
             Abmelden
           </button>
         </div>
@@ -165,9 +163,6 @@ function AccountMenu({ user, logout }) {
 }
 
 function BeraterShell({ user, logout, children }) {
-  const location = useLocation();
-  const copy = pageCopy(location.pathname);
-
   return (
     <div className="broker">
       <aside className="broker-nav">
@@ -194,12 +189,6 @@ function BeraterShell({ user, logout, children }) {
       </aside>
 
       <div className="broker-content">
-        <header className="broker-topbar">
-          <div>
-            <div className="broker-topbar-title">{copy.title}</div>
-            <div className="broker-topbar-subtitle">{copy.subtitle}</div>
-          </div>
-        </header>
         {children}
       </div>
     </div>

@@ -1,56 +1,62 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from './useAuth';
 import { LEADS, leadById } from '../pages/dashboard/leads';
+import { MIN_LEAD_PACK, packageById, packTotalCents } from '../pages/dashboard/packages';
 
 const BrokerContext = createContext(null);
-const STARTING_BALANCE = 50000;
-const DEFAULT_OWNED = LEADS.map((lead) => lead.id);
+const DEMO_OWNED = LEADS.slice(0, 5).map((lead) => lead.id);
 
-function storageKey(userId) {
-  return `vantaro-broker-${userId}`;
+function defaultStatuses(ids = DEMO_OWNED) {
+  return Object.fromEntries(ids.map((id) => [String(id), 'neu']));
 }
 
+function makeInvoiceNumber(at = new Date()) {
+  const d = new Date(at);
+  const stamp = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+  const suffix = String(d.getTime()).slice(-4);
+  return `INV-${stamp}-${suffix}`;
+}
+
+/** Demo-only in-memory state — resets to 10 on every page reload. */
 function emptyState() {
-  return { purchasedIds: DEFAULT_OWNED, transactions: [], balanceCents: STARTING_BALANCE };
-}
-
-function readState(userId) {
-  if (!userId) return emptyState();
-  try {
-    const raw = localStorage.getItem(storageKey(userId));
-    if (!raw) return emptyState();
-    const parsed = JSON.parse(raw);
-    return {
-      purchasedIds: Array.isArray(parsed?.purchasedIds) && parsed.purchasedIds.length
-        ? parsed.purchasedIds
-        : DEFAULT_OWNED,
-      transactions: Array.isArray(parsed?.transactions) ? parsed.transactions : [],
-      balanceCents: Number.isFinite(parsed?.balanceCents) ? parsed.balanceCents : STARTING_BALANCE,
-    };
-  } catch {
-    return emptyState();
-  }
-}
-
-function writeState(userId, state) {
-  if (!userId) return;
-  localStorage.setItem(storageKey(userId), JSON.stringify(state));
+  const at = new Date().toISOString();
+  const pkg = packageById('pkv-deutschlandweit');
+  const netCents = packTotalCents(pkg);
+  return {
+    purchasedIds: DEMO_OWNED,
+    transactions: [
+      {
+        id: 'demo-invoice',
+        type: 'invoice',
+        number: makeInvoiceNumber(at),
+        label: '10er-Paket PKV / deutschlandweit',
+        packageId: 'pkv-deutschlandweit',
+        cents: -netCents,
+        taxCents: Math.round(netCents * 0.19),
+        leads: MIN_LEAD_PACK,
+        status: 'paid',
+        at,
+      },
+    ],
+    leadQuota: MIN_LEAD_PACK,
+    leadStatuses: defaultStatuses(),
+    activePackageId: 'pkv-deutschlandweit',
+  };
 }
 
 export function BrokerProvider({ children }) {
   const { user } = useAuth();
-  const [state, setState] = useState(() => readState(user?.id));
+  const [state, setState] = useState(emptyState);
   const [toast, setToast] = useState('');
   const toastTimer = useRef(0);
 
   useEffect(() => {
-    setState(readState(user?.id));
+    setState(emptyState());
   }, [user?.id]);
 
-  const persist = useCallback((next) => {
+  const updateState = useCallback((next) => {
     setState(next);
-    writeState(user?.id, next);
-  }, [user?.id]);
+  }, []);
 
   const showToast = useCallback((message) => {
     setToast(message);
@@ -61,7 +67,16 @@ export function BrokerProvider({ children }) {
   const value = useMemo(() => {
     const purchased = state.purchasedIds
       .map((id) => leadById(id))
-      .filter(Boolean);
+      .filter(Boolean)
+      .map((lead) => ({
+        ...lead,
+        status: state.leadStatuses[String(lead.id)] || 'neu',
+      }));
+
+    const leadsUsed = purchased.length;
+    const leadQuota = Math.max(state.leadQuota, leadsUsed);
+    const leadsRemaining = Math.max(0, leadQuota - leadsUsed);
+    const invoices = state.transactions.filter((entry) => entry.type === 'invoice');
 
     return {
       toast,
@@ -69,23 +84,84 @@ export function BrokerProvider({ children }) {
       purchased,
       purchasedIds: state.purchasedIds,
       transactions: state.transactions,
-      balanceCents: state.balanceCents,
+      invoices,
+      leadStatuses: state.leadStatuses,
+      activePackageId: state.activePackageId,
+      activePackage: packageById(state.activePackageId),
+      leadQuota,
+      leadsUsed,
+      leadsRemaining,
+      quotaLabel: `${leadsUsed}/${leadQuota}`,
+      setLeadStatus(id, status) {
+        const numericId = Number(id);
+        if (!state.purchasedIds.includes(numericId)) {
+          return { ok: false };
+        }
+        updateState({
+          ...state,
+          leadStatuses: { ...state.leadStatuses, [String(numericId)]: status },
+        });
+        return { ok: true };
+      },
+      selectPackage(packageId) {
+        const pkg = packageById(packageId);
+        if (!pkg) return { ok: false };
+        updateState({ ...state, activePackageId: packageId });
+        showToast(`${pkg.label} ist Ihr aktives Paket.`);
+        return { ok: true };
+      },
+      buyLeadPack(packageId, count = MIN_LEAD_PACK) {
+        const pkg = packageById(packageId);
+        const leads = Math.max(MIN_LEAD_PACK, Number(count) || MIN_LEAD_PACK);
+        if (!pkg) return { ok: false };
+        if (leads % MIN_LEAD_PACK !== 0) {
+          showToast(`Mindestabnahme: ${MIN_LEAD_PACK} Leads (in 10er-Schritten).`);
+          return { ok: false, reason: 'min' };
+        }
+        const netCents = packTotalCents(pkg, leads);
+        const at = new Date().toISOString();
+        updateState({
+          ...state,
+          activePackageId: packageId,
+          leadQuota: Math.max(state.leadQuota, state.purchasedIds.length) + leads,
+          transactions: [
+            {
+              id: `${Date.now()}-invoice`,
+              type: 'invoice',
+              number: makeInvoiceNumber(at),
+              label: `${leads}er-Paket ${pkg.label}`,
+              packageId,
+              cents: -netCents,
+              taxCents: Math.round(netCents * 0.19),
+              leads,
+              status: 'paid',
+              at,
+            },
+            ...state.transactions,
+          ],
+        });
+        showToast(`Rechnung erstellt · ${leads} Leads freigeschaltet.`);
+        return { ok: true };
+      },
       buyLead(id) {
         const lead = leadById(id);
         if (!lead || state.purchasedIds.includes(id)) return { ok: false, reason: 'missing' };
-        if (state.balanceCents < lead.priceCents) {
-          showToast('Nicht genug Guthaben. Bitte zuerst aufladen.');
-          return { ok: false, reason: 'funds' };
+        const quota = Math.max(state.leadQuota, state.purchasedIds.length);
+        if (state.purchasedIds.length >= quota) {
+          showToast('Kein freies Kontingent mehr. Bitte unter Zahlung nachkaufen.');
+          return { ok: false, reason: 'quota' };
         }
-        persist({
+        updateState({
+          ...state,
           purchasedIds: [...state.purchasedIds, id],
-          balanceCents: state.balanceCents - lead.priceCents,
+          leadStatuses: { ...state.leadStatuses, [String(id)]: 'neu' },
           transactions: [
             {
               id: `${Date.now()}-${id}`,
-              type: 'purchase',
-              label: `Lead ${lead.name}`,
-              cents: -lead.priceCents,
+              type: 'assign',
+              label: `Lead zugewiesen: ${lead.name}`,
+              cents: 0,
+              leads: 1,
               at: new Date().toISOString(),
             },
             ...state.transactions,
@@ -94,25 +170,8 @@ export function BrokerProvider({ children }) {
         showToast(`${lead.name} liegt jetzt unter Meine Leads.`);
         return { ok: true };
       },
-      addFunds(cents = 25000) {
-        persist({
-          ...state,
-          balanceCents: state.balanceCents + cents,
-          transactions: [
-            {
-              id: `${Date.now()}-topup`,
-              type: 'topup',
-              label: 'Guthaben aufgeladen',
-              cents,
-              at: new Date().toISOString(),
-            },
-            ...state.transactions,
-          ],
-        });
-        showToast('250 € wurden Ihrem Guthaben gutgeschrieben.');
-      },
     };
-  }, [persist, showToast, state, toast]);
+  }, [updateState, showToast, state, toast]);
 
   return (
     <BrokerContext.Provider value={value}>

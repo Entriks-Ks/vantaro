@@ -293,17 +293,24 @@ router.put('/profile', requireAuth, async (req, res) => {
   const companyTouched = completeOnboarding
     || req.body?.company !== undefined
     || req.body?.legalForm !== undefined
-    || req.body?.businessStreet !== undefined;
+    || req.body?.businessStreet !== undefined
+    || req.body?.businessZip !== undefined
+    || req.body?.businessCity !== undefined;
   const companyErrors = validateCompanyFields(companyPayload);
-  const stammdatenReady = companyErrors.length === 0;
+  const companyReady = companyErrors.length === 0;
+  const personalReady = validateAccountFields({ firstName, lastName, phone }).length === 0;
+  const stammdatenReady = companyReady && personalReady;
   const adminUser = isAdmin(req.authUser);
 
-  if (companyTouched && !stammdatenReady && !adminUser) {
+  if (companyTouched && !companyReady && !adminUser) {
     return res.status(400).json({ error: companyErrors[0] });
   }
 
-  if (password && password.length < 8) {
-    return res.status(400).json({ error: 'Passwort muss mindestens 8 Zeichen lang sein.' });
+  if (password) {
+    const passwordError = validatePassword(password);
+    if (passwordError) {
+      return res.status(400).json({ error: passwordError });
+    }
   }
 
   const updates = {
@@ -322,6 +329,43 @@ router.put('/profile', requireAuth, async (req, res) => {
   }
 
   res.json({ user: publicUser(data.user) });
+});
+
+router.post('/change-password', requireAuth, async (req, res) => {
+  const currentPassword = String(req.body?.currentPassword ?? '');
+  const password = String(req.body?.password ?? '');
+  const email = String(req.authUser.email || '').trim().toLowerCase();
+
+  if (!currentPassword || !password) {
+    return res.status(400).json({ error: 'Aktuelles und neues Passwort sind erforderlich.' });
+  }
+
+  const passwordError = validatePassword(password);
+  if (passwordError) {
+    return res.status(400).json({ error: passwordError });
+  }
+
+  if (currentPassword === password) {
+    return res.status(400).json({ error: 'Das neue Passwort muss sich vom aktuellen unterscheiden.' });
+  }
+
+  const { error: verifyError } = await supabaseAuth.auth.signInWithPassword({
+    email,
+    password: currentPassword,
+  });
+
+  if (verifyError) {
+    return res.status(400).json({ error: 'Aktuelles Passwort ist nicht korrekt.' });
+  }
+
+  const { data, error } = await supabase.auth.admin.updateUserById(req.authUser.id, { password });
+
+  if (error || !data.user) {
+    console.error('Change password failed:', error?.message);
+    return res.status(400).json({ error: 'Passwort konnte nicht geändert werden.' });
+  }
+
+  res.json({ ok: true, user: publicUser(data.user) });
 });
 
 router.get('/me', async (req, res) => {
@@ -412,6 +456,10 @@ router.post('/reset-password', async (req, res) => {
   }
   if (password.length < 8) {
     return res.status(400).json({ error: 'Passwort muss mindestens 8 Zeichen lang sein.' });
+  }
+  const resetPasswordError = validatePassword(password);
+  if (resetPasswordError) {
+    return res.status(400).json({ error: resetPasswordError });
   }
   if (!token) {
     return res.status(400).json({

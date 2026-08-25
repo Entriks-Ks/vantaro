@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import useNavigate from '../hooks/useNavigate';
+import { validatePassword } from '../lib/profile';
 
 export default function ResetPassword() {
   const [searchParams] = useSearchParams();
@@ -28,8 +29,9 @@ export default function ResetPassword() {
       setError('Bitte öffnen Sie den Link aus der E-Mail.');
       return;
     }
-    if (password.length < 8) {
-      setError('Passwort muss mindestens 8 Zeichen lang sein');
+    const passwordError = validatePassword(password);
+    if (passwordError) {
+      setError(passwordError);
       return;
     }
     if (password !== confirmPassword) {
