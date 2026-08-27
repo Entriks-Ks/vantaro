@@ -12,9 +12,10 @@ import {
 import {
   AdminOverview,
   AdminUsers,
-  AdminLeads,
   AdminPayment,
 } from './dashboard/AdminViews';
+import { AdminLeadEditor, AdminLeads } from './dashboard/AdminLeads';
+import { AdminBeraterDetail, AdminBeraterList } from './dashboard/AdminBerater';
 
 export default function Dashboard() {
   const { isAdmin } = useAuth();
@@ -28,7 +29,11 @@ export default function Dashboard() {
             {isAdmin ? (
               <>
                 <Route path="nutzer" element={<AdminUsers />} />
+                <Route path="berater" element={<AdminBeraterList />} />
+                <Route path="berater/:id" element={<AdminBeraterDetail />} />
                 <Route path="leads" element={<AdminLeads />} />
+                <Route path="leads/new" element={<AdminLeadEditor />} />
+                <Route path="leads/:id" element={<AdminLeadEditor />} />
                 <Route path="zahlung" element={<AdminPayment />} />
                 <Route path="profil" element={<BeraterProfile />} />
                 <Route path="users" element={<Navigate to="/dashboard/nutzer" replace />} />

@@ -2,31 +2,63 @@ import { useEffect, useMemo, useState } from 'react';
 import PhoneField, { isValidMobile } from '../../components/PhoneField';
 import { useAuth } from '../../hooks/useAuth';
 import { useBroker } from '../../hooks/useBroker';
+import {
+  CONCERN_OPTIONS,
+  employmentLabel,
+  fetchMyLeads,
+  formatLeadAddress,
+  formatLeadDate,
+  formatPremium,
+  listLabels,
+} from '../../lib/leads';
 import { LEGAL_FORMS, fileToAvatarDataUrl, formatAddress } from '../../lib/profile';
 import { formatEuroExact } from './helpers';
-import { formatDistance, LEADS, PRODUCT_FILTERS } from './leads';
 
 function LeadCard({ lead }) {
+  const address = formatLeadAddress(lead);
   return (
     <article className="broker-panel broker-lead-card" id={`lead-${lead.id}`}>
       <div className="broker-lead-top">
         <div>
-          <div className="broker-lead-name">{lead.name}</div>
-          <div className="broker-lead-address">⌖ {lead.address}</div>
+          <div className="broker-lead-name">{lead.fullName}</div>
+          <div className="broker-lead-address">{address}</div>
         </div>
-        <span className="broker-status">Gekauft</span>
+        <span className="broker-status">Zugewiesen</span>
       </div>
       <div className="broker-lead-meta">
-        <span>{formatDistance(lead.distanceKm)} entfernt</span>
-        <span>{lead.product}</span>
-        <span>Exklusiv</span>
+        <span>{listLabels(lead.insuranceStatus, 'insurance')}</span>
+        <span>{listLabels(lead.mainConcerns, 'concern')}</span>
+        {lead.employmentStatus ? <span>{employmentLabel(lead.employmentStatus)}</span> : null}
+        {lead.monthlyPremium != null ? <span>{formatPremium(lead.monthlyPremium)} / Monat</span> : null}
       </div>
-      <p className="broker-lead-note">{lead.note}</p>
+      <dl className="broker-lead-facts">
+        {lead.phone ? (
+          <div>
+            <dt>Telefon</dt>
+            <dd><a href={`tel:${lead.phone}`}>{lead.phone}</a></dd>
+          </div>
+        ) : null}
+        {lead.email ? (
+          <div>
+            <dt>E-Mail</dt>
+            <dd><a href={`mailto:${lead.email}`}>{lead.email}</a></dd>
+          </div>
+        ) : null}
+        {lead.dateOfBirth ? (
+          <div>
+            <dt>Geburtsdatum</dt>
+            <dd>{formatLeadDate(lead.dateOfBirth)}</dd>
+          </div>
+        ) : null}
+        {lead.currentInsurer ? (
+          <div>
+            <dt>Gesellschaft</dt>
+            <dd>{lead.currentInsurer}</dd>
+          </div>
+        ) : null}
+      </dl>
+      {lead.notes ? <p className="broker-lead-note">{lead.notes}</p> : null}
       <div className="broker-lead-bottom">
-        <div className="broker-lead-price">
-          {formatEuroExact(lead.priceCents)}
-          <span>bezahlt</span>
-        </div>
         <span className="broker-muted-action">Nächster Schritt: Kontakt aufnehmen</span>
       </div>
     </article>
@@ -34,36 +66,63 @@ function LeadCard({ lead }) {
 }
 
 export function BeraterLeads() {
-  const { purchasedIds } = useBroker();
-  const [product, setProduct] = useState('all');
+  const [leads, setLeads] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [concern, setConcern] = useState('all');
+
+  useEffect(() => {
+    let active = true;
+    fetchMyLeads()
+      .then((payload) => {
+        if (active) setLeads(payload.leads || []);
+      })
+      .catch((err) => {
+        if (active) setError(err.message);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const visible = useMemo(() => (
-    LEADS
-      .filter((lead) => purchasedIds.includes(lead.id))
-      .filter((lead) => product === 'all' || lead.product === product)
-  ), [product, purchasedIds]);
+    leads.filter((lead) => concern === 'all' || (lead.mainConcerns || []).includes(concern))
+  ), [concern, leads]);
 
   return (
     <div className="broker-page">
       <div className="broker-heading">
         <div>
-          <div className="broker-eyebrow">Gekaufte Chancen</div>
+          <div className="broker-eyebrow">Zugewiesene Chancen</div>
           <h1>Meine Leads</h1>
-          <p>Leads, die Sie übernommen haben und jetzt kontaktieren können.</p>
+          <p>Leads, die Ihnen zugewiesen wurden und die Sie jetzt kontaktieren können.</p>
         </div>
       </div>
 
       <div className="broker-filterbar">
-        <label htmlFor="productFilter">Produkt</label>
-        <select id="productFilter" value={product} onChange={(event) => setProduct(event.target.value)}>
-          {PRODUCT_FILTERS.map((option) => (
+        <label htmlFor="concernFilter">Hauptanliegen</label>
+        <select id="concernFilter" value={concern} onChange={(event) => setConcern(event.target.value)}>
+          <option value="all">Alle Anliegen</option>
+          {CONCERN_OPTIONS.map((option) => (
             <option key={option.id} value={option.id}>{option.label}</option>
           ))}
         </select>
-        <span className="broker-filter-count">{visible.length} in Ihrem Bestand</span>
+        <span className="broker-filter-count">
+          {loading ? 'Laden…' : `${visible.length} in Ihrem Bestand`}
+        </span>
       </div>
 
-      {visible.length ? (
+      {error ? <div className="broker-alert">{error}</div> : null}
+
+      {loading ? (
+        <div className="broker-panel broker-empty">
+          <strong>Leads werden geladen</strong>
+          <p>Einen Moment bitte.</p>
+        </div>
+      ) : visible.length ? (
         <div className="broker-leads-grid">
           {visible.map((lead) => (
             <LeadCard key={lead.id} lead={lead} />
@@ -71,8 +130,8 @@ export function BeraterLeads() {
         </div>
       ) : (
         <div className="broker-panel broker-empty">
-          <strong>Noch keine Leads gekauft</strong>
-          <p>Sobald Sie eine Chance übernehmen, erscheint sie hier als Karte in Ihrem Bestand.</p>
+          <strong>Noch keine Leads zugewiesen</strong>
+          <p>Sobald ein Admin Ihnen einen Lead zuweist, erscheint er hier.</p>
         </div>
       )}
     </div>

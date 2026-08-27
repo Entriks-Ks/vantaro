@@ -6,6 +6,7 @@ import {
   LogOut,
   ListChecks,
   Landmark,
+  UserRound,
 } from 'lucide-react';
 import Brand from '../../components/Brand';
 import { useAuth } from '../../hooks/useAuth';
@@ -20,6 +21,7 @@ const BERATER_LINKS = [
 const ADMIN_LINKS = [
   { to: '/dashboard', end: true, label: 'Dashboard', icon: LayoutDashboard },
   { to: '/dashboard/nutzer', label: 'Nutzer', icon: Users },
+  { to: '/dashboard/berater', label: 'Berater', icon: UserRound },
   { to: '/dashboard/leads', label: 'Leads', icon: ListChecks },
   { to: '/dashboard/zahlung', label: 'Zahlung', icon: Landmark },
 ];
@@ -31,7 +33,7 @@ function pageCopy(pathname) {
   if (pathname.startsWith('/dashboard/profil')) {
     return { title: 'Profil', subtitle: 'Name, E-Mail und Passwort verwalten.' };
   }
-  return { title: 'Meine Leads', subtitle: 'Ihre gekauften Chancen an einem Ort.' };
+    return { title: 'Meine Leads', subtitle: 'Ihre zugewiesenen Chancen an einem Ort.' };
 }
 
 const ADMIN_SIDEBAR_KEY = 'vantaro-admin-sidebar';

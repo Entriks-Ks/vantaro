@@ -83,6 +83,12 @@ The API uses one Supabase project at a time via `server/.env`:
 
 Keep both Vantaro-Development and Vantaro-Production blocks in that file. Comment out the unused one. Restart the server after switching. Check `GET /api/health` — `supabase.configured` and `supabase.reachable` should be `true`.
 
+### Leads table
+
+Lead records live in Postgres (`public.leads`). The API uses the service role; RLS is on with no anon/authenticated policies.
+
+Run [`server/supabase/leads.sql`](server/supabase/leads.sql) in the **SQL Editor** of each Supabase project you use (Development and Production). Then run [`server/supabase/lead_requests.sql`](server/supabase/lead_requests.sql) for Berater-Aufträge. Repeat after switching projects.
+
 Registration sends a **6-digit code via Resend**. Set `RESEND_API_KEY` and `EMAIL_FROM` in `server/.env`. `EMAIL_FROM` must use a domain that is **verified** in the Resend dashboard.
 
 ## Header

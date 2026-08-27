@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { useDashboard } from '../../hooks/useDashboard';
 import { roleLabel } from '../../lib/roles';
+import { LeadListItem } from './AdminLeads';
 import { formatDate } from './helpers';
 
 function Metric({ label, value, hint, tone }) {
@@ -49,7 +50,11 @@ function UsersTable({ users, empty }) {
           {users.map((entry) => (
             <tr key={entry.id}>
               <td>
-                <div>{entry.fullName || '—'}</div>
+                {entry.role === 'berater' ? (
+                  <Link to={`/dashboard/berater/${entry.id}`}>{entry.fullName || '—'}</Link>
+                ) : (
+                  <div>{entry.fullName || '—'}</div>
+                )}
                 {entry.customerNumber ? <small>{entry.customerNumber}</small> : null}
               </td>
               <td>{entry.company || '—'}</td>
@@ -103,12 +108,28 @@ export function AdminOverview() {
           </div>
           <UsersTable users={admin?.recentUsers} empty="Noch keine Nutzer geladen." />
         </section>
-        <EmptyPanel
-          title="Leads"
-          action="Öffnen"
-          to="/dashboard/leads"
-          text="Noch keine Leads in der Warteschlange. Qualifizierte Kontakte erscheinen hier."
-        />
+        <section className="dash-panel">
+          <div className="dash-panel-head">
+            <strong>Leads</strong>
+            <Link to="/dashboard/leads">Alle Leads</Link>
+          </div>
+          {admin?.recentLeads?.length ? (
+            <>
+              <p className="dash-panel-note">
+                {admin.qualityQueue || 0} neu · {admin.unmatched || 0} ohne Berater
+              </p>
+              <div className="dash-lead-list">
+                {admin.recentLeads.map((lead) => (
+                  <LeadListItem key={lead.id} lead={lead} />
+                ))}
+              </div>
+            </>
+          ) : (
+            <div className="dash-empty">
+              <p>Noch keine Leads in der Warteschlange. Qualifizierte Kontakte erscheinen hier.</p>
+            </div>
+          )}
+        </section>
       </div>
     </div>
   );
@@ -122,7 +143,7 @@ export function AdminUsers() {
       <div className="dash-intro">
         <div>
           <h2>Nutzer</h2>
-          <p>Neue Konten sind Berater. Admins setzen Sie in Supabase unter App Metadata auf <code>role: admin</code>.</p>
+          <p>Konten im Überblick. Lead-Aufträge steuern Sie unter <Link to="/dashboard/berater">Berater</Link>.</p>
         </div>
       </div>
       <section className="dash-panel">
@@ -132,23 +153,6 @@ export function AdminUsers() {
         </div>
         <UsersTable users={admin?.directory} empty="Keine Konten gefunden." />
       </section>
-    </div>
-  );
-}
-
-export function AdminLeads() {
-  return (
-    <div className="dash-stack">
-      <div className="dash-intro">
-        <div>
-          <h2>Leads</h2>
-          <p>Eingehende Leads prüfen und verwalten.</p>
-        </div>
-      </div>
-      <EmptyPanel
-        title="Lead-Warteschlange"
-        text="Noch keine Leads. Eingehende Kontakte erscheinen hier."
-      />
     </div>
   );
 }
