@@ -16,7 +16,7 @@ import {
 } from '../lib/profile.js';
 import { DEFAULT_ROLE, isAdmin } from '../lib/roles.js';
 import { supabase, supabaseAuth } from '../lib/supabase.js';
-import { createUserSession, ensureUserRole, findUserByEmail, isEmailVerified, revokeSession } from '../lib/users.js';
+import { createUserSession, ensureUserRole, finalizeOAuthUser, findUserByEmail, isEmailVerified, isSupportedOAuthUser, revokeSession } from '../lib/users.js';
 import { issueVerificationCode, secondsUntilResend, verifyUserCode, verifyUserToken } from '../lib/verification.js';
 
 const router = Router();
@@ -239,6 +239,37 @@ router.post('/login', async (req, res) => {
 
   const user = await ensureUserRole(data.user);
   res.json(publicSession(data.session, user));
+});
+
+router.post('/oauth', async (req, res) => {
+  const token = getBearerToken(req) || String(req.body?.access_token ?? '').trim();
+  const refreshToken = String(req.body?.refresh_token ?? '').trim();
+  const expiresAt = Number(req.body?.expires_at) || undefined;
+
+  if (!token) {
+    return res.status(400).json({ error: 'Anmeldung ist fehlgeschlagen.' });
+  }
+
+  const { data, error } = await supabase.auth.getUser(token);
+  if (error || !data.user) {
+    return res.status(401).json({ error: 'Anmeldung ist fehlgeschlagen.' });
+  }
+
+  if (!isSupportedOAuthUser(data.user)) {
+    return res.status(400).json({ error: 'Kein Google- oder Apple-Konto gefunden.' });
+  }
+
+  try {
+    const user = await finalizeOAuthUser(data.user);
+    res.json(publicSession({
+      access_token: token,
+      refresh_token: refreshToken,
+      expires_at: expiresAt,
+    }, user));
+  } catch (oauthError) {
+    console.error('OAuth complete failed:', oauthError.message);
+    return res.status(400).json({ error: mapAuthError(oauthError) });
+  }
 });
 
 router.post('/logout', async (req, res) => {

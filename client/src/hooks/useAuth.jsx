@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import {
+  exchangeOAuthCallback,
   forgotPasswordRequest,
   loginRequest,
   logoutRequest,
@@ -8,6 +9,8 @@ import {
   resendVerificationRequest,
   resetPasswordRequest,
   restoreSession,
+  startAppleLogin,
+  startGoogleLogin,
   updateProfileRequest,
   verifyEmailRequest,
   verifyEmailTokenRequest,
@@ -41,6 +44,20 @@ export function AuthProvider({ children }) {
 
   const login = useCallback(async (email, password) => {
     const session = await loginRequest(email, password);
+    setUser(session.user);
+    return session;
+  }, []);
+
+  const loginWithGoogle = useCallback(async (nextPath) => {
+    await startGoogleLogin(nextPath);
+  }, []);
+
+  const loginWithApple = useCallback(async (nextPath) => {
+    await startAppleLogin(nextPath);
+  }, []);
+
+  const completeOAuthLogin = useCallback(async () => {
+    const session = await exchangeOAuthCallback();
     setUser(session.user);
     return session;
   }, []);
@@ -96,6 +113,9 @@ export function AuthProvider({ children }) {
       isAdmin: Boolean(user) && role === ROLES.ADMIN,
       loading,
       login,
+      loginWithGoogle,
+      loginWithApple,
+      completeOAuthLogin,
       register,
       verifyEmail,
       verifyEmailToken,
@@ -106,7 +126,7 @@ export function AuthProvider({ children }) {
       resetPassword,
       resendPasswordReset,
     }),
-    [user, role, loading, login, register, verifyEmail, verifyEmailToken, updateProfile, resendVerification, logout, forgotPassword, resetPassword, resendPasswordReset],
+    [user, role, loading, login, loginWithGoogle, loginWithApple, completeOAuthLogin, register, verifyEmail, verifyEmailToken, updateProfile, resendVerification, logout, forgotPassword, resetPassword, resendPasswordReset],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

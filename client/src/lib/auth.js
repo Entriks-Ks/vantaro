@@ -1,6 +1,8 @@
 import { apiUrl } from './api';
+import { supabase } from './supabase';
 
 const STORAGE_KEY = 'vantaro-auth';
+const OAUTH_NEXT_KEY = 'vantaro-oauth-next';
 
 function readStoredSession() {
   try {
@@ -41,6 +43,160 @@ export async function loginRequest(email, password) {
   const session = await parseAuthResponse(response);
   writeStoredSession(session);
   return session;
+}
+
+export function rememberOAuthNext(path) {
+  const next = String(path || '').trim();
+  if (!next || next.startsWith('/onboarding') || next === '/login' || next === '/register') {
+    sessionStorage.removeItem(OAUTH_NEXT_KEY);
+    return;
+  }
+  sessionStorage.setItem(OAUTH_NEXT_KEY, next);
+}
+
+export function consumeOAuthNext() {
+  const next = sessionStorage.getItem(OAUTH_NEXT_KEY);
+  sessionStorage.removeItem(OAUTH_NEXT_KEY);
+  if (!next || next.startsWith('/onboarding')) return '/dashboard';
+  return next;
+}
+
+const OAUTH_PROVIDERS = {
+  google: 'Google',
+  apple: 'Apple',
+};
+
+function oauthLabel(provider) {
+  return OAUTH_PROVIDERS[provider] || 'Social';
+}
+
+export async function startOAuthLogin(provider, nextPath) {
+  const label = oauthLabel(provider);
+  if (!OAUTH_PROVIDERS[provider]) {
+    const error = new Error(`${label}-Anmeldung ist nicht verfügbar.`);
+    error.status = 400;
+    throw error;
+  }
+  if (!supabase) {
+    const error = new Error(`${label}-Anmeldung ist nicht konfiguriert.`);
+    error.status = 503;
+    throw error;
+  }
+
+  rememberOAuthNext(nextPath);
+  const options = {
+    redirectTo: `${window.location.origin}/auth/callback`,
+  };
+  if (provider === 'google') {
+    options.queryParams = { prompt: 'select_account' };
+  }
+
+  const { error } = await supabase.auth.signInWithOAuth({ provider, options });
+
+  if (error) {
+    const next = new Error(mapOAuthError(error.message, provider));
+    next.status = 400;
+    throw next;
+  }
+}
+
+export async function startGoogleLogin(nextPath) {
+  return startOAuthLogin('google', nextPath);
+}
+
+export async function startAppleLogin(nextPath) {
+  return startOAuthLogin('apple', nextPath);
+}
+
+export async function completeOAuthRequest({ access_token, refresh_token, expires_at }) {
+  const response = await fetch(apiUrl('/api/auth/oauth'), {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${access_token}`,
+    },
+    body: JSON.stringify({ access_token, refresh_token, expires_at }),
+  });
+  const session = await parseAuthResponse(response);
+  writeStoredSession(session);
+  return session;
+}
+
+const oauthCallbackByCode = new Map();
+
+export async function exchangeOAuthCallback() {
+  if (!supabase) {
+    const error = new Error('Social-Anmeldung ist nicht konfiguriert.');
+    error.status = 503;
+    throw error;
+  }
+
+  const params = new URLSearchParams(window.location.search);
+  const oauthError = params.get('error_description') || params.get('error');
+  if (oauthError) {
+    const error = new Error(mapOAuthError(oauthError));
+    error.status = 400;
+    throw error;
+  }
+
+  const code = params.get('code');
+  if (!code) {
+    const error = new Error('Die Anmeldung wurde abgebrochen.');
+    error.status = 400;
+    throw error;
+  }
+
+  const existing = oauthCallbackByCode.get(code);
+  if (existing) return existing;
+
+  const pending = (async () => {
+    const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+    if (error || !data.session?.access_token) {
+      console.error('OAuth callback exchange failed:', error?.message || error);
+      const next = new Error(mapOAuthError(error?.message || 'Anmeldung ist fehlgeschlagen.'));
+      next.status = 400;
+      throw next;
+    }
+
+    const session = await completeOAuthRequest({
+      access_token: data.session.access_token,
+      refresh_token: data.session.refresh_token,
+      expires_at: data.session.expires_at,
+    });
+
+    await supabase.auth.signOut({ scope: 'local' }).catch(() => {});
+    return session;
+  })();
+
+  oauthCallbackByCode.set(code, pending);
+  try {
+    return await pending;
+  } catch (error) {
+    oauthCallbackByCode.delete(code);
+    throw error;
+  }
+}
+
+export async function exchangeGoogleCallback() {
+  return exchangeOAuthCallback();
+}
+
+function mapOAuthError(message, provider) {
+  const label = oauthLabel(provider);
+  const text = String(message || '');
+  if (/already registered|already exists|identity/i.test(text)) {
+    return 'Diese E-Mail-Adresse ist bereits registriert. Bitte melden Sie sich mit Passwort an.';
+  }
+  if (/access denied|cancelled|canceled/i.test(text)) {
+    return `Die ${label}-Anmeldung wurde abgebrochen.`;
+  }
+  if (/provider is not enabled/i.test(text)) {
+    return `${label}-Anmeldung ist in Supabase noch nicht aktiviert.`;
+  }
+  if (/code verifier|pkce/i.test(text)) {
+    return `Die ${label}-Anmeldung konnte nicht abgeschlossen werden. Bitte starten Sie die Anmeldung erneut.`;
+  }
+  return `${label}-Anmeldung ist fehlgeschlagen. Bitte versuchen Sie es erneut.`;
 }
 
 export async function registerRequest(payload) {

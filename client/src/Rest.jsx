@@ -671,7 +671,7 @@ export default function Rest() {
                     </article>
                     <div className="pricing-side">
                         <article className="side-card"><h3>Weitere Sparten</h3><p>BU, Altersvorsorge, Rürup, bKV, Gewerbeversicherung, Baufinanzierung und Unternehmerabsicherung folgen mit eigenen Qualitätsstandards.</p><ul><li>eigener Leadtyp je Sparte</li><li>Preis nach Beratungswert</li><li>Q2 / Q3 / Live-Transfer getrennt steuerbar</li></ul></article>
-                        <article className="side-card calculator"><h3>Planbar statt Bauchgefühl</h3><p>Spielen Sie eine monatliche PKV-Abnahme als einfache Budgetgröße durch.</p><div className="range-label"><span>Chancen pro Monat</span><strong id="leadCount">20</strong></div><input id="leadRange" type="range" min="5" max="60" defaultValue="20" step="5" aria-label="Chancen pro Monat" /><div className="calc-result"><span>Richtwert bei 119 €</span><strong id="calcValue">2.380 €</strong></div></article>
+                        <article className="side-card calculator"><h3>Planbar statt Bauchgefühl</h3><p>Spielen Sie eine monatliche PKV-Abnahme als einfache Budgetgröße durch.</p><div className="range-label"><span>Chancen pro Monat</span><strong id="leadCount">20</strong></div><input id="leadRange" type="range" min="10" max="60" defaultValue="20" step="5" aria-label="Chancen pro Monat" /><div className="calc-result"><span>Richtwert bei 119 €</span><strong id="calcValue">2.380 €</strong></div></article>
                     </div>
                 </div>
             </div>

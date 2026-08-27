@@ -1,4 +1,5 @@
 import { supabase, supabaseAuth, supabaseConfig } from './supabase.js';
+import { buildFullName, splitFullName } from './profile.js';
 import { ROLES, getUserRole } from './roles.js';
 
 export async function findUserByEmail(email) {
@@ -46,8 +47,95 @@ async function findUserByEmailPaged(normalized) {
   return null;
 }
 
+export function isOAuthUser(user) {
+  const identities = user?.identities || [];
+  if (identities.some((identity) => {
+    const provider = String(identity.provider || '').toLowerCase();
+    return provider && provider !== 'email';
+  })) {
+    return true;
+  }
+
+  const providers = user?.app_metadata?.providers;
+  if (Array.isArray(providers) && providers.some((provider) => String(provider).toLowerCase() !== 'email')) {
+    return true;
+  }
+
+  const provider = String(user?.app_metadata?.provider || '').toLowerCase();
+  return Boolean(provider && provider !== 'email');
+}
+
+export function isSupportedOAuthUser(user) {
+  const allowed = new Set(['google', 'apple']);
+  const identities = user?.identities || [];
+  if (identities.some((identity) => allowed.has(String(identity.provider || '').toLowerCase()))) {
+    return true;
+  }
+
+  const providers = user?.app_metadata?.providers;
+  if (Array.isArray(providers) && providers.some((provider) => allowed.has(String(provider).toLowerCase()))) {
+    return true;
+  }
+
+  return allowed.has(String(user?.app_metadata?.provider || '').toLowerCase());
+}
+
+export function isGoogleUser(user) {
+  return hasOAuthProvider(user, 'google');
+}
+
+function hasOAuthProvider(user, provider) {
+  const wanted = String(provider || '').toLowerCase();
+  const identities = user?.identities || [];
+  if (identities.some((identity) => String(identity.provider || '').toLowerCase() === wanted)) {
+    return true;
+  }
+
+  const providers = user?.app_metadata?.providers;
+  if (Array.isArray(providers) && providers.includes(wanted)) return true;
+  return String(user?.app_metadata?.provider || '').toLowerCase() === wanted;
+}
+
 export function isEmailVerified(user) {
-  return user?.user_metadata?.email_verified === true;
+  return user?.user_metadata?.email_verified === true || isOAuthUser(user);
+}
+
+function trimMeta(value) {
+  return String(value ?? '').trim();
+}
+
+export async function finalizeOAuthUser(user) {
+  if (!user?.id || !supabase) return user;
+
+  const metadata = user.user_metadata || {};
+  const fullName = trimMeta(metadata.full_name || metadata.name);
+  const split = splitFullName(fullName);
+  const firstName = trimMeta(metadata.first_name) || trimMeta(metadata.given_name) || split.firstName;
+  const lastName = trimMeta(metadata.last_name) || trimMeta(metadata.family_name) || split.lastName;
+  const avatarUrl = trimMeta(metadata.avatar_url) || trimMeta(metadata.picture);
+
+  const nextMetadata = {
+    ...metadata,
+    first_name: firstName,
+    last_name: lastName,
+    full_name: buildFullName(firstName, lastName, fullName),
+    email_verified: true,
+    onboarding_complete: metadata.onboarding_complete === true,
+  };
+
+  if (avatarUrl) nextMetadata.avatar_url = avatarUrl;
+
+  const { data, error } = await supabase.auth.admin.updateUserById(user.id, {
+    email_confirm: true,
+    user_metadata: nextMetadata,
+  });
+
+  if (error) {
+    console.error('finalizeOAuthUser failed:', error.message);
+    return ensureUserRole(user);
+  }
+
+  return ensureUserRole(data.user || user);
 }
 
 export async function createUserSession(user) {

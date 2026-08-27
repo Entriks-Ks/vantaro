@@ -9,6 +9,7 @@ import Analytics from './components/Analytics';
 import Impressum from './pages/Impressum';
 import Datenschutz from './pages/Datenschutz';
 import Login from './pages/Login';
+import AuthCallback from './pages/AuthCallback';
 import Register from './pages/Register';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
@@ -24,13 +25,14 @@ function AppContent() {
   const isImpressum = location.hash === '#impressum' || location.pathname === '/impressum';
   const isDatenschutz = location.hash === '#datenschutz' || location.pathname === '/datenschutz';
   const isLogin = location.pathname === '/login';
+  const isAuthCallback = location.pathname === '/auth/callback';
   const isRegister = location.pathname === '/register';
   const isForgotPassword = location.pathname === '/forgot-password';
   const isResetPassword = location.pathname === '/reset-password';
   const isVerifyEmail = location.pathname === '/verify-email';
   const isDashboard = location.pathname.startsWith('/dashboard');
   const isLegal = isImpressum || isDatenschutz;
-  const isAuth = isLogin || isRegister || isForgotPassword || isResetPassword || isVerifyEmail;
+  const isAuth = isLogin || isAuthCallback || isRegister || isForgotPassword || isResetPassword || isVerifyEmail;
   const isAppShell = isAuth || isDashboard;
 
   useSectionReveal([location.pathname, location.hash, isLegal]);
@@ -45,17 +47,19 @@ function AppContent() {
         ? 'Datenschutz — VANTARO'
         : isLogin
           ? 'Anmelden — VANTARO'
-          : isRegister
-            ? 'Registrieren — VANTARO'
-            : isForgotPassword
-              ? 'Passwort zurücksetzen — VANTARO'
-              : isResetPassword
-                ? 'Neues Passwort — VANTARO'
-              : isVerifyEmail
-                ? 'E-Mail bestätigen — VANTARO'
-                : isDashboard
-                  ? 'Workspace — VANTARO'
-                  : 'VANTARO — Qualifizierte Beratungschancen & Makler-Matching für Finanzdienstleister';
+          : isAuthCallback
+            ? 'Anmeldung — VANTARO'
+            : isRegister
+              ? 'Registrieren — VANTARO'
+              : isForgotPassword
+                ? 'Passwort zurücksetzen — VANTARO'
+                : isResetPassword
+                  ? 'Neues Passwort — VANTARO'
+                  : isVerifyEmail
+                    ? 'E-Mail bestätigen — VANTARO'
+                    : isDashboard
+                      ? 'Workspace — VANTARO'
+                      : 'VANTARO — Qualifizierte Beratungschancen & Makler-Matching für Finanzdienstleister';
 
     if (isLegal || isAuth || isDashboard) {
       window.scrollTo(0, 0);
@@ -72,7 +76,7 @@ function AppContent() {
       document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, 120);
     return () => window.clearTimeout(timer);
-  }, [location.pathname, location.hash, isLegal, isAuth, isDashboard, isImpressum, isDatenschutz, isLogin, isRegister, isForgotPassword, isResetPassword, isVerifyEmail]);
+  }, [location.pathname, location.hash, isLegal, isAuth, isDashboard, isImpressum, isDatenschutz, isLogin, isAuthCallback, isRegister, isForgotPassword, isResetPassword, isVerifyEmail]);
 
   return (
     <>
@@ -80,6 +84,7 @@ function AppContent() {
       {!isAppShell && <Header solid={isLegal} />}
       <Routes>
         <Route path="/login" element={<Login />} />
+        <Route path="/auth/callback" element={<AuthCallback />} />
         <Route path="/register" element={<Register />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />

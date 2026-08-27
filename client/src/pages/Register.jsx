@@ -1,6 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import SocialAuthButtons from '../components/SocialAuthButtons';
 import { useAuth } from '../hooks/useAuth';
+import useBackForwardCacheRestore from '../hooks/useBackForwardCacheRestore';
 import useNavigate from '../hooks/useNavigate';
 
 function EyeIcon({ off }) {
@@ -39,8 +41,13 @@ export default function Register() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const { user, loading, register } = useAuth();
+  const { user, loading, register, loginWithGoogle, loginWithApple } = useAuth();
   const navigate = useNavigate();
+
+  const unlockForm = useCallback(() => {
+    setSubmitting(false);
+  }, []);
+  useBackForwardCacheRestore(unlockForm);
 
   useEffect(() => {
     if (!loading && user) navigate('/dashboard', { replace: true });
@@ -90,6 +97,28 @@ export default function Register() {
       }
       setError(err.message);
     } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleGoogle = async () => {
+    setError('');
+    setSubmitting(true);
+    try {
+      await loginWithGoogle('/dashboard');
+    } catch (err) {
+      setError(err.message || 'Google-Anmeldung ist fehlgeschlagen.');
+      setSubmitting(false);
+    }
+  };
+
+  const handleApple = async () => {
+    setError('');
+    setSubmitting(true);
+    try {
+      await loginWithApple('/dashboard');
+    } catch (err) {
+      setError(err.message || 'Apple-Anmeldung ist fehlgeschlagen.');
       setSubmitting(false);
     }
   };
@@ -238,6 +267,12 @@ export default function Register() {
               {submitting ? 'Konto wird erstellt…' : 'Konto erstellen'}
             </button>
           </form>
+
+          <SocialAuthButtons
+            onGoogle={handleGoogle}
+            onApple={handleApple}
+            disabled={submitting}
+          />
 
           <div className="auth-footer">
             <span>Bereits ein Konto?</span>

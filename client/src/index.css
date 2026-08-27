@@ -4774,6 +4774,11 @@ body.auth-page {
     border-color: var(--thread);
 }
 
+.social-button:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
 .auth-footer {
     text-align: center;
     margin-top: 8px;
