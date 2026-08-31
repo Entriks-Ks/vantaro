@@ -123,7 +123,12 @@ export default function AddressMap({
       .catch((err) => {
         if (cancelled) return;
         setStatus('error');
-        setError(err?.message || 'Karte konnte nicht geladen werden.');
+        const msg = String(err?.message || '');
+        if (/abgelehnt|ungültig|nicht aktiviert|Auth/i.test(msg)) {
+          setError('Kartensuche vorübergehend nicht verfügbar — Adresse bitte manuell eintragen.');
+          return;
+        }
+        setError(msg || 'Karte konnte nicht geladen werden.');
       });
 
     return () => {

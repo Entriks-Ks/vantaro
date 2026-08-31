@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from './useAuth';
-import { LEADS, leadById } from '../pages/dashboard/leads';
+import { decideReportOutcome, LEAD_REPORT_DETAIL_MIN, LEADS, leadById } from '../pages/dashboard/leads';
 import { MIN_LEAD_PACK, packageById, packTotalCents } from '../pages/dashboard/packages';
 
 const BrokerContext = createContext(null);
@@ -8,6 +8,10 @@ const DEMO_OWNED = LEADS.slice(0, 5).map((lead) => lead.id);
 
 function defaultStatuses(ids = DEMO_OWNED) {
   return Object.fromEntries(ids.map((id) => [String(id), 'neu']));
+}
+
+function defaultNotes(ids = DEMO_OWNED) {
+  return Object.fromEntries(ids.map((id) => [String(id), '']));
 }
 
 function makeInvoiceNumber(at = new Date()) {
@@ -40,6 +44,9 @@ function emptyState() {
     ],
     leadQuota: MIN_LEAD_PACK,
     leadStatuses: defaultStatuses(),
+    leadNotes: defaultNotes(),
+    leadFollowUps: {},
+    leadReports: {},
     activePackageId: 'pkv-deutschlandweit',
   };
 }
@@ -86,6 +93,9 @@ export function BrokerProvider({ children }) {
       transactions: state.transactions,
       invoices,
       leadStatuses: state.leadStatuses,
+      leadNotes: state.leadNotes,
+      leadFollowUps: state.leadFollowUps,
+      leadReports: state.leadReports,
       activePackageId: state.activePackageId,
       activePackage: packageById(state.activePackageId),
       leadQuota,
@@ -102,6 +112,64 @@ export function BrokerProvider({ children }) {
           leadStatuses: { ...state.leadStatuses, [String(numericId)]: status },
         });
         return { ok: true };
+      },
+      setLeadNotes(id, notes) {
+        const numericId = Number(id);
+        if (!state.purchasedIds.includes(numericId)) {
+          return { ok: false };
+        }
+        updateState({
+          ...state,
+          leadNotes: { ...state.leadNotes, [String(numericId)]: String(notes ?? '') },
+        });
+        return { ok: true };
+      },
+      setLeadFollowUp(id, date, time) {
+        const numericId = Number(id);
+        if (!state.purchasedIds.includes(numericId) || !date || !time) {
+          return { ok: false };
+        }
+        updateState({
+          ...state,
+          leadStatuses: { ...state.leadStatuses, [String(numericId)]: 'wiedervorlage' },
+          leadFollowUps: {
+            ...state.leadFollowUps,
+            [String(numericId)]: { date, time, at: new Date().toISOString() },
+          },
+        });
+        showToast('Wiedervorlage gespeichert.');
+        return { ok: true };
+      },
+      reportLead(id, reasonId, detail, proofName = '') {
+        const numericId = Number(id);
+        const text = String(detail || '').trim();
+        if (!state.purchasedIds.includes(numericId) || !reasonId || text.length < LEAD_REPORT_DETAIL_MIN) {
+          return { ok: false };
+        }
+        const status = decideReportOutcome(reasonId);
+        updateState({
+          ...state,
+          leadReports: {
+            ...state.leadReports,
+            [String(numericId)]: {
+              reasonId,
+              detail: text,
+              proofName: String(proofName || '').trim(),
+              status,
+              at: new Date().toISOString(),
+            },
+          },
+        });
+        if (status === 'gutgeschrieben' || status === 'teilweise') {
+          showToast('Reklamation angenommen — Gutschrift wird verbucht.');
+        } else if (status === 'abgelehnt') {
+          showToast('Reklamation abgelehnt.');
+        } else if (status === 'infos_noetig') {
+          showToast('Weitere Nachweise erforderlich.');
+        } else {
+          showToast('Reklamation eingereicht — Vantaro prüft Ihren Fall.');
+        }
+        return { ok: true, status };
       },
       selectPackage(packageId) {
         const pkg = packageById(packageId);
@@ -155,6 +223,7 @@ export function BrokerProvider({ children }) {
           ...state,
           purchasedIds: [...state.purchasedIds, id],
           leadStatuses: { ...state.leadStatuses, [String(id)]: 'neu' },
+          leadNotes: { ...state.leadNotes, [String(id)]: '' },
           transactions: [
             {
               id: `${Date.now()}-${id}`,

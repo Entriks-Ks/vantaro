@@ -54,3 +54,38 @@ export function formatDate(value) {
     year: 'numeric',
   }).format(new Date(value));
 }
+
+function filled(value) {
+  return Boolean(String(value || '').trim());
+}
+
+export function isPersonalComplete(user) {
+  return filled(user?.firstName) && filled(user?.lastName) && filled(user?.phone);
+}
+
+export function isCompanyComplete(user) {
+  const profile = user?.profile || {};
+  const address = profile.businessAddress || {};
+  return (
+    filled(profile.company)
+    && filled(profile.legalForm)
+    && filled(address.street)
+    && filled(address.zip)
+    && filled(address.city)
+  );
+}
+
+/** True when personal + company fields required for berater onboarding are present. */
+export function isAccountSetupComplete(user) {
+  if (!user) return false;
+  if (user.onboardingComplete) return true;
+  return isPersonalComplete(user) && isCompanyComplete(user);
+}
+
+export function accountSetupCta(user) {
+  if (!user || isAccountSetupComplete(user)) return null;
+  if (!isPersonalComplete(user)) {
+    return { to: '/dashboard/profil', label: 'Profil einrichten' };
+  }
+  return { to: '/dashboard/unternehmen', label: 'Unternehmen einrichten' };
+}

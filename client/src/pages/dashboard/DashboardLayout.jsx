@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { NavLink, Link } from 'react-router-dom';
+import { NavLink, Link, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
   Users,
@@ -16,7 +16,7 @@ import {
 import Brand from '../../components/Brand';
 import { useAuth } from '../../hooks/useAuth';
 import { roleLabel } from '../../lib/roles';
-import { firstName, initials } from './helpers';
+import { accountSetupCta, firstName, initials } from './helpers';
 
 const BERATER_LINKS = [
   { to: '/dashboard', end: true, label: 'Dashboard', icon: LayoutDashboard },
@@ -163,6 +163,10 @@ function AccountMenu({ user, logout }) {
 }
 
 function BeraterShell({ user, logout, children }) {
+  const location = useLocation();
+  const setupCta = accountSetupCta(user);
+  const showSetupCta = Boolean(setupCta && !location.pathname.startsWith(setupCta.to));
+
   return (
     <div className="broker">
       <aside className="broker-nav">
@@ -184,6 +188,12 @@ function BeraterShell({ user, logout, children }) {
               );
             })}
           </nav>
+          {showSetupCta ? (
+            <Link className="broker-setup-cta" to={setupCta.to}>
+              {setupCta.to.includes('unternehmen') ? <Building2 size={15} /> : <User size={15} />}
+              {setupCta.label}
+            </Link>
+          ) : null}
           <AccountMenu user={user} logout={logout} />
         </div>
       </aside>
