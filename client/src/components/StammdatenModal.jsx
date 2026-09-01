@@ -3,47 +3,13 @@ import { useLocation } from 'react-router-dom';
 import {
   ArrowRight,
   Building2,
-  Globe,
   MapPin,
-  Phone,
-  Receipt,
+  User,
   X,
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import useNavigate from '../hooks/useNavigate';
-
-const CHECKLIST = [
-  {
-    id: 'contact',
-    icon: Phone,
-    title: 'Kontaktdaten',
-    text: 'Mobilnummer für Rückfragen und Erreichbarkeit.',
-  },
-  {
-    id: 'company',
-    icon: Building2,
-    title: 'Unternehmen',
-    text: 'Firmenname und Rechtsform für Portal und Dokumente.',
-  },
-  {
-    id: 'address',
-    icon: MapPin,
-    title: 'Geschäftsadresse',
-    text: 'Adresse für Vertrag, Rechnungen und Verifizierung.',
-  },
-  {
-    id: 'billing',
-    icon: Receipt,
-    title: 'Rechnungsadresse',
-    text: 'Nur nötig, falls sie von der Geschäftsadresse abweicht.',
-  },
-  {
-    id: 'website',
-    icon: Globe,
-    title: 'Website',
-    text: 'Optional — für zusätzliche Prüfung und Profil.',
-  },
-];
+import { accountSetupCta, isCompanyComplete, isPersonalComplete } from '../pages/dashboard/helpers';
 
 function skipKey(userId) {
   return `vantaro-stammdaten-skip:${userId}`;
@@ -55,9 +21,36 @@ export default function StammdatenModal() {
   const location = useLocation();
   const [skipped, setSkipped] = useState(false);
 
-  const onProfilePage = location.pathname.startsWith('/dashboard/profil');
-  const needsSetup = Boolean(user && !isAdmin && !user.onboardingComplete);
-  const open = needsSetup && !skipped && !onProfilePage;
+  const onSetupPage = location.pathname.startsWith('/dashboard/profil')
+    || location.pathname.startsWith('/dashboard/unternehmen')
+    || location.pathname.startsWith('/dashboard/sicherheit');
+  const setupCta = !isAdmin ? accountSetupCta(user) : null;
+  const open = Boolean(setupCta) && !skipped && !onSetupPage;
+  const personalDone = isPersonalComplete(user);
+  const companyDone = isCompanyComplete(user);
+  const checklist = [
+    !personalDone && {
+      id: 'profile',
+      icon: User,
+      title: 'Name & Telefon',
+      text: 'Vorname, Nachname und Mobilnummer für Ihr Konto.',
+      to: '/dashboard/profil',
+    },
+    !companyDone && {
+      id: 'company',
+      icon: Building2,
+      title: 'Unternehmen',
+      text: 'Firmenname und Rechtsform für Portal und Dokumente.',
+      to: '/dashboard/unternehmen',
+    },
+    !companyDone && {
+      id: 'address',
+      icon: MapPin,
+      title: 'Geschäftsadresse',
+      text: 'Adresse für Vertrag, Rechnungen und Verifizierung.',
+      to: '/dashboard/unternehmen',
+    },
+  ].filter(Boolean);
 
   useEffect(() => {
     if (!user?.id) {
@@ -80,7 +73,7 @@ export default function StammdatenModal() {
     };
   }, [open]);
 
-  if (!open) return null;
+  if (!open || !setupCta) return null;
 
   const dismissForNow = () => {
     try {
@@ -91,9 +84,11 @@ export default function StammdatenModal() {
     setSkipped(true);
   };
 
-  const goToProfile = () => {
-    navigate('/dashboard/profil');
-  };
+  const title = personalDone ? 'Unternehmen einrichten' : 'Profil einrichten';
+  const intro = personalDone
+    ? 'Ihre Kontaktdaten sind gespeichert. Als Nächstes Firma und Adresse ergänzen.'
+    : `Willkommen${user?.firstName ? `, ${user.firstName}` : ''}. Zuerst Name und Telefon — danach das Unternehmen.`;
+  const primaryLabel = personalDone ? 'Unternehmen jetzt einrichten' : 'Profil jetzt vervollständigen';
 
   return (
     <div className="stammdaten-modal" role="dialog" aria-modal="true" aria-labelledby="stammdaten-title">
@@ -101,7 +96,7 @@ export default function StammdatenModal() {
       <div className="stammdaten-modal__panel">
         <div className="stammdaten-modal__top">
           <div className="stammdaten-modal__badge" aria-hidden="true">
-            <span>!</span>
+            {personalDone ? <Building2 size={18} /> : <User size={18} />}
           </div>
           <button
             type="button"
@@ -114,19 +109,16 @@ export default function StammdatenModal() {
         </div>
 
         <div className="stammdaten-modal__head">
-          <h2 id="stammdaten-title">Unternehmen einrichten</h2>
-          <p>
-            Willkommen{user?.firstName ? `, ${user.firstName}` : ''}. Ihr VANTARO-Konto ist bereit.
-            Ergänzen Sie die Angaben unten für Verifizierung und Workspace.
-          </p>
+          <h2 id="stammdaten-title">{title}</h2>
+          <p>{intro}</p>
         </div>
 
         <ul className="stammdaten-checklist">
-          {CHECKLIST.map((item) => {
+          {checklist.map((item) => {
             const Icon = item.icon;
             return (
               <li key={item.id}>
-                <button type="button" className="stammdaten-check" onClick={goToProfile}>
+                <button type="button" className="stammdaten-check" onClick={() => navigate(item.to)}>
                   <span className="stammdaten-check__icon">
                     <Icon size={18} strokeWidth={2} />
                   </span>
@@ -140,8 +132,8 @@ export default function StammdatenModal() {
           })}
         </ul>
 
-        <button type="button" className="stammdaten-modal__primary" onClick={goToProfile}>
-          Profil jetzt vervollständigen
+        <button type="button" className="stammdaten-modal__primary" onClick={() => navigate(setupCta.to)}>
+          {primaryLabel}
           <ArrowRight size={18} />
         </button>
         <button type="button" className="stammdaten-modal__later" onClick={dismissForNow}>

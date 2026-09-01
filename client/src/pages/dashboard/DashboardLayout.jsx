@@ -10,11 +10,15 @@ import {
   Inbox,
   Flag,
   Ban,
+  User,
+  Building2,
+  Settings,
+  Shield,
 } from 'lucide-react';
 import Brand from '../../components/Brand';
 import { useAuth } from '../../hooks/useAuth';
 import { roleLabel } from '../../lib/roles';
-import { firstName, greeting, initials } from './helpers';
+import { accountSetupCta, firstName, greeting, initials } from './helpers';
 
 export function DashSeg({ value, onChange, options }) {
   return (
@@ -37,7 +41,8 @@ export function DashSeg({ value, onChange, options }) {
 }
 
 const BERATER_LINKS = [
-  { to: '/dashboard', end: true, label: 'Meine Leads', icon: ListChecks },
+  { to: '/dashboard', end: true, label: 'Dashboard', icon: LayoutDashboard },
+  { to: '/dashboard/leads', label: 'Meine Leads', icon: ListChecks },
   { to: '/dashboard/zahlung', label: 'Zahlung', icon: Landmark },
 ];
 
@@ -64,23 +69,24 @@ const ADMIN_NAV = [
   },
   {
     label: 'Konto',
-    links: [{ to: '/dashboard/zahlung', label: 'Zahlung', icon: Landmark }],
+    links: [
+      { to: '/dashboard/zahlung', label: 'Zahlung', icon: Landmark },
+      { to: '/dashboard/profil', label: 'Profil', icon: User },
+      { to: '/dashboard/unternehmen', label: 'Unternehmen', icon: Building2 },
+      { to: '/dashboard/sicherheit', label: 'Sicherheit', icon: Shield },
+    ],
   },
 ];
-
-function pageCopy(pathname) {
-  if (pathname.startsWith('/dashboard/zahlung')) {
-    return { title: 'Zahlung', subtitle: 'Guthaben für den nächsten Lead bereithalten.' };
-  }
-  if (pathname.startsWith('/dashboard/profil')) {
-    return { title: 'Profil & Stammdaten', subtitle: 'Name, Erreichbarkeit und Unternehmensdaten.' };
-  }
-  return { title: 'Meine Leads', subtitle: 'Anfragen, Zustellung und Reklamationen im Blick.' };
-}
 
 function adminPageCopy(pathname, user) {
   if (pathname.startsWith('/dashboard/zahlung')) {
     return { kicker: 'Konto', title: 'Zahlung', subtitle: 'Guthaben und Buchungen der Berater.' };
+  }
+  if (pathname.startsWith('/dashboard/sicherheit')) {
+    return { kicker: 'Konto', title: 'Sicherheit', subtitle: 'Passwort und Zugang.' };
+  }
+  if (pathname.startsWith('/dashboard/unternehmen')) {
+    return { kicker: 'Konto', title: 'Unternehmen', subtitle: 'Firma, Rechtsform und Adresse.' };
   }
   if (pathname.startsWith('/dashboard/profil')) {
     return { kicker: 'Konto', title: 'Profil', subtitle: 'Name, E-Mail und Passwort.' };
@@ -275,7 +281,8 @@ function AccountMenu({ user, logout }) {
             role="menuitem"
             onClick={() => setOpen(false)}
           >
-            Profil
+            <Settings size={16} />
+            Einstellungen
           </Link>
           <button
             type="button"
@@ -285,6 +292,7 @@ function AccountMenu({ user, logout }) {
               logout();
             }}
           >
+            <LogOut size={16} />
             Abmelden
           </button>
         </div>
@@ -295,7 +303,8 @@ function AccountMenu({ user, logout }) {
 
 function BeraterShell({ user, logout, children }) {
   const location = useLocation();
-  const copy = pageCopy(location.pathname);
+  const setupCta = accountSetupCta(user);
+  const showSetupCta = Boolean(setupCta && !location.pathname.startsWith(setupCta.to));
 
   return (
     <div className="broker">
@@ -318,17 +327,17 @@ function BeraterShell({ user, logout, children }) {
               );
             })}
           </nav>
+          {showSetupCta ? (
+            <Link className="broker-setup-cta" to={setupCta.to}>
+              {setupCta.to.includes('unternehmen') ? <Building2 size={15} /> : <User size={15} />}
+              {setupCta.label}
+            </Link>
+          ) : null}
           <AccountMenu user={user} logout={logout} />
         </div>
       </aside>
 
       <div className="broker-content">
-        <header className="broker-topbar">
-          <div>
-            <div className="broker-topbar-title">{copy.title}</div>
-            <div className="broker-topbar-subtitle">{copy.subtitle}</div>
-          </div>
-        </header>
         {children}
       </div>
     </div>

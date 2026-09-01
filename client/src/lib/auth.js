@@ -297,6 +297,19 @@ export async function updateProfileRequest(payload) {
   return next;
 }
 
+export async function changePasswordRequest({ currentPassword, password }) {
+  const session = readStoredSession();
+  const response = await fetch(apiUrl('/api/auth/change-password'), {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+    },
+    body: JSON.stringify({ currentPassword, password }),
+  });
+  return parseAuthResponse(response);
+}
+
 export async function restoreSession() {
   const session = readStoredSession();
   if (!session?.access_token) return null;

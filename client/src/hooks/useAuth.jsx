@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import {
+  changePasswordRequest,
   exchangeOAuthCallback,
   forgotPasswordRequest,
   loginRequest,
@@ -82,6 +83,10 @@ export function AuthProvider({ children }) {
     return next;
   }, []);
 
+  const changePassword = useCallback(async (payload) => (
+    changePasswordRequest(payload)
+  ), []);
+
   const resendVerification = useCallback(async (email) => (
     resendVerificationRequest(email)
   ), []);
@@ -120,13 +125,14 @@ export function AuthProvider({ children }) {
       verifyEmail,
       verifyEmailToken,
       updateProfile,
+      changePassword,
       resendVerification,
       logout,
       forgotPassword,
       resetPassword,
       resendPasswordReset,
     }),
-    [user, role, loading, login, loginWithGoogle, loginWithApple, completeOAuthLogin, register, verifyEmail, verifyEmailToken, updateProfile, resendVerification, logout, forgotPassword, resetPassword, resendPasswordReset],
+    [user, role, loading, login, loginWithGoogle, loginWithApple, completeOAuthLogin, register, verifyEmail, verifyEmailToken, updateProfile, changePassword, resendVerification, logout, forgotPassword, resetPassword, resendPasswordReset],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -176,13 +176,37 @@ export function validatePassword(password) {
   if (value.length < 8) {
     return 'Passwort muss mindestens 8 Zeichen lang sein.';
   }
-  if (!/[A-Za-zÄÖÜäöüß]/.test(value)) {
-    return 'Passwort muss mindestens einen Buchstaben enthalten.';
+  if (!/[a-zäöüß]/.test(value)) {
+    return 'Passwort muss mindestens einen Kleinbuchstaben enthalten.';
+  }
+  if (!/[A-ZÄÖÜ]/.test(value)) {
+    return 'Passwort muss mindestens einen Großbuchstaben enthalten.';
   }
   if (!/\d/.test(value)) {
     return 'Passwort muss mindestens eine Zahl enthalten.';
   }
+  if (!/[!@$%#?&*_\-+=.^]/.test(value)) {
+    return 'Passwort muss mindestens ein Sonderzeichen enthalten (!@$%#?&*_-+.=^).';
+  }
   return '';
+}
+
+export function generatePassword(length = 14) {
+  const lower = 'abcdefghijkmnopqrstuvwxyz';
+  const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+  const digits = '23456789';
+  const special = '!@$%#?&*_-+.=^';
+  const all = lower + upper + digits + special;
+  const pick = (set) => set[Math.floor(Math.random() * set.length)];
+  const chars = [pick(lower), pick(upper), pick(digits), pick(special)];
+  while (chars.length < Math.max(12, length)) {
+    chars.push(pick(all));
+  }
+  for (let i = chars.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [chars[i], chars[j]] = [chars[j], chars[i]];
+  }
+  return chars.join('');
 }
 
 export function validateCompanyFields(payload) {

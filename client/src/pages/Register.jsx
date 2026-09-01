@@ -4,6 +4,7 @@ import SocialAuthButtons from '../components/SocialAuthButtons';
 import { useAuth } from '../hooks/useAuth';
 import useBackForwardCacheRestore from '../hooks/useBackForwardCacheRestore';
 import useNavigate from '../hooks/useNavigate';
+import { validatePassword } from '../lib/profile';
 
 function EyeIcon({ off }) {
   if (off) {
@@ -23,10 +24,7 @@ function EyeIcon({ off }) {
 }
 
 function passwordError(password) {
-  if (password.length < 8) return 'Passwort muss mindestens 8 Zeichen lang sein';
-  if (!/[A-Za-zÄÖÜäöüß]/.test(password)) return 'Passwort muss mindestens einen Buchstaben enthalten';
-  if (!/\d/.test(password)) return 'Passwort muss mindestens eine Zahl enthalten';
-  return '';
+  return validatePassword(password);
 }
 
 export default function Register() {
