@@ -93,14 +93,14 @@ export default function Rest() {
     { id: 'dashboard', label: 'Übersicht', icon: LayoutDashboard },
     { id: 'leads', label: 'Chancen', icon: UserPlus },
     { id: 'team', label: 'Team', icon: Users },
-    { id: 'academy', label: 'Academy', icon: GraduationCap },
+    { id: 'academy', label: 'Akademie', icon: GraduationCap },
   ];
 
   const portalFeatures = [
     { icon: Layers, title: 'Leadübersicht & Aufgaben', text: 'Neue Chancen, nächste Aktion und Bearbeitungsstatus an einem Ort.' },
     { icon: Landmark, title: 'Guthaben & Reklamationen', text: 'Reserviert, abgebucht, gutgeschrieben — mit nachvollziehbarem Transaktionsverlauf.' },
-    { icon: Phone, title: 'Calltracking & Reports', text: 'Erstkontaktzeit, Kontaktquote, Termine und Wirtschaftlichkeit sichtbar.' },
-    { icon: UserCheck, title: 'Team & Academy', text: 'Zuständigkeiten, Gesprächsqualität und vertriebliche Entwicklung verbinden.' },
+    { icon: Phone, title: 'Anrufauswertung', text: 'Erstkontaktzeit, Kontaktquote, Termine und Wirtschaftlichkeit sichtbar.' },
+    { icon: UserCheck, title: 'Team und Akademie', text: 'Zuständigkeiten, Gesprächsqualität und vertriebliche Entwicklung verbinden.' },
   ];
 
   const qualityStages = [
@@ -121,7 +121,7 @@ export default function Rest() {
     },
     {
       number: '04',
-      title: 'Quality Gate prüfen',
+      title: 'Qualität prüfen',
       description: 'Dubletten, Mindestkriterien, Nachweis und Exklusivität vor der Übergabe.',
     },
     {
@@ -181,7 +181,7 @@ export default function Rest() {
       rating: 5,
     },
     {
-      quote: "Von der Lead-Übersicht bis zum Calltracking: Das System ist exakt auf die Anforderungen moderner Makler abgestimmt.",
+      quote: "Von der Lead-Übersicht bis zur Anrufauswertung: Das System ist exakt auf die Anforderungen moderner Makler abgestimmt.",
       author: "Baufinanzierungs-Experte",
       role: "Finanzierungsberater",
       company: "Baufinanzierung",
@@ -342,7 +342,7 @@ export default function Rest() {
                 </div>
                 <div className="system-flow">
                     <article className="flow-item"><span className="flow-node"><Phone size={16} /></span><span className="flow-number">01 / KONTAKT</span><h3>Interesse</h3><p>Telefonischer Erstkontakt mit Gesprächsleitfaden, Rückruflogik und sauberer Disposition.</p><span className="flow-arrow"><ArrowRight /></span></article>
-                    <article className="flow-item"><span className="flow-node"><ShieldCheck size={16} /></span><span className="flow-number">02 / QUALITÄT</span><h3>Quality Gate</h3><p>Kontext, Zielgruppe, Anlass und Nachweis werden geprüft — bevor die Chance weitergeht.</p><span className="flow-arrow"><ArrowRight /></span></article>
+                    <article className="flow-item"><span className="flow-node"><ShieldCheck size={16} /></span><span className="flow-number">02 / QUALITÄT</span><h3>Qualitätsprüfung</h3><p>Kontext, Zielgruppe, Anlass und Nachweis werden geprüft — bevor die Chance weitergeht.</p><span className="flow-arrow"><ArrowRight /></span></article>
                     <article className="flow-item"><span className="flow-node"><UserCheck size={16} /></span><span className="flow-number">03 / MATCHING</span><h3>Passung</h3><p>Die richtige Chance wird exklusiv dem passenden Vermittler mit verfügbarer Kapazität zugeordnet.</p><span className="flow-arrow"><ArrowRight /></span></article>
                     <article className="flow-item"><span className="flow-node"><Clock size={16} /></span><span className="flow-number">04 / FOLLOW-UP</span><h3>Bearbeitung</h3><p>Aufgaben, Kontaktversuche, Termine und Notizen bilden den nächsten Verkaufsschritt ab.</p><span className="flow-arrow"><ArrowRight /></span></article>
                     <article className="flow-item"><span className="flow-node"><Target size={16} /></span><span className="flow-number">05 / ERGEBNIS</span><h3>Abschluss</h3><p>Ergebnisfeedback macht aus einzelnen Käufen eine optimierbare Umsatzstrecke.</p></article>
@@ -389,7 +389,7 @@ export default function Rest() {
         <section className="section portal-section" id="portal">
             <div className="wrap portal-grid">
                 <div className="portal-copy">
-                    <div className="eyebrow">Ihr Makler-Workspace</div>
+                    <div className="eyebrow">Ihr Maklerportal</div>
                     <h2>Die Chance ist nicht im Postfach. Sie ist <span>im System.</span></h2>
                     <p className="lede">Ein Portal für die Dinge, die nach der Übergabe zählen: priorisieren, kontaktieren, terminieren, dokumentieren und aus Ergebnissen lernen.</p>
                     <ul className="portal-list">
@@ -406,7 +406,7 @@ export default function Rest() {
                           );
                         })}
                     </ul>
-                    <a className="btn btn-dark" href="#kontakt">Workspace-Demo anfragen <span className="arrow">→</span></a>
+                    <a className="btn btn-dark" href="#kontakt">Portal-Demo anfragen <span className="arrow">→</span></a>
                 </div>
 
                 <div className="workspace-shell" aria-label="Interaktive Vorschau des VANTARO-Maklerportals">
@@ -454,7 +454,7 @@ export default function Rest() {
                                         <div className="lead-row"><div className="lead-title"><span className="lead-dot"></span><div><strong>BU / Selbstständig</strong><span>Q2 · gestern · PLZ 40213</span></div></div><div className="lead-price"><strong>auf Anfrage</strong><span>Rückruf</span></div></div>
                                     </div>
                                     <div className="panel panel-chart">
-                                        <div className="panel-heading"><strong>Verlauf</strong><a href="#preise">Reports</a></div>
+                                        <div className="panel-heading"><strong>Verlauf</strong><a href="#preise">Berichte</a></div>
                                         <div className="mini-chart"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
                                         <div className="chart-legend"><span>Kontaktquote</span><b>64 %</b></div>
                                     </div>
@@ -494,9 +494,9 @@ export default function Rest() {
                                     <div className="metric"><span>QA-Score</span><strong>92 %</strong><small>letzte Stichprobe</small></div>
                                 </div>
                                 <div className="panel">
-                                    <div className="panel-heading"><strong>Coaching-Hinweise</strong><a href="#kontakt">Academy öffnen</a></div>
+                                    <div className="panel-heading"><strong>Coaching-Hinweise</strong><a href="#kontakt">Akademie öffnen</a></div>
                                     <div className="lead-row"><div className="lead-title"><span className="lead-dot orange"></span><div><strong>Einwandbehandlung</strong><span>2 Gespräche zur Nachschulung markiert</span></div></div><div className="lead-price"><strong>Heute</strong><span>offen</span></div></div>
-                                    <div className="lead-row"><div className="lead-title"><span className="lead-dot"></span><div><strong>Speed-to-Lead</strong><span>Team-Median verbessert sich</span></div></div><div className="lead-price"><strong>18m</strong><span>aktuell</span></div></div>
+                                    <div className="lead-row"><div className="lead-title"><span className="lead-dot"></span><div><strong>Reaktionszeit</strong><span>Team-Median verbessert sich</span></div></div><div className="lead-price"><strong>18 Min.</strong><span>aktuell</span></div></div>
                                 </div>
                               </div>
                             )}
@@ -504,13 +504,13 @@ export default function Rest() {
                               <div>
                                 <div className="workspace-title">
                                     <div>
-                                        <h3>Academy</h3>
+                                        <h3>Akademie</h3>
                                         <p>Training direkt an der Vertriebsrealität.</p>
                                     </div>
                                     <span className="period">Mein Lernpfad</span>
                                 </div>
                                 <div className="panel">
-                                    <div className="panel-heading"><strong>Dein nächstes Modul</strong><span className="pill">68 % Fortschritt</span></div>
+                                    <div className="panel-heading"><strong>Ihr nächstes Modul</strong><span className="pill">68 % Fortschritt</span></div>
                                     <h4>PKV-Erstgespräch: Bedarf erkennen, nicht beraten</h4>
                                     <p className="small">Gesprächsstruktur · Grenzen der Rolle · saubere Übergabe an den Vermittler</p>
                                     <div className="academy-progress"><div className="academy-progress-bar" /></div>

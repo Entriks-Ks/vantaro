@@ -58,7 +58,7 @@ function AppContent() {
                   : isVerifyEmail
                     ? 'E-Mail bestätigen — VANTARO'
                     : isDashboard
-                      ? 'Workspace — VANTARO'
+                      ? 'Portal — VANTARO'
                       : 'VANTARO — Qualifizierte Beratungschancen & Makler-Matching für Finanzdienstleister';
 
     if (isLegal || isAuth || isDashboard) {
@@ -126,7 +126,7 @@ function AppContent() {
               <div className="footer-col">
                 <h4>Entdecken</h4>
                 <a href="#system">Das System</a>
-                <a href="#portal">Makler-Workspace</a>
+                <a href="#portal">Maklerportal</a>
                 <a href="#sparten">Sparten &amp; Logik</a>
                 <a href="#qualitaet">Qualitätsprozess</a>
                 <a href="#referenzen">Maklerstimmen</a>

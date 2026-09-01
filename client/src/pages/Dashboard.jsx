@@ -17,6 +17,7 @@ import {
   AdminOverview,
   AdminUsers,
   AdminPayment,
+  AdminProfile,
 } from './dashboard/AdminViews';
 import { AdminLeadEditor, AdminLeads } from './dashboard/AdminLeads';
 import { AdminBeraterDetail, AdminBeraterList } from './dashboard/AdminBerater';
@@ -38,16 +39,17 @@ export default function Dashboard() {
                 <Route path="nutzer" element={<AdminUsers />} />
                 <Route path="berater" element={<AdminBeraterList />} />
                 <Route path="berater/:id" element={<AdminBeraterDetail />} />
-                <Route path="anfragen" element={<AdminRequests />} />
+                <Route path="anfordern" element={<AdminRequests />} />
+                <Route path="anfragen" element={<Navigate to="/dashboard/anfordern" replace />} />
                 <Route path="reklamationen" element={<AdminComplaints />} />
                 <Route path="leads" element={<AdminLeads />} />
                 <Route path="leads/new" element={<AdminLeadEditor />} />
                 <Route path="leads/abgelehnt" element={<AdminRejectedLeads />} />
                 <Route path="leads/:id" element={<AdminLeadEditor />} />
                 <Route path="zahlung" element={<AdminPayment />} />
-                <Route path="profil" element={<BeraterProfile />} />
-                <Route path="unternehmen" element={<BeraterCompany />} />
-                <Route path="sicherheit" element={<BeraterSecurity />} />
+                <Route path="profil" element={<AdminProfile />} />
+                <Route path="unternehmen" element={<Navigate to="/dashboard/profil" replace />} />
+                <Route path="sicherheit" element={<Navigate to="/dashboard/profil" replace />} />
                 <Route path="users" element={<Navigate to="/dashboard/nutzer" replace />} />
                 <Route path="payment" element={<Navigate to="/dashboard/zahlung" replace />} />
               </>

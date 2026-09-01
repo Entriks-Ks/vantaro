@@ -9,7 +9,7 @@ const ITEMS = [
   {
     question: 'Was bedeutet „qualifiziert“ bei VANTARO?',
     answer:
-      'Qualifiziert bedeutet nicht „abschlussbereit“. Es bedeutet: Der Gesprächskontext ist nachvollziehbar, die Zielgruppe passt grundsätzlich, ein konkreter Anlass oder ein relevantes Zeitfenster wurde erkannt und die Chance erfüllt das vereinbarte Quality Gate.',
+      'Qualifiziert bedeutet nicht „abschlussbereit“. Es bedeutet: Der Gesprächskontext ist nachvollziehbar, die Zielgruppe passt grundsätzlich, ein konkreter Anlass oder ein relevantes Zeitfenster wurde erkannt und die Chance erfüllt die vereinbarte Qualitätsprüfung.',
   },
   {
     question: 'Wie funktioniert eine Reklamation?',

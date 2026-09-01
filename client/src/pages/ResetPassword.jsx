@@ -189,7 +189,7 @@ export default function ResetPassword() {
                 <span>melden Sie sich wieder an.</span>
               </h2>
               <p>
-                Nach dem Speichern können Sie sich mit Ihrem neuen Passwort in Ihrem Workspace anmelden.
+                Nach dem Speichern können Sie sich mit Ihrem neuen Passwort im Portal anmelden.
               </p>
               <div className="auth-cutout-actions">
                 <Link className="btn btn-primary" to="/">

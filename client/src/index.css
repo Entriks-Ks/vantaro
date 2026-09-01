@@ -6163,6 +6163,10 @@ body.dashboard-page:has(.broker) {
 .dash-account-profile:hover {
     background: rgba(255, 255, 255, .04);
 }
+.dash-account-profile.is-active {
+    background: linear-gradient(180deg, rgba(255, 117, 90, .2), rgba(255, 117, 90, .08));
+    box-shadow: inset 0 0 0 1px rgba(255, 117, 90, .28);
+}
 .dash-user-copy {
     min-width: 0;
     flex: 1;
@@ -7253,6 +7257,70 @@ body.dashboard-page:has(.broker) {
 .dash-form-actions.is-full {
     grid-column: 1 / -1;
 }
+.dash-avatar--lg {
+    width: 72px;
+    height: 72px;
+    font-size: 22px;
+}
+.dash-profile-id {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin: 4px 0 18px;
+}
+.dash-profile-id-copy {
+    display: grid;
+    gap: 6px;
+    min-width: 0;
+}
+.dash-profile-id-copy small {
+    color: #8ea0b8;
+    font-size: 12px;
+}
+.dash-file {
+    position: relative;
+    display: inline-flex;
+    width: fit-content;
+}
+.dash-file input {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+}
+.dash-file .dash-btn {
+    pointer-events: none;
+}
+.dash-text-btn {
+    justify-self: start;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: #9ec4ff;
+    font: 13px var(--font-body);
+    cursor: pointer;
+}
+.dash-text-btn:hover {
+    color: #fff;
+}
+.dash-optional {
+    margin-left: 6px;
+    color: #8ea0b8;
+    font-weight: 500;
+    text-transform: none;
+    letter-spacing: 0;
+}
+.dash-panel .dash-alert {
+    margin-bottom: 14px;
+}
+.dash-panel .dash-form {
+    margin-top: 2px;
+}
+.dash-panel .password-input-wrapper input {
+    background: rgba(8, 16, 30, .9);
+    color: #f6fbff;
+    border-color: rgba(101, 130, 173, .22);
+}
 .dash-row-actions {
     display: flex;
     flex-wrap: wrap;
@@ -7876,6 +7944,13 @@ body.dashboard-page:has(.broker) {
     gap: 8px;
     padding-bottom: 16px;
 }
+.broker-request-card .broker-muted-note {
+    margin: 0;
+    padding: 0 20px 16px;
+}
+.broker-request-followup {
+    border-top: 1px solid #e1e9e6;
+}
 .broker-request-history {
     list-style: none;
     margin: 0;
@@ -8060,7 +8135,7 @@ body.dashboard-page:has(.broker) {
 }
 .broker-kanban-stack .broker-lead-card {
     margin: 0;
-    cursor: grab;
+    cursor: pointer;
 }
 .broker-kanban-stack .broker-lead-card.is-dragging {
     opacity: .45;
@@ -10045,6 +10120,48 @@ body.dashboard-page:has(.broker) {
     font-size: 13px;
     color: var(--text-muted);
     line-height: 1.45;
+}
+.broker-checkout-panel--pay {
+    width: min(520px, 100%);
+    max-height: calc(100vh - 48px);
+    overflow: auto;
+}
+.broker-card-form {
+    display: grid;
+    gap: 12px;
+}
+.broker-card-form label {
+    display: grid;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 600;
+}
+.broker-card-form input {
+    width: 100%;
+    min-height: 44px;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    font: inherit;
+}
+.broker-card-form .broker-text-btn {
+    justify-self: start;
+    width: fit-content;
+}
+.broker-request-actions .btn {
+    text-decoration: none;
+}
+.dash-pay-facts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 14px;
+    margin-top: 8px;
+    color: #8ea0b8;
+    font-size: 12px;
+}
+.dash-pay-facts strong {
+    color: #f6fbff;
+    font-weight: 650;
 }
 .broker-checkout-actions {
     display: flex;

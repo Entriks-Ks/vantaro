@@ -34,7 +34,7 @@ export function didGoogleMapsAuthFail() {
 
 export function loadGoogleMaps() {
   if (!API_KEY) {
-    return Promise.reject(new Error('Missing VITE_GOOGLE_MAPS_API_KEY'));
+    return Promise.reject(new Error('Google-Maps-Schlüssel fehlt.'));
   }
 
   if (authFailed) {

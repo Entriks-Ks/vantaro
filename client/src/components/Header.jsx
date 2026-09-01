@@ -112,7 +112,7 @@ export default function Header({ solid = false }) {
         <div className="nav-end">
           {user ? (
             <Link to="/dashboard" className="btn btn-primary nav-auth-btn" onClick={close}>
-              Workspace
+              Zum Portal
             </Link>
           ) : (
             <Link to="/login" className="btn btn-primary nav-auth-btn" onClick={close}>

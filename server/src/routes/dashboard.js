@@ -3,6 +3,7 @@ import { requireAuth } from '../lib/auth.js';
 import { ROLES } from '../lib/roles.js';
 import { countLeadStats } from '../lib/leads.js';
 import { countWorkflowStats } from '../lib/leadRequests.js';
+import { attachPaymentsToRequests } from '../lib/payments.js';
 import { listDirectoryUsers } from '../lib/users.js';
 
 const router = Router();
@@ -25,6 +26,9 @@ router.get('/', requireAuth, async (req, res) => {
         countLeadStats(),
         countWorkflowStats(),
       ]);
+      if (workflow?.recentRequests?.length) {
+        workflow.recentRequests = await attachPaymentsToRequests(workflow.recentRequests);
+      }
       payload.admin = {
         users: directory.counts,
         recentUsers: directory.recent,

@@ -329,13 +329,13 @@ export default function VerifyEmail() {
         <div className="auth-visual-panel">
           <div className="auth-visual-wrapper">
             <div className="auth-cutout-panel">
-              <div className="eyebrow light">Sicherer Zugang zu Ihrem Workspace</div>
+              <div className="eyebrow light">Sicherer Zugang zu Ihrem Portal</div>
               <h2>
                 Bestätigen Sie Ihre E-Mail, um{' '}
                 <span>Ihr Matching zu starten.</span>
               </h2>
               <p>
-                Der Code aktiviert Ihr Konto. Danach öffnet sich Ihr Workspace — mit Chancen, Follow-up und Guthaben an einem Ort.
+                Der Code aktiviert Ihr Konto. Danach öffnet sich Ihr Portal — mit Chancen, Nachverfolgung und Guthaben an einem Ort.
               </p>
               <div className="auth-cutout-actions">
                 <Link className="btn btn-primary" to="/">

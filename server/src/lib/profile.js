@@ -165,7 +165,11 @@ export function validateAccountFields({ firstName, lastName, phone, requirePhone
   if (!trim(lastName) || trim(lastName).length < 2) {
     errors.push('Bitte geben Sie Ihren Nachnamen an.');
   }
-  if (requirePhone && !isValidPhone(phone)) {
+  if (phone) {
+    if (!isValidPhone(phone)) {
+      errors.push('Bitte geben Sie eine gültige Telefonnummer an.');
+    }
+  } else if (requirePhone) {
     errors.push('Bitte geben Sie eine gültige Telefonnummer an.');
   }
   return errors;

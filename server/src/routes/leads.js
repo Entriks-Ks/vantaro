@@ -75,6 +75,7 @@ router.get('/', ...adminOnly, async (req, res) => {
       status: LEAD_STATUSES.includes(status) ? status : '',
       assignedTo,
       search,
+      scope: String(req.query.scope || '').trim(),
     });
     res.json({ leads });
   } catch (error) {
@@ -121,23 +122,60 @@ router.get('/:id', requireAuth, async (req, res) => {
     if (req.user.role !== ROLES.ADMIN && row.assigned_to !== req.user.id) {
       return res.status(403).json({ error: 'Keine Berechtigung.' });
     }
-    res.json({ lead: await withAssignee(row) });
+    const [lead] = await attachComplaints([await withAssignee(row)]);
+    res.json({ lead });
   } catch (error) {
+    if (complaintTableMissing(error)) {
+      return tableMissingResponse(
+        res,
+        'Reklamationen fehlen. Bitte server/supabase/lead_workflow.sql im Supabase SQL Editor ausführen.',
+      );
+    }
     handleLeadError(res, error);
   }
 });
 
-router.patch('/:id', ...adminOnly, async (req, res) => {
+router.patch('/:id', requireAuth, async (req, res) => {
   try {
     if (!isUuid(req.params.id)) {
       return res.status(400).json({ error: 'Lead wurde nicht gefunden.' });
     }
-    const lead = await updateLead(req.params.id, req.body || {});
+    const current = await getLeadById(req.params.id);
+    if (!current) {
+      return res.status(404).json({ error: 'Lead wurde nicht gefunden.' });
+    }
+
+    if (req.user.role === ROLES.ADMIN) {
+      const lead = await updateLead(req.params.id, req.body || {});
+      if (!lead) {
+        return res.status(404).json({ error: 'Lead wurde nicht gefunden.' });
+      }
+      return res.json({ lead });
+    }
+
+    if (req.user.role !== ROLES.BERATER || current.assigned_to !== req.user.id) {
+      return res.status(403).json({ error: 'Keine Berechtigung.' });
+    }
+    if (current.refunded_at) {
+      return res.status(400).json({ error: 'Erstattete Leads können nicht bearbeitet werden.' });
+    }
+
+    const payload = {};
+    if (req.body?.status != null) payload.status = req.body.status;
+    if (req.body?.notes != null) payload.notes = req.body.notes;
+    const lead = await updateLead(req.params.id, payload);
     if (!lead) {
       return res.status(404).json({ error: 'Lead wurde nicht gefunden.' });
     }
-    res.json({ lead });
+    const [withComplaint] = await attachComplaints([lead]);
+    res.json({ lead: withComplaint });
   } catch (error) {
+    if (complaintTableMissing(error)) {
+      return tableMissingResponse(
+        res,
+        'Reklamationen fehlen. Bitte server/supabase/lead_workflow.sql im Supabase SQL Editor ausführen.',
+      );
+    }
     handleLeadError(res, error);
   }
 });

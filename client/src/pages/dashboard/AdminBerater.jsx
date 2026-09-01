@@ -13,11 +13,13 @@ import {
   sendBeraterLeads,
   updateBeraterRequest,
 } from '../../lib/berater';
+import { DEFAULT_LEAD_SCOPE, LEAD_SCOPE_OPTIONS, leadScopeLabel } from '../../lib/scopes';
 import { complaintStatusLabel, isOpenComplaint } from '../../lib/complaints';
 import { formatLeadAddress, listLabels, statusLabel } from '../../lib/leads';
 import { LeadListItem } from './AdminLeads';
 import { DashSeg } from './DashboardLayout';
-import { formatDate } from './helpers';
+import { formatCardExpiry, formatCardMask } from '../../lib/payments';
+import { formatDate, formatEuroExact } from './helpers';
 
 function beraterInitials(user) {
   const name = String(user?.fullName || '').trim();
@@ -67,13 +69,19 @@ export function AdminBeraterList() {
     };
   }, []);
 
+  const hasStatus = (entry, status) => (
+    (entry.requests || []).some((item) => item.status === status)
+    || entry.request?.status === status
+  );
+
   const visible = useMemo(() => {
     const query = search.trim().toLowerCase();
     return beraters.filter((entry) => {
-      const status = entry.request?.status || 'none';
-      if (filter === 'active' && status !== 'active') return false;
-      if (filter === 'pending' && status !== 'pending') return false;
-      if (filter === 'open' && !['active', 'pending'].includes(status)) return false;
+      const pending = hasStatus(entry, 'pending');
+      const active = hasStatus(entry, 'active');
+      if (filter === 'active' && !active) return false;
+      if (filter === 'pending' && !pending) return false;
+      if (filter === 'open' && !pending && !active) return false;
       if (query) {
         const haystack = `${entry.fullName} ${entry.email} ${entry.company}`.toLowerCase();
         if (!haystack.includes(query)) return false;
@@ -82,8 +90,8 @@ export function AdminBeraterList() {
     });
   }, [beraters, filter, search]);
 
-  const activeCount = beraters.filter((entry) => entry.request?.status === 'active').length;
-  const requestedCount = beraters.filter((entry) => entry.request?.status === 'pending').length;
+  const activeCount = beraters.filter((entry) => hasStatus(entry, 'active')).length;
+  const requestedCount = beraters.filter((entry) => hasStatus(entry, 'pending')).length;
 
   return (
     <div className="dash-stack">
@@ -101,7 +109,7 @@ export function AdminBeraterList() {
           <small>erhalten gerade Leads</small>
         </div>
         <div className="dash-metric dash-metric--signal">
-          <span>Offene Anfragen</span>
+          <span>Offene Anforderungen</span>
           <strong>{loading ? '—' : requestedCount}</strong>
           <small>noch nicht gestartet</small>
         </div>
@@ -147,7 +155,7 @@ export function AdminBeraterList() {
                     </span>
                     {request ? (
                       <span className="dash-lead-row-tags">
-                        {request.deliveredCount} von {request.requestedCount} zugestellt · {request.validCount} gültig
+                        {leadScopeLabel(request.scope)} · {request.deliveredCount} von {request.requestedCount} zugestellt · {request.validCount} gültig
                         {request.refundedCount ? ` · ${request.refundedCount} erstattet` : ''}
                         {request.notes ? ` · ${request.notes}` : ''}
                       </span>
@@ -189,16 +197,30 @@ export function AdminBeraterDetail() {
   const [count, setCount] = useState(10);
   const [notes, setNotes] = useState('');
   const [leadType, setLeadType] = useState('PKV');
+  const [scope, setScope] = useState(DEFAULT_LEAD_SCOPE);
   const [selected, setSelected] = useState([]);
+  const [selectedRequestId, setSelectedRequestId] = useState('');
 
-  async function load() {
+  function applyRequest(entry) {
+    if (!entry) return;
+    setSelectedRequestId(entry.id);
+    setCount(entry.requestedCount);
+    setNotes(entry.notes || '');
+    setLeadType(entry.leadType || 'PKV');
+    setScope(entry.scope || DEFAULT_LEAD_SCOPE);
+  }
+
+  async function load(preferredId = selectedRequestId) {
     const payload = await fetchBeraterPipeline(id);
     setData(payload);
-    if (payload.request) {
-      setCount(payload.request.requestedCount);
-      setNotes(payload.request.notes || '');
-      setLeadType(payload.request.leadType || 'PKV');
-    }
+    const open = (payload.requests || []).filter((entry) => (
+      entry.status === 'pending' || entry.status === 'active'
+    ));
+    const next = open.find((entry) => entry.id === preferredId)
+      || payload.request
+      || open[0]
+      || null;
+    if (next) applyRequest(next);
     setSelected([]);
     return payload;
   }
@@ -211,9 +233,11 @@ export function AdminBeraterDetail() {
         if (!active) return;
         setData(payload);
         if (payload.request) {
+          setSelectedRequestId(payload.request.id);
           setCount(payload.request.requestedCount);
           setNotes(payload.request.notes || '');
           setLeadType(payload.request.leadType || 'PKV');
+          setScope(payload.request.scope || DEFAULT_LEAD_SCOPE);
         }
       })
       .catch((err) => {
@@ -228,11 +252,16 @@ export function AdminBeraterDetail() {
   }, [id]);
 
   const berater = data?.berater;
-  const request = data?.request;
+  const requests = data?.requests || [];
+  const openRequests = requests.filter((entry) => entry.status === 'pending' || entry.status === 'active');
+  const request = openRequests.find((entry) => entry.id === selectedRequestId) || data?.request;
   const available = data?.availableLeads || [];
   const sent = data?.sentLeads || [];
-  const requestLeads = data?.requestLeads || [];
+  const requestLeads = (data?.requestLeads || []).filter((lead) => !request || lead.requestId === request.id);
   const refundedLeads = requestLeads.filter((lead) => lead.refundedAt);
+  const requestScope = request?.scope || DEFAULT_LEAD_SCOPE;
+  const matchingAvailable = available.filter((lead) => (lead.scope || DEFAULT_LEAD_SCOPE) === requestScope);
+  const otherAvailable = available.filter((lead) => (lead.scope || DEFAULT_LEAD_SCOPE) !== requestScope);
 
   async function run(action, success) {
     setSaving(true);
@@ -310,7 +339,7 @@ export function AdminBeraterDetail() {
         <div className="dash-metric">
           <span>Angefragt</span>
           <strong>{request?.requestedCount || 0}</strong>
-          <small>{request ? leadTypeLabel(request.leadType) : 'kein Auftrag'}</small>
+          <small>{request ? `${leadScopeLabel(request.scope)} · ${leadTypeLabel(request.leadType)}` : 'kein Auftrag'}</small>
         </div>
         <div className="dash-metric">
           <span>Zugestellt</span>
@@ -324,8 +353,12 @@ export function AdminBeraterDetail() {
         </div>
         <div className="dash-metric">
           <span>Pool</span>
-          <strong>{data.availableCount}</strong>
-          <small>unvergebene Leads</small>
+          <strong>{request ? matchingAvailable.length : (data.availableCount || 0)}</strong>
+          <small>
+            {request
+              ? `${leadScopeLabel(requestScope)} im Pool${otherAvailable.length ? ` · ${otherAvailable.length} andere` : ''}`
+              : 'unvergebene Leads'}
+          </small>
         </div>
       </div>
 
@@ -335,17 +368,46 @@ export function AdminBeraterDetail() {
           <PipelineStatus request={request} />
         </div>
 
+        {openRequests.length > 1 ? (
+          <div className="dash-toolbar">
+            <DashSeg
+              value={request?.id || ''}
+              onChange={(nextId) => {
+                const next = openRequests.find((entry) => entry.id === nextId);
+                if (next) {
+                  applyRequest(next);
+                  setSelected([]);
+                }
+              }}
+              options={openRequests.map((entry) => ({
+                id: entry.id,
+                label: `${leadScopeLabel(entry.scope)} · ${requestStatusLabel(entry.status)}`,
+                count: entry.requestedCount,
+              }))}
+            />
+          </div>
+        ) : null}
+
         {request ? (
           <>
             <div className="dash-progress-block">
               <div className="dash-progress-copy">
-                <span>{request.deliveredCount} von {request.requestedCount} zugestellt · {request.validCount} gültig</span>
+                <span>{leadScopeLabel(request.scope)} · {request.deliveredCount} von {request.requestedCount} zugestellt · {request.validCount} gültig</span>
                 <span>{progressPercent(request)}%</span>
               </div>
               <div className="dash-progress">
                 <span style={{ width: `${progressPercent(request)}%` }} />
               </div>
             </div>
+
+            {request.payment ? (
+              <p className="dash-panel-note">
+                Bezahlt · {request.payment.invoiceNumber} · {formatEuroExact(request.payment.grossCents)} · {formatCardMask(request.payment)}
+                {request.payment.cardHolder ? ` · ${request.payment.cardHolder}` : ''}
+                {request.payment.cardExpMonth ? ` · ${formatCardExpiry(request.payment)}` : ''}
+                {request.payment.testMode ? ' · Testbetrieb' : ''}
+              </p>
+            ) : null}
 
             <div className="dash-form">
               <label>
@@ -356,6 +418,14 @@ export function AdminBeraterDetail() {
                   value={count}
                   onChange={(event) => setCount(Number(event.target.value))}
                 />
+              </label>
+              <label>
+                Paket
+                <select value={scope} onChange={(event) => setScope(event.target.value)}>
+                  {LEAD_SCOPE_OPTIONS.map((option) => (
+                    <option key={option.id} value={option.id}>{option.label}</option>
+                  ))}
+                </select>
               </label>
               <label>
                 Kategorie
@@ -384,7 +454,7 @@ export function AdminBeraterDetail() {
                     type="button"
                     className="dash-btn"
                     disabled={saving}
-                    onClick={() => run(() => updateBeraterRequest(request.id, { status: 'active' }), 'Anfrage angenommen.')}
+                    onClick={() => run(() => updateBeraterRequest(request.id, { status: 'active' }), 'Anforderung angenommen.')}
                   >
                     Annehmen
                   </button>
@@ -392,7 +462,7 @@ export function AdminBeraterDetail() {
                     type="button"
                     className="dash-btn dash-btn--ghost"
                     disabled={saving}
-                    onClick={() => run(() => updateBeraterRequest(request.id, { status: 'rejected' }), 'Anfrage abgelehnt.')}
+                    onClick={() => run(() => updateBeraterRequest(request.id, { status: 'rejected' }), 'Anforderung abgelehnt.')}
                   >
                     Ablehnen
                   </button>
@@ -412,7 +482,7 @@ export function AdminBeraterDetail() {
                 className="dash-btn dash-btn--ghost"
                 disabled={saving}
                 onClick={() => run(
-                  () => updateBeraterRequest(request.id, { requestedCount: request.requestedCount + 5, notes, leadType }),
+                  () => updateBeraterRequest(request.id, { requestedCount: request.requestedCount + 5, notes, leadType, scope }),
                   'Auftrag um 5 Leads erhöht.',
                 )}
               >
@@ -423,7 +493,7 @@ export function AdminBeraterDetail() {
                 className="dash-btn dash-btn--ghost"
                 disabled={saving}
                 onClick={() => run(
-                  () => updateBeraterRequest(request.id, { requestedCount: count, notes, leadType }),
+                  () => updateBeraterRequest(request.id, { requestedCount: count, notes, leadType, scope }),
                   'Auftrag aktualisiert.',
                 )}
               >
@@ -437,7 +507,7 @@ export function AdminBeraterDetail() {
             onSubmit={(event) => {
               event.preventDefault();
               run(
-                () => createBeraterRequest(berater.id, { requestedCount: count, notes, leadType }),
+                () => createBeraterRequest(berater.id, { requestedCount: count, notes, leadType, scope }),
                 'Auftrag angelegt.',
               );
             }}
@@ -452,6 +522,14 @@ export function AdminBeraterDetail() {
               />
             </label>
             <label>
+              Paket
+              <select value={scope} onChange={(event) => setScope(event.target.value)}>
+                {LEAD_SCOPE_OPTIONS.map((option) => (
+                  <option key={option.id} value={option.id}>{option.label}</option>
+                ))}
+              </select>
+            </label>
+            <label>
               Kategorie
               <select value={leadType} onChange={(event) => setLeadType(event.target.value)}>
                 {LEAD_TYPE_OPTIONS.map((option) => (
@@ -464,7 +542,7 @@ export function AdminBeraterDetail() {
               <input
                 value={notes}
                 onChange={(event) => setNotes(event.target.value)}
-                placeholder="z. B. Gekauft / angefragt über Partner"
+                placeholder="z. B. Gekauft / angefordert über Partner"
               />
             </label>
             <div className="dash-form-actions is-full">
@@ -480,12 +558,14 @@ export function AdminBeraterDetail() {
         <section className="dash-panel">
           <div className="dash-panel-head">
             <strong>Leads senden</strong>
-            <span>{selected.length} ausgewählt · {request.remaining} offen</span>
+            <span>
+              {leadScopeLabel(requestScope)} · {selected.length} ausgewählt · {request.remaining} offen
+            </span>
           </div>
-          {available.length ? (
+          {matchingAvailable.length ? (
             <>
               <div className="dash-pick-list">
-                {available.map((lead) => (
+                {matchingAvailable.map((lead) => (
                   <label key={lead.id} className={`dash-pick-row${selected.includes(lead.id) ? ' is-checked' : ''}`}>
                     <input
                       type="checkbox"
@@ -496,7 +576,7 @@ export function AdminBeraterDetail() {
                     <span>
                       <strong>{lead.fullName}</strong>
                       <small>
-                        {[formatLeadAddress(lead), listLabels(lead.insuranceStatus, 'insurance')]
+                        {[leadScopeLabel(lead.scope), formatLeadAddress(lead), listLabels(lead.insuranceStatus, 'insurance')]
                           .filter((item) => item && item !== '—')
                           .join(' · ')}
                       </small>
@@ -505,6 +585,11 @@ export function AdminBeraterDetail() {
                   </label>
                 ))}
               </div>
+              {otherAvailable.length ? (
+                <p className="dash-panel-note">
+                  {otherAvailable.length} Lead{otherAvailable.length === 1 ? '' : 's'} im Pool sind {leadScopeLabel(otherAvailable[0].scope)} und passen nicht zu diesem Auftrag.
+                </p>
+              ) : null}
               <div className="dash-form-actions">
                 <button
                   type="button"
@@ -520,9 +605,9 @@ export function AdminBeraterDetail() {
                 <button
                   type="button"
                   className="dash-btn dash-btn--ghost"
-                  disabled={saving || !available.length || !request.remaining}
+                  disabled={saving || !matchingAvailable.length || !request.remaining}
                   onClick={() => {
-                    const next = available.slice(0, Math.min(1, request.remaining)).map((lead) => lead.id);
+                    const next = matchingAvailable.slice(0, Math.min(1, request.remaining)).map((lead) => lead.id);
                     return run(() => sendBeraterLeads(request.id, next), 'Nächster Lead gesendet.');
                   }}
                 >
@@ -532,7 +617,12 @@ export function AdminBeraterDetail() {
             </>
           ) : (
             <div className="dash-empty">
-              <p>Keine unvergebenen Leads im Pool. Importieren oder legen Sie zuerst neue Leads an.</p>
+              <p>
+                Keine unvergebenen {leadScopeLabel(requestScope)}-Leads im Pool.
+                {otherAvailable.length
+                  ? ` ${otherAvailable.length} andere Leads liegen im Bestand, passen aber nicht zu diesem Paket.`
+                  : ' Importieren oder legen Sie zuerst passende Leads an.'}
+              </p>
               <button type="button" className="dash-btn dash-btn--ghost" onClick={() => navigate('/dashboard/leads')}>
                 Zu den Leads
               </button>

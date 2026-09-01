@@ -1,6 +1,7 @@
 import { supabase, supabaseConfig } from './supabase.js';
 import { ROLES, getUserRole } from './roles.js';
 import { toDirectoryUser } from './users.js';
+import { DEFAULT_LEAD_SCOPE, LEAD_SCOPES, leadScopeOrDefault, normalizeLeadScope } from './scopes.js';
 
 export const EMPLOYMENT_STATUSES = ['selbststaendig', 'zusaetzlich_angestellt', 'sonstiges'];
 export const INSURANCE_STATUSES = ['gkv', 'pkv_voll', 'zusatz', 'unbekannt'];
@@ -233,6 +234,7 @@ export function toPublicLead(row, assignee = null) {
     street: row.street || null,
     notes: row.notes || null,
     status: row.status,
+    scope: leadScopeOrDefault(row.scope),
     assignedTo: row.assigned_to || null,
     assignedToName: assignee?.fullName || null,
     assignedToEmail: assignee?.email || null,
@@ -359,6 +361,17 @@ export function parseLeadInput(body = {}, { partial = false } = {}) {
   const hasStreet = 'street' in body;
   if (!partial || hasStreet) row.street = emptyToNull(body.street);
 
+  const hasScope = hasField(body, 'scope', 'package', 'paket');
+  if (!partial || hasScope) {
+    const raw = body.scope ?? body.package ?? body.paket;
+    const scope = normalizeLeadScope(raw);
+    if (trim(raw) && !scope) {
+      errors.push('Paket muss deutschlandweit oder regional sein.');
+    } else {
+      row.scope = scope || DEFAULT_LEAD_SCOPE;
+    }
+  }
+
   const hasNotes = 'notes' in body;
   if (!partial || hasNotes) row.notes = emptyToNull(body.notes);
 
@@ -416,7 +429,7 @@ function sanitizeSearch(value) {
   return trim(value).replace(/[%_,()"\\]/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
-export async function listLeads({ status, assignedTo, search } = {}) {
+export async function listLeads({ status, assignedTo, search, scope } = {}) {
   if (!supabaseConfig.configured || !supabase) {
     throw Object.assign(new Error('Supabase ist nicht konfiguriert.'), { status: 503 });
   }
@@ -425,6 +438,10 @@ export async function listLeads({ status, assignedTo, search } = {}) {
 
   if (status && LEAD_STATUSES.includes(status)) {
     query = query.eq('status', status);
+  }
+
+  if (scope && LEAD_SCOPES.includes(scope)) {
+    query = query.eq('scope', scope);
   }
 
   if (assignedTo === 'rejected') {
@@ -459,6 +476,7 @@ export async function listMyLeads(userId) {
     .from('leads')
     .select('*')
     .eq('assigned_to', userId)
+    .is('refunded_at', null)
     .order('assigned_at', { ascending: false });
 
   if (error) throw error;
@@ -723,6 +741,12 @@ export function handleLeadError(res, error) {
   }
   if (tableMissing(error)) {
     return tableMissingResponse(res);
+  }
+  if (/column .*scope/i.test(String(error?.message || ''))) {
+    return tableMissingResponse(
+      res,
+      'Lead-Pakete fehlen. Bitte server/supabase/lead_scope.sql im Supabase SQL Editor ausführen.',
+    );
   }
   console.error('Leads error:', error.message);
   return res.status(500).json({ error: 'Etwas ist schiefgelaufen. Bitte versuchen Sie es erneut.' });

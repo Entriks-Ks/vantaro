@@ -218,7 +218,7 @@ export default function Register() {
                   autoComplete="new-password"
                   value={formData.password}
                   onChange={handleInputChange}
-                  placeholder="Min. 8 Zeichen, Buchstabe + Zahl"
+                  placeholder="Mind. 8 Zeichen, Buchstabe und Zahl"
                   required
                   disabled={submitting}
                 />

@@ -52,6 +52,7 @@ export const CSV_COLUMNS = [
   { header: 'PLZ', key: 'zip' },
   { header: 'Ort', key: 'city' },
   { header: 'Straße', key: 'street' },
+  { header: 'Paket', key: 'scope' },
   { header: 'Gesprächsnotizen', key: 'notes' },
 ];
 
@@ -127,6 +128,7 @@ export function emptyLeadForm() {
     street: '',
     notes: '',
     status: 'neu',
+    scope: 'deutschlandweit',
   };
 }
 
@@ -150,6 +152,7 @@ export function leadToForm(lead) {
     street: lead.street || '',
     notes: lead.notes || '',
     status: lead.status || 'neu',
+    scope: lead.scope || 'deutschlandweit',
   };
 }
 
@@ -172,6 +175,7 @@ export function formToPayload(form) {
     street: form.street || null,
     notes: form.notes || null,
     status: form.status || 'neu',
+    scope: form.scope || 'deutschlandweit',
   };
 }
 
@@ -196,6 +200,7 @@ export async function fetchLeads(params = {}) {
   if (params.status) search.set('status', params.status);
   if (params.assignedTo) search.set('assignedTo', params.assignedTo);
   if (params.search) search.set('q', params.search);
+  if (params.scope) search.set('scope', params.scope);
   const suffix = search.toString() ? `?${search}` : '';
   const response = await fetch(apiUrl(`/api/leads${suffix}`), { headers: authHeaders() });
   return parseResponse(response);
@@ -313,6 +318,7 @@ export function downloadLeadCsvTemplate() {
     '10115',
     'Berlin',
     'Invalidenstraße 12',
+    'deutschlandweit',
     'Erstgespräch vereinbart',
   ];
   const csv = Papa.unparse({ fields: headers, data: [example] });

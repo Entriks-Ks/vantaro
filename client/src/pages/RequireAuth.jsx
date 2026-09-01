@@ -7,7 +7,7 @@ export default function RequireAuth({ children }) {
   const location = useLocation();
 
   if (loading) {
-    return <BootScreen caption="Workspace wird geladen" />;
+    return <BootScreen caption="Portal wird geladen" />;
   }
 
   if (!user) {

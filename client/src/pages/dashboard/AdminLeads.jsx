@@ -31,6 +31,7 @@ import {
 } from '../../lib/leads';
 import { DashSeg } from './DashboardLayout';
 import { formatDate } from './helpers';
+import { DEFAULT_LEAD_SCOPE, LEAD_SCOPE_OPTIONS, leadScopeLabel } from '../../lib/scopes';
 
 function statusTone(status) {
   if (status === 'zugewiesen') return 'ok';
@@ -67,8 +68,8 @@ function returnLabel(path) {
   if (path.startsWith('/dashboard/berater')) return 'Zurück zu Berater';
   if (path.startsWith('/dashboard/reklamationen')) return 'Zurück zu Reklamationen';
   if (path.startsWith('/dashboard/leads/abgelehnt')) return 'Zurück zu Abgelehnt';
-  if (path.startsWith('/dashboard/anfragen')) return 'Zurück zu Anfragen';
-  if (path === '/dashboard' || path.startsWith('/dashboard?')) return 'Zurück zum Dashboard';
+  if (path.startsWith('/dashboard/anfordern') || path.startsWith('/dashboard/anfragen')) return 'Zurück zu Anforderungen';
+  if (path === '/dashboard' || path.startsWith('/dashboard?')) return 'Zurück zur Übersicht';
   return 'Zurück zur Liste';
 }
 
@@ -94,6 +95,7 @@ export function LeadListItem({ lead }) {
         {tags.length ? <span className="dash-lead-row-tags">{tags.join(' · ')}</span> : null}
       </div>
       <div className="dash-lead-row-side">
+        <span className="dash-badge dash-badge--muted">{leadScopeLabel(lead.scope)}</span>
         <span className={`dash-badge dash-badge--${statusTone(lead.status)}`}>
           {statusLabel(lead.status)}
         </span>
@@ -155,6 +157,7 @@ function LeadView({
               <span className={`dash-badge dash-badge--${statusTone(lead.status)}`}>
                 {statusLabel(lead.status)}
               </span>
+              <span className="dash-badge dash-badge--muted">{leadScopeLabel(lead.scope)}</span>
               <span>{lead.assignedToName || lead.assignedToEmail || 'Nicht zugewiesen'}</span>
             </div>
           </div>
@@ -218,6 +221,7 @@ function LeadView({
             </select>
           </label>
           <div className="dash-assign-meta">
+            <span>Paket: {leadScopeLabel(lead.scope)}</span>
             <span>Quelle: {SOURCE_LABELS[lead.source] || lead.source || '—'}</span>
             <span>Angelegt {formatDate(lead.createdAt)}</span>
           </div>
@@ -257,6 +261,18 @@ function LeadFormFields({ form, setForm }) {
 
   return (
     <div className="dash-form">
+      <label className="is-full">
+        Paket
+        <select
+          value={form.scope || DEFAULT_LEAD_SCOPE}
+          onChange={(event) => setField('scope', event.target.value)}
+          required
+        >
+          {LEAD_SCOPE_OPTIONS.map((option) => (
+            <option key={option.id} value={option.id}>{option.label}</option>
+          ))}
+        </select>
+      </label>
       <label>
         Vorname
         <input value={form.firstName} onChange={(event) => setField('firstName', event.target.value)} required />
@@ -338,7 +354,7 @@ function LeadFormFields({ form, setForm }) {
         <input value={form.city} onChange={(event) => setField('city', event.target.value)} />
       </label>
       <label className="is-full">
-        Straße (optional)
+        Straße (freiwillig)
         <input value={form.street} onChange={(event) => setField('street', event.target.value)} />
       </label>
       <label className="is-full">
@@ -362,6 +378,7 @@ export function AdminLeads() {
   const [status, setStatus] = useState('');
   const [assignedTo, setAssignedTo] = useState('');
   const [search, setSearch] = useState('');
+  const [scope, setScope] = useState('');
   const [importing, setImporting] = useState(false);
 
   const beraters = useMemo(
@@ -373,6 +390,7 @@ export function AdminLeads() {
     const nextStatus = next.status ?? status;
     const nextAssigned = next.assignedTo ?? assignedTo;
     const nextSearch = next.search ?? search;
+    const nextScope = next.scope ?? scope;
     setLoading(true);
     setError('');
     try {
@@ -380,6 +398,7 @@ export function AdminLeads() {
         status: nextStatus,
         assignedTo: nextAssigned,
         search: nextSearch,
+        scope: nextScope,
       });
       setLeads(payload.leads || []);
     } catch (err) {
@@ -482,6 +501,21 @@ export function AdminLeads() {
               }}
               placeholder="Name, E-Mail, Ort, PLZ"
             />
+          </label>
+          <label>
+            Paket
+            <select
+              value={scope}
+              onChange={(event) => {
+                setScope(event.target.value);
+                load({ scope: event.target.value });
+              }}
+            >
+              <option value="">Alle Pakete</option>
+              {LEAD_SCOPE_OPTIONS.map((option) => (
+                <option key={option.id} value={option.id}>{option.label}</option>
+              ))}
+            </select>
           </label>
           <label>
             Zuweisung

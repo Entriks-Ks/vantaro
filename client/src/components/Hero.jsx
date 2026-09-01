@@ -15,7 +15,7 @@ export default function Hero() {
         />
       </div>
       <div className="wrap hero-content">
-        <div className="eyebrow light">Revenue Engine für Finanzdienstleister</div>
+          <div className="eyebrow light">Umsatzmaschine für Finanzdienstleister</div>
         <h1>
           Aus Erstkontakt wird <em>Umsatz.</em>
         </h1>

@@ -12,6 +12,7 @@ import {
 } from '../lib/leadRequests.js';
 import { handleLeadError, isUuid, tableMissingResponse } from '../lib/leads.js';
 import { attachComplaints } from '../lib/complaints.js';
+import { attachPaymentsToPipelines, attachPaymentsToRequests } from '../lib/payments.js';
 
 const router = Router();
 router.use(requireAuth, requireRole(ROLES.ADMIN));
@@ -28,7 +29,7 @@ function handleError(res, error) {
 
 router.get('/', async (_req, res) => {
   try {
-    const beraters = await listBeraterPipelines();
+    const beraters = await attachPaymentsToPipelines(await listBeraterPipelines());
     res.json({ beraters });
   } catch (error) {
     handleError(res, error);
@@ -45,6 +46,7 @@ router.patch('/requests/:requestId', async (req, res) => {
       notes: req.body?.notes,
       status: req.body?.status,
       leadType: req.body?.leadType ?? req.body?.lead_type,
+      scope: req.body?.scope,
       replaceOnRefund: req.body?.replaceOnRefund ?? req.body?.replace_on_refund,
     });
     if (!request) {
@@ -98,6 +100,10 @@ router.get('/:id', async (req, res) => {
       return res.status(400).json({ error: 'Berater wurde nicht gefunden.' });
     }
     const payload = await getBeraterPipeline(req.params.id);
+    const requests = await attachPaymentsToRequests(payload.requests || []);
+    const request = requests.find((entry) => entry.id === payload.request?.id) || payload.request || null;
+    payload.requests = requests;
+    payload.request = request;
     payload.sentLeads = await attachComplaints(payload.sentLeads || []);
     payload.requestLeads = await attachComplaints(payload.requestLeads || []);
     res.json(payload);
@@ -114,6 +120,7 @@ router.post('/:id/requests', async (req, res) => {
     const request = await createLeadRequest(req.params.id, {
       requestedCount: req.body?.requestedCount ?? req.body?.requested_count,
       leadType: req.body?.leadType ?? req.body?.lead_type,
+      scope: req.body?.scope,
       notes: req.body?.notes,
       createdBy: req.user.id,
     });

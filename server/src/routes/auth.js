@@ -286,8 +286,14 @@ router.put('/profile', requireAuth, async (req, res) => {
   const firstName = String(req.body?.firstName ?? current.firstName).trim();
   const lastName = String(req.body?.lastName ?? current.lastName).trim();
   const phone = normalizePhone(req.body?.phone ?? current.phone);
+  const adminUser = isAdmin(req.authUser);
 
-  const accountErrors = validateAccountFields({ firstName, lastName, phone });
+  const accountErrors = validateAccountFields({
+    firstName,
+    lastName,
+    phone,
+    requirePhone: !adminUser,
+  });
   if (accountErrors.length) {
     return res.status(400).json({ error: accountErrors[0] });
   }
@@ -329,9 +335,13 @@ router.put('/profile', requireAuth, async (req, res) => {
     || req.body?.businessCity !== undefined;
   const companyErrors = validateCompanyFields(companyPayload);
   const companyReady = companyErrors.length === 0;
-  const personalReady = validateAccountFields({ firstName, lastName, phone }).length === 0;
+  const personalReady = validateAccountFields({
+    firstName,
+    lastName,
+    phone,
+    requirePhone: !adminUser,
+  }).length === 0;
   const stammdatenReady = companyReady && personalReady;
-  const adminUser = isAdmin(req.authUser);
 
   if (companyTouched && !companyReady && !adminUser) {
     return res.status(400).json({ error: companyErrors[0] });

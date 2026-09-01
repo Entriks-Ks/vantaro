@@ -13,7 +13,6 @@ import {
   User,
   Building2,
   Settings,
-  Shield,
 } from 'lucide-react';
 import Brand from '../../components/Brand';
 import { useAuth } from '../../hooks/useAuth';
@@ -41,7 +40,7 @@ export function DashSeg({ value, onChange, options }) {
 }
 
 const BERATER_LINKS = [
-  { to: '/dashboard', end: true, label: 'Dashboard', icon: LayoutDashboard },
+  { to: '/dashboard', end: true, label: 'Übersicht', icon: LayoutDashboard },
   { to: '/dashboard/leads', label: 'Meine Leads', icon: ListChecks },
   { to: '/dashboard/zahlung', label: 'Zahlung', icon: Landmark },
 ];
@@ -49,12 +48,12 @@ const BERATER_LINKS = [
 const ADMIN_NAV = [
   {
     label: 'Übersicht',
-    links: [{ to: '/dashboard', end: true, label: 'Dashboard', icon: LayoutDashboard }],
+    links: [{ to: '/dashboard', end: true, label: 'Übersicht', icon: LayoutDashboard }],
   },
   {
     label: 'Workflow',
     links: [
-      { to: '/dashboard/anfragen', label: 'Anfragen', icon: Inbox },
+      { to: '/dashboard/anfordern', label: 'Anforderungen', icon: Inbox },
       { to: '/dashboard/reklamationen', label: 'Reklamationen', icon: Flag },
       { to: '/dashboard/leads/abgelehnt', label: 'Abgelehnt', icon: Ban },
     ],
@@ -71,34 +70,25 @@ const ADMIN_NAV = [
     label: 'Konto',
     links: [
       { to: '/dashboard/zahlung', label: 'Zahlung', icon: Landmark },
-      { to: '/dashboard/profil', label: 'Profil', icon: User },
-      { to: '/dashboard/unternehmen', label: 'Unternehmen', icon: Building2 },
-      { to: '/dashboard/sicherheit', label: 'Sicherheit', icon: Shield },
     ],
   },
 ];
 
 function adminPageCopy(pathname, user) {
   if (pathname.startsWith('/dashboard/zahlung')) {
-    return { kicker: 'Konto', title: 'Zahlung', subtitle: 'Guthaben und Buchungen der Berater.' };
-  }
-  if (pathname.startsWith('/dashboard/sicherheit')) {
-    return { kicker: 'Konto', title: 'Sicherheit', subtitle: 'Passwort und Zugang.' };
-  }
-  if (pathname.startsWith('/dashboard/unternehmen')) {
-    return { kicker: 'Konto', title: 'Unternehmen', subtitle: 'Firma, Rechtsform und Adresse.' };
+    return { kicker: 'Konto', title: 'Zahlung', subtitle: 'Testzahlungen der Berater — Rechnung und Kartendaten.' };
   }
   if (pathname.startsWith('/dashboard/profil')) {
-    return { kicker: 'Konto', title: 'Profil', subtitle: 'Name, E-Mail und Passwort.' };
+    return { kicker: 'Admin', title: 'Profil', subtitle: 'Name, E-Mail und Passwort.' };
   }
   if (pathname.startsWith('/dashboard/nutzer')) {
-    return { kicker: 'Bestand', title: 'Nutzer', subtitle: 'Konten im Workspace.' };
+    return { kicker: 'Bestand', title: 'Nutzer', subtitle: 'Konten im Portal.' };
   }
   if (pathname.startsWith('/dashboard/berater')) {
     return { kicker: 'Bestand', title: 'Berater', subtitle: 'Aufträge prüfen und Leads senden.' };
   }
-  if (pathname.startsWith('/dashboard/anfragen')) {
-    return { kicker: 'Workflow', title: 'Anfragen', subtitle: 'Lead-Anfragen annehmen oder ablehnen.' };
+  if (pathname.startsWith('/dashboard/anfordern') || pathname.startsWith('/dashboard/anfragen')) {
+    return { kicker: 'Workflow', title: 'Anforderungen', subtitle: 'Lead-Anforderungen annehmen oder ablehnen.' };
   }
   if (pathname.startsWith('/dashboard/reklamationen')) {
     return { kicker: 'Workflow', title: 'Reklamationen', subtitle: 'Erstattung genehmigen oder ablehnen.' };
@@ -118,7 +108,7 @@ function adminPageCopy(pathname, user) {
   return {
     kicker: greeting(),
     title: firstName(user),
-    subtitle: 'Prüfen Sie offene Anfragen und Reklamationen, dann den Lead-Bestand.',
+    subtitle: 'Prüfen Sie offene Anforderungen und Reklamationen, dann den Lead-Bestand.',
   };
 }
 
@@ -172,7 +162,7 @@ function AdminShell({ user, logout, children }) {
             height={16}
           />
         </button>
-        <nav className="dash-nav" id="dash-sidebar-nav" aria-label="Workspace">
+        <nav className="dash-nav" id="dash-sidebar-nav" aria-label="Portal">
           {ADMIN_NAV.map((group) => (
             <div className="dash-nav-group" key={group.label}>
               <p className="dash-nav-label">{group.label}</p>
@@ -196,19 +186,20 @@ function AdminShell({ user, logout, children }) {
         </nav>
         <div className="dash-sidebar-foot">
           <div className="dash-account">
-            <Link
-              className="dash-account-profile"
+            <NavLink
+              className={({ isActive }) => `dash-account-profile${isActive ? ' is-active' : ''}`}
               to="/dashboard/profil"
-              title="Profil"
+              title="Profil öffnen"
+              aria-label="Profil öffnen"
             >
               <span className="dash-avatar">
                 {user.avatarUrl ? <img src={user.avatarUrl} alt="" /> : initials(user)}
               </span>
               <span className="dash-user-copy">
                 <strong>{user.fullName || user.email}</strong>
-                <small>{user.profile?.company || roleLabel(user.role)}</small>
+                <small>{roleLabel(user.role)}</small>
               </span>
-            </Link>
+            </NavLink>
             <button
               type="button"
               className="dash-account-logout"
@@ -311,7 +302,7 @@ function BeraterShell({ user, logout, children }) {
       <aside className="broker-nav">
         <Brand to="/dashboard" />
         <div className="broker-nav-end">
-          <nav aria-label="Workspace">
+          <nav aria-label="Portal">
             {BERATER_LINKS.map((link) => {
               const Icon = link.icon;
               return (

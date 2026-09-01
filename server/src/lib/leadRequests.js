@@ -3,18 +3,21 @@ import { ROLES, getUserRole } from './roles.js';
 import { listDirectoryUsers, toDirectoryUser } from './users.js';
 import {
   assignLead,
+  getLeadById,
   isUuid,
   listLeads,
   listMyLeads,
   tableMissing,
   withAssignees,
 } from './leads.js';
+import { DEFAULT_LEAD_SCOPE, LEAD_SCOPES, leadScopeOrDefault, normalizeLeadScope } from './scopes.js';
 
 export const LEAD_TYPES = ['PKV', 'bAV', 'BU'];
 export const REQUEST_STATUSES = ['pending', 'active', 'completed', 'rejected', 'cancelled'];
 
 const STATUS_ALIASES = {
   angefragt: 'pending',
+  angefordert: 'pending',
   aktiv: 'active',
   pausiert: 'cancelled',
   erledigt: 'completed',
@@ -53,6 +56,7 @@ export function toPublicRequest(row, stats = {}) {
     id: row.id,
     beraterId: row.berater_id,
     leadType: row.lead_type || 'PKV',
+    scope: leadScopeOrDefault(row.scope),
     requestedCount: requested,
     deliveredCount: delivered,
     refundedCount: refunded,
@@ -154,7 +158,14 @@ async function requireBerater(beraterId) {
   return toDirectoryUser(data.user);
 }
 
-function pickCurrent(requests) {
+export function pickInboxRequest(requests) {
+  return requests.find((entry) => entry.status === 'pending')
+    || requests.find((entry) => entry.status === 'active')
+    || requests[0]
+    || null;
+}
+
+export function pickWorkingRequest(requests) {
   return requests.find((entry) => entry.status === 'active')
     || requests.find((entry) => entry.status === 'pending')
     || requests[0]
@@ -188,7 +199,7 @@ export async function listBeraterPipelines() {
     return {
       ...user,
       assignedCount: assigned.get(user.id) || 0,
-      request: pickCurrent(userRequests),
+      request: pickInboxRequest(userRequests),
       requests: userRequests,
     };
   });
@@ -213,12 +224,13 @@ export async function getBeraterPipeline(beraterId) {
   requireDb();
   const berater = await requireBerater(beraterId);
   const mapped = await listRequestsForBerater(beraterId);
-  const current = pickCurrent(mapped);
+  const current = pickInboxRequest(mapped);
+  const requestIds = mapped.map((entry) => entry.id);
 
   const [sentLeads, availableLeads, requestLeads] = await Promise.all([
     listMyLeads(beraterId),
     listLeads({ assignedTo: 'unassigned' }),
-    current ? listLeadsForRequest(current.id) : Promise.resolve([]),
+    requestIds.length ? listLeadsForRequests(requestIds) : Promise.resolve([]),
   ]);
 
   const pool = (availableLeads || []).filter((lead) => lead.status !== 'erledigt' && !lead.refundedAt);
@@ -236,11 +248,18 @@ export async function getBeraterPipeline(beraterId) {
 }
 
 export async function listLeadsForRequest(requestId) {
+  const rows = await listLeadsForRequests([requestId]);
+  return rows;
+}
+
+async function listLeadsForRequests(requestIds) {
   requireDb();
+  const ids = [...new Set((requestIds || []).filter((id) => isUuid(id)))];
+  if (!ids.length) return [];
   const { data, error } = await supabase
     .from('leads')
     .select('*')
-    .eq('request_id', requestId)
+    .in('request_id', ids)
     .order('assigned_at', { ascending: false });
   if (error) throw error;
   return withAssignees(data || []);
@@ -278,6 +297,7 @@ export async function createLeadRequest(beraterId, {
   requestedCount,
   notes,
   leadType = 'PKV',
+  scope = DEFAULT_LEAD_SCOPE,
   createdBy,
 } = {}) {
   requireDb();
@@ -288,10 +308,17 @@ export async function createLeadRequest(beraterId, {
   }
   const type = String(leadType || 'PKV').trim();
   if (!LEAD_TYPES.includes(type)) throw fail('Lead-Typ ist ungültig.');
+  const packageScope = normalizeLeadScope(scope) || DEFAULT_LEAD_SCOPE;
+  if (!LEAD_SCOPES.includes(packageScope)) throw fail('Paket muss deutschlandweit oder regional sein.');
 
   const open = await listRequestsForBerater(beraterId);
-  if (open.some((entry) => entry.status === 'pending' || entry.status === 'active')) {
-    throw fail('Es gibt bereits eine offene oder aktive Anfrage.');
+  const duplicatePending = open.find((entry) => (
+    entry.status === 'pending'
+    && leadScopeOrDefault(entry.scope) === packageScope
+    && entry.leadType === type
+  ));
+  if (duplicatePending) {
+    throw fail('Es gibt bereits eine offene Anforderung für dieses Paket. Bitte warten Sie auf die Freigabe.');
   }
 
   const { data, error } = await supabase
@@ -300,6 +327,7 @@ export async function createLeadRequest(beraterId, {
       berater_id: beraterId,
       requested_count: count,
       lead_type: type,
+      scope: packageScope,
       notes: String(notes || '').trim() || null,
       status: 'pending',
       created_by: createdBy || beraterId,
@@ -316,7 +344,7 @@ export async function cancelOwnRequest(id, beraterId) {
   if (!current) return null;
   if (current.berater_id !== beraterId) throw fail('Keine Berechtigung.', 403);
   if (normalizeRequestStatus(current.status) !== 'pending') {
-    throw fail('Nur ausstehende Anfragen können storniert werden.');
+    throw fail('Nur ausstehende Anforderungen können storniert werden.');
   }
   return updateLeadRequest(id, { status: 'cancelled' });
 }
@@ -326,6 +354,7 @@ export async function updateLeadRequest(id, {
   notes,
   status,
   leadType,
+  scope,
   replaceOnRefund,
 } = {}) {
   requireDb();
@@ -356,6 +385,12 @@ export async function updateLeadRequest(id, {
     patch.lead_type = leadType;
   }
 
+  if (scope) {
+    const packageScope = normalizeLeadScope(scope);
+    if (!LEAD_SCOPES.includes(packageScope)) throw fail('Paket muss deutschlandweit oder regional sein.');
+    patch.scope = packageScope;
+  }
+
   if (typeof replaceOnRefund === 'boolean') {
     patch.replace_on_refund = replaceOnRefund;
   }
@@ -379,19 +414,6 @@ export async function updateLeadRequest(id, {
 
   if (!Object.keys(patch).length) return withStats(current);
 
-  if (patch.status === 'active') {
-    await supabase
-      .from('lead_requests')
-      .update({
-        status: 'cancelled',
-        cancelled_at: new Date().toISOString(),
-        paused_at: new Date().toISOString(),
-      })
-      .eq('berater_id', current.berater_id)
-      .eq('status', 'active')
-      .neq('id', id);
-  }
-
   const { data, error } = await supabase
     .from('lead_requests')
     .update(patch)
@@ -410,7 +432,7 @@ export async function sendLeadsToRequest(requestId, leadIds) {
   const mapped = await withStats(current);
 
   if (mapped.status === 'pending') {
-    throw fail('Bitte die Anfrage zuerst annehmen.');
+    throw fail('Bitte die Anforderung zuerst annehmen.');
   }
   if (mapped.status === 'cancelled' || mapped.status === 'rejected') {
     throw fail('Dieser Auftrag ist nicht aktiv.');
@@ -426,7 +448,13 @@ export async function sendLeadsToRequest(requestId, leadIds) {
   }
 
   const assigned = [];
+  const requestScope = leadScopeOrDefault(current.scope);
   for (const leadId of ids) {
+    const currentLead = await getLeadById(leadId);
+    if (!currentLead) throw fail('Ein ausgewählter Lead wurde nicht gefunden.');
+    if (leadScopeOrDefault(currentLead.scope) !== requestScope) {
+      throw fail(`Dieser Auftrag ist ${requestScope === 'regional' ? 'regional' : 'deutschlandweit'}. Bitte nur passende Leads senden.`);
+    }
     const lead = await assignLead(leadId, current.berater_id, { requestId });
     if (!lead) throw fail('Ein ausgewählter Lead wurde nicht gefunden.');
     if (lead.assignedTo !== current.berater_id) {
@@ -533,6 +561,7 @@ export function requestTableMissing(error) {
     || /lead_complaints/i.test(message)
     || /request_id/i.test(message)
     || /lead_type/i.test(message)
+    || /column .*scope/i.test(message)
     || /replace_on_refund/i.test(message)
     || /refunded_at/i.test(message)
     || /reported_at/i.test(message);

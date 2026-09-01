@@ -101,7 +101,7 @@ export default function ForgotPassword() {
               <div className="eyebrow light">Sicherer Zugang zu Ihrem Konto</div>
               <h2>
                 Setzen Sie Ihr Passwort zurück und{' '}
-                <span>kehren Sie zu Ihrem Workspace zurück.</span>
+                <span>kehren Sie in Ihr Portal zurück.</span>
               </h2>
               <p>
                 Wir senden Ihnen einen sicheren Link per E-Mail. Mit einem Klick legen Sie Ihr neues Passwort fest.

@@ -7,8 +7,10 @@ import {
   requestStatusTone,
   updateBeraterRequest,
 } from '../../lib/berater';
+import { leadScopeLabel } from '../../lib/scopes';
+import { formatCardExpiry, formatCardMask } from '../../lib/payments';
 import { DashSeg } from './DashboardLayout';
-import { formatDate, initials } from './helpers';
+import { formatDate, formatEuroExact, initials } from './helpers';
 
 function beraterName(request) {
   return request.berater?.fullName || request.berater?.email || 'Unbekannt';
@@ -25,19 +27,30 @@ export function AdminRequests() {
   async function load() {
     const payload = await fetchAllRequests();
     setRequests(payload.requests || []);
+    return payload;
   }
 
   useEffect(() => {
     let active = true;
-    load()
-      .catch((err) => {
+
+    async function refresh() {
+      try {
+        const payload = await fetchAllRequests();
+        if (!active) return;
+        setRequests(payload.requests || []);
+        setError('');
+      } catch (err) {
         if (active) setError(err.message);
-      })
-      .finally(() => {
+      } finally {
         if (active) setLoading(false);
-      });
+      }
+    }
+
+    refresh();
+    const timer = window.setInterval(refresh, 8000);
     return () => {
       active = false;
+      window.clearInterval(timer);
     };
   }, []);
 
@@ -120,9 +133,20 @@ export function AdminRequests() {
                     {[entry.berater?.company, entry.berater?.email].filter(Boolean).join(' · ')}
                   </span>
                   <span className="dash-lead-row-tags">
-                    {leadTypeLabel(entry.leadType)} · {entry.requestedCount} angefragt · {entry.deliveredCount} zugestellt · {entry.validCount} gültig · {entry.remaining} offen
+                    {leadScopeLabel(entry.scope)} · {leadTypeLabel(entry.leadType)} · {entry.requestedCount} angefordert · {entry.deliveredCount} zugestellt · {entry.validCount} gültig · {entry.remaining} offen
                     {entry.refundedCount ? ` · ${entry.refundedCount} erstattet` : ''}
+                    {entry.notes ? ` · ${entry.notes}` : ''}
                   </span>
+                  {entry.payment ? (
+                    <span className="dash-lead-row-tags">
+                      Bezahlt · {entry.payment.invoiceNumber} · {formatEuroExact(entry.payment.grossCents)} · {formatCardMask(entry.payment)}
+                      {entry.payment.cardExpMonth ? ` · ${formatCardExpiry(entry.payment)}` : ''}
+                      {entry.payment.cardHolder ? ` · ${entry.payment.cardHolder}` : ''}
+                      {entry.payment.testMode ? ' · Testbetrieb' : ''}
+                    </span>
+                  ) : (
+                    <span className="dash-lead-row-tags">Keine Zahlung hinterlegt</span>
+                  )}
                 </div>
                 <div className="dash-lead-row-side">
                   <span className={`dash-badge dash-badge--${requestStatusTone(entry.status)}`}>
@@ -136,7 +160,7 @@ export function AdminRequests() {
                           type="button"
                           className="dash-btn"
                           disabled={Boolean(saving)}
-                          onClick={() => run(entry.id, { status: 'active' }, 'Anfrage angenommen.')}
+                          onClick={() => run(entry.id, { status: 'active' }, 'Anforderung angenommen.')}
                         >
                           Annehmen
                         </button>
@@ -144,7 +168,7 @@ export function AdminRequests() {
                           type="button"
                           className="dash-btn dash-btn--ghost"
                           disabled={Boolean(saving)}
-                          onClick={() => run(entry.id, { status: 'rejected' }, 'Anfrage abgelehnt.')}
+                          onClick={() => run(entry.id, { status: 'rejected' }, 'Anforderung abgelehnt.')}
                         >
                           Ablehnen
                         </button>
@@ -172,7 +196,7 @@ export function AdminRequests() {
           </div>
         ) : (
           <div className="dash-empty">
-            <p>Keine Anfragen für diesen Filter. Neue Berater-Anfragen erscheinen hier sofort.</p>
+            <p>Keine Anforderungen für diesen Filter. Neue Berater-Anforderungen erscheinen hier sofort.</p>
           </div>
         )}
       </section>

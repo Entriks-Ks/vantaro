@@ -7,6 +7,7 @@ import leadsRouter from './leads.js';
 import beraterRouter from './berater.js';
 import requestsRouter from './requests.js';
 import complaintsRouter from './complaints.js';
+import paymentsRouter from './payments.js';
 
 const router = Router();
 
@@ -18,5 +19,6 @@ router.use('/leads', leadsRouter);
 router.use('/berater', beraterRouter);
 router.use('/requests', requestsRouter);
 router.use('/complaints', complaintsRouter);
+router.use('/payments', paymentsRouter);
 
 export default router;
