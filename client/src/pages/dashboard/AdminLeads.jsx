@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import PhoneField from '../../components/PhoneField';
 import { useDashboard } from '../../hooks/useDashboard';
@@ -29,6 +29,7 @@ import {
   toggleListValue,
   updateLead,
 } from '../../lib/leads';
+import { DashSeg } from './DashboardLayout';
 import { formatDate } from './helpers';
 
 function statusTone(status) {
@@ -54,15 +55,34 @@ function leadInitials(lead) {
   return `${first[0] || ''}${last[0] || ''}`.toUpperCase() || 'L';
 }
 
+function returnTo(location, fallback = '/dashboard/leads') {
+  const from = location?.state?.from;
+  if (typeof from !== 'string' || !from.startsWith('/dashboard')) return fallback;
+  const path = from.split('?')[0];
+  if (/^\/dashboard\/leads\/[0-9a-f-]{36}$/i.test(path)) return fallback;
+  return from;
+}
+
+function returnLabel(path) {
+  if (path.startsWith('/dashboard/berater')) return 'Zurück zu Berater';
+  if (path.startsWith('/dashboard/reklamationen')) return 'Zurück zu Reklamationen';
+  if (path.startsWith('/dashboard/leads/abgelehnt')) return 'Zurück zu Abgelehnt';
+  if (path.startsWith('/dashboard/anfragen')) return 'Zurück zu Anfragen';
+  if (path === '/dashboard' || path.startsWith('/dashboard?')) return 'Zurück zum Dashboard';
+  return 'Zurück zur Liste';
+}
+
 export function LeadListItem({ lead }) {
+  const location = useLocation();
   const place = leadPlace(lead);
   const assigned = lead.assignedToName || lead.assignedToEmail || 'Nicht zugewiesen';
   const insurance = listLabels(lead.insuranceStatus, 'insurance');
   const concerns = listLabels(lead.mainConcerns, 'concern');
   const tags = [insurance !== '—' ? insurance : null, concerns !== '—' ? concerns : null].filter(Boolean);
+  const from = `${location.pathname}${location.search}`;
 
   return (
-    <Link className="dash-lead-row" to={`/dashboard/leads/${lead.id}`}>
+    <Link className="dash-lead-row" to={`/dashboard/leads/${lead.id}`} state={{ from }}>
       <span className="dash-lead-avatar dash-lead-avatar--sm" aria-hidden="true">
         {leadInitials(lead)}
       </span>
@@ -420,11 +440,7 @@ export function AdminLeads() {
 
   return (
     <div className="dash-stack">
-      <div className="dash-intro">
-        <div>
-          <h2>Leads</h2>
-          <p>Eingehende Leads prüfen, bearbeiten und an Berater zuweisen.</p>
-        </div>
+      <div className="dash-toolbar dash-toolbar--end">
         <div className="dash-intro-actions">
           <button type="button" className="dash-btn dash-btn--ghost" onClick={downloadLeadCsvTemplate}>
             CSV-Vorlage
@@ -441,6 +457,20 @@ export function AdminLeads() {
       {error ? <div className="dash-alert">{error}</div> : null}
 
       <section className="dash-panel">
+        <div className="dash-toolbar">
+          <DashSeg
+            value={status || 'all'}
+            onChange={(id) => {
+              const next = id === 'all' ? '' : id;
+              setStatus(next);
+              load({ status: next });
+            }}
+            options={[
+              { id: 'all', label: 'Alle' },
+              ...STATUS_OPTIONS.map((option) => ({ id: option.id, label: option.label })),
+            ]}
+          />
+        </div>
         <div className="dash-filters">
           <label>
             Suche
@@ -452,21 +482,6 @@ export function AdminLeads() {
               }}
               placeholder="Name, E-Mail, Ort, PLZ"
             />
-          </label>
-          <label>
-            Status
-            <select
-              value={status}
-              onChange={(event) => {
-                setStatus(event.target.value);
-                load({ status: event.target.value });
-              }}
-            >
-              <option value="">Alle</option>
-              {STATUS_OPTIONS.map((option) => (
-                <option key={option.id} value={option.id}>{option.label}</option>
-              ))}
-            </select>
           </label>
           <label>
             Zuweisung
@@ -487,7 +502,7 @@ export function AdminLeads() {
             </select>
           </label>
           <button type="button" className="dash-btn dash-btn--ghost" onClick={() => load()}>
-            Filtern
+            Anwenden
           </button>
         </div>
 
@@ -512,6 +527,8 @@ export function AdminLeads() {
 export function AdminLeadEditor() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const backTo = returnTo(location);
   const isNew = !id || id === 'new';
   const { admin } = useDashboard();
   const [form, setForm] = useState(emptyLeadForm);
@@ -577,7 +594,7 @@ export function AdminLeadEditor() {
       const payload = formToPayload(form);
       if (isNew) {
         const created = await createLead(payload);
-        navigate(`/dashboard/leads/${created.lead.id}`, { replace: true });
+        navigate(`/dashboard/leads/${created.lead.id}`, { replace: true, state: location.state });
         return;
       }
       const updated = await updateLead(id, payload);
@@ -616,32 +633,26 @@ export function AdminLeadEditor() {
     setError('');
     try {
       await deleteLead(id);
-      navigate('/dashboard/leads');
+      navigate(backTo);
     } catch (err) {
       setError(err.message);
       setSaving(false);
     }
   }
 
-  const title = isNew ? 'Neuer Lead' : (editing ? 'Lead bearbeiten' : (lead?.fullName || 'Lead'));
   const subtitle = isNew
     ? 'Qualifizierten Kontakt manuell anlegen.'
     : (editing ? 'Daten anpassen und speichern.' : 'Kontakt prüfen und an einen Berater übergeben.');
 
   return (
     <div className="dash-stack">
-      <Link className="dash-back" to="/dashboard/leads">
+      <Link className="dash-back" to={backTo}>
         <ArrowLeft size={16} />
-        Zurück zur Liste
+        {returnLabel(backTo)}
       </Link>
 
       {isNew || editing ? (
-        <div className="dash-intro">
-          <div>
-            <h2>{title}</h2>
-            <p>{subtitle}</p>
-          </div>
-        </div>
+        <p className="dash-lede">{subtitle}</p>
       ) : null}
 
       {notice ? <div className="dash-alert dash-alert--ok">{notice}</div> : null}

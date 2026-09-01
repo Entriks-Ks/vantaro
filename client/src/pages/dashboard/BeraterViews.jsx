@@ -3,6 +3,21 @@ import PhoneField, { isValidMobile } from '../../components/PhoneField';
 import { useAuth } from '../../hooks/useAuth';
 import { useBroker } from '../../hooks/useBroker';
 import {
+  cancelMyRequest,
+  createMyRequest,
+  fetchMyRequests,
+  LEAD_TYPE_OPTIONS,
+  leadTypeLabel,
+  requestStatusLabel,
+} from '../../lib/berater';
+import {
+  COMPLAINT_REASON_OPTIONS,
+  complaintReasonLabel,
+  complaintStatusLabel,
+  isOpenComplaint,
+  reportLead,
+} from '../../lib/complaints';
+import {
   CONCERN_OPTIONS,
   employmentLabel,
   fetchMyLeads,
@@ -12,10 +27,39 @@ import {
   listLabels,
 } from '../../lib/leads';
 import { LEGAL_FORMS, fileToAvatarDataUrl, formatAddress } from '../../lib/profile';
-import { formatEuroExact } from './helpers';
+import { formatDate, formatEuroExact } from './helpers';
 
-function LeadCard({ lead }) {
+function leadStatusLabel(lead) {
+  if (lead.complaint?.status === 'pending') return 'Gemeldet';
+  if (lead.complaint?.status === 'declined') return 'Erstattung abgelehnt';
+  return 'Zugestellt';
+}
+
+function LeadCard({ lead, onReported }) {
   const address = formatLeadAddress(lead);
+  const complaint = lead.complaint;
+  const open = isOpenComplaint(complaint);
+  const [reporting, setReporting] = useState(false);
+  const [reason, setReason] = useState('invalid');
+  const [comment, setComment] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  async function submitReport(event) {
+    event.preventDefault();
+    setSaving(true);
+    setError('');
+    try {
+      await reportLead(lead.id, { reason, comment });
+      setReporting(false);
+      onReported?.();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <article className="broker-panel broker-lead-card" id={`lead-${lead.id}`}>
       <div className="broker-lead-top">
@@ -23,7 +67,7 @@ function LeadCard({ lead }) {
           <div className="broker-lead-name">{lead.fullName}</div>
           <div className="broker-lead-address">{address}</div>
         </div>
-        <span className="broker-status">Zugewiesen</span>
+        <span className={`broker-status${open ? ' is-reported' : ''}`}>{leadStatusLabel(lead)}</span>
       </div>
       <div className="broker-lead-meta">
         <span>{listLabels(lead.insuranceStatus, 'insurance')}</span>
@@ -58,8 +102,60 @@ function LeadCard({ lead }) {
         ) : null}
       </dl>
       {lead.notes ? <p className="broker-lead-note">{lead.notes}</p> : null}
+
+      {complaint ? (
+        <div className={`broker-complaint-note${complaint.status === 'declined' ? ' is-declined' : ''}`}>
+          <strong>{complaintStatusLabel(complaint.status)}</strong>
+          <span>{complaintReasonLabel(complaint.reason)}</span>
+          {complaint.comment ? <p>{complaint.comment}</p> : null}
+          {complaint.status === 'declined' && complaint.adminNote ? (
+            <p><strong>Antwort Admin:</strong> {complaint.adminNote}</p>
+          ) : null}
+        </div>
+      ) : null}
+
+      {error ? <div className="broker-alert">{error}</div> : null}
+
       <div className="broker-lead-bottom">
-        <span className="broker-muted-action">Nächster Schritt: Kontakt aufnehmen</span>
+        {open ? (
+          <span className="broker-muted-action">
+            Reklamation liegt dem Admin zur Prüfung vor.
+          </span>
+        ) : reporting ? (
+          <form className="broker-report-form" onSubmit={submitReport}>
+            <label>
+              Grund
+              <select value={reason} onChange={(event) => setReason(event.target.value)} disabled={saving}>
+                {COMPLAINT_REASON_OPTIONS.map((option) => (
+                  <option key={option.id} value={option.id}>{option.label}</option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Zusatzinfo (optional)
+              <textarea
+                rows={2}
+                value={comment}
+                onChange={(event) => setComment(event.target.value)}
+                disabled={saving}
+                placeholder="Was ist an diesem Lead nicht korrekt?"
+              />
+            </label>
+            <div className="broker-report-actions">
+              <button type="submit" className="broker-save broker-save--inline" disabled={saving}>{saving ? 'Wird gesendet…' : 'Reklamation senden'}</button>
+              <button type="button" className="broker-text-btn" disabled={saving} onClick={() => setReporting(false)}>
+                Abbrechen
+              </button>
+            </div>
+          </form>
+        ) : (
+          <>
+            <span className="broker-muted-action">Nächster Schritt: Kontakt aufnehmen</span>
+            <button type="button" className="broker-text-btn" onClick={() => setReporting(true)}>
+              {complaint?.status === 'declined' ? 'Erneut reklamieren' : 'Lead reklamieren'}
+            </button>
+          </>
+        )}
       </div>
     </article>
   );
@@ -67,16 +163,31 @@ function LeadCard({ lead }) {
 
 export function BeraterLeads() {
   const [leads, setLeads] = useState([]);
+  const [request, setRequest] = useState(null);
+  const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+  const [tab, setTab] = useState('delivered');
   const [concern, setConcern] = useState('all');
+  const [count, setCount] = useState(10);
+  const [leadType, setLeadType] = useState('PKV');
+  const [notes, setNotes] = useState('');
+
+  async function load() {
+    const [leadPayload, requestPayload] = await Promise.all([
+      fetchMyLeads(),
+      fetchMyRequests(),
+    ]);
+    setLeads(leadPayload.leads || []);
+    setRequest(requestPayload.request || null);
+    setRequests(requestPayload.requests || []);
+  }
 
   useEffect(() => {
     let active = true;
-    fetchMyLeads()
-      .then((payload) => {
-        if (active) setLeads(payload.leads || []);
-      })
+    load()
       .catch((err) => {
         if (active) setError(err.message);
       })
@@ -88,21 +199,188 @@ export function BeraterLeads() {
     };
   }, []);
 
-  const visible = useMemo(() => (
-    leads.filter((lead) => concern === 'all' || (lead.mainConcerns || []).includes(concern))
-  ), [concern, leads]);
+  const delivered = useMemo(
+    () => leads.filter((lead) => !isOpenComplaint(lead.complaint)),
+    [leads],
+  );
+  const reported = useMemo(
+    () => leads.filter((lead) => isOpenComplaint(lead.complaint)),
+    [leads],
+  );
+  const source = tab === 'reported' ? reported : delivered;
+  const visible = useMemo(
+    () => source.filter((lead) => concern === 'all' || (lead.mainConcerns || []).includes(concern)),
+    [concern, source],
+  );
+
+  const canRequest = !request || (request.status !== 'pending' && request.status !== 'active');
+
+  async function submitRequest(event) {
+    event.preventDefault();
+    setSaving(true);
+    setError('');
+    setNotice('');
+    try {
+      await createMyRequest({ requestedCount: count, leadType, notes });
+      await load();
+      setNotes('');
+      setNotice('Anfrage gesendet. Sie erscheint sofort im Admin-Dashboard.');
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function cancelRequest() {
+    if (!request) return;
+    setSaving(true);
+    setError('');
+    setNotice('');
+    try {
+      await cancelMyRequest(request.id);
+      await load();
+      setNotice('Anfrage storniert.');
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
 
   return (
     <div className="broker-page">
-      <div className="broker-heading">
+      {notice ? <div className="broker-alert broker-alert--ok">{notice}</div> : null}
+      {error ? <div className="broker-alert">{error}</div> : null}
+
+      <div className="broker-stats">
         <div>
-          <div className="broker-eyebrow">Zugewiesene Chancen</div>
-          <h1>Meine Leads</h1>
-          <p>Leads, die Ihnen zugewiesen wurden und die Sie jetzt kontaktieren können.</p>
+          <span>Status</span>
+          <strong>{loading ? '—' : requestStatusLabel(request?.status)}</strong>
+        </div>
+        <div>
+          <span>Angefragt</span>
+          <strong>{loading ? '—' : request?.requestedCount || 0}</strong>
+        </div>
+        <div>
+          <span>Zugestellt</span>
+          <strong>{loading ? '—' : request?.deliveredCount || 0}</strong>
+        </div>
+        <div>
+          <span>Gültig</span>
+          <strong>{loading ? '—' : request?.validCount || 0}</strong>
+        </div>
+        <div>
+          <span>Gemeldet</span>
+          <strong>{loading ? '—' : request?.reportedCount || 0}</strong>
+        </div>
+        <div>
+          <span>Erstattet</span>
+          <strong>{loading ? '—' : request?.refundedCount || 0}</strong>
+        </div>
+        <div>
+          <span>Offen</span>
+          <strong>{loading ? '—' : request?.remaining || 0}</strong>
         </div>
       </div>
 
+      <section className="broker-panel broker-request-card">
+        {request && (request.status === 'pending' || request.status === 'active' || request.status === 'completed') ? (
+          <div>
+            <div className="broker-panel-header">
+              <div>
+                <h2>Aktuelle Anfrage</h2>
+                <p>
+                  {leadTypeLabel(request.leadType)} · {request.requestedCount} Leads · {formatDate(request.createdAt)}
+                </p>
+              </div>
+              <span className="broker-count">{requestStatusLabel(request.status)}</span>
+            </div>
+            <div className="broker-request-facts">
+              <span>Zugestellt {request.deliveredCount}</span>
+              <span>Erstattet {request.refundedCount}</span>
+              <span>Gültig {request.validCount}</span>
+              <span>Offen {request.remaining}</span>
+            </div>
+            {request.status === 'pending' ? (
+              <div className="broker-request-actions">
+                <button type="button" className="broker-text-btn" disabled={saving} onClick={cancelRequest}>
+                  Anfrage stornieren
+                </button>
+              </div>
+            ) : null}
+            {request.status === 'completed' ? (
+              <p className="broker-muted-note">Auftrag erfüllt. Sie können eine neue Anfrage stellen.</p>
+            ) : null}
+          </div>
+        ) : (
+          <div className="broker-panel-header">
+            <div>
+              <h2>Leads anfragen</h2>
+              <p>Anzahl und Kategorie wählen. Die Anfrage geht direkt an den Admin.</p>
+            </div>
+          </div>
+        )}
+
+        {canRequest ? (
+          <form className="broker-request-form" onSubmit={submitRequest}>
+            <label>
+              Anzahl
+              <input
+                type="number"
+                min={1}
+                value={count}
+                onChange={(event) => setCount(Number(event.target.value))}
+                disabled={saving}
+                required
+              />
+            </label>
+            <label>
+              Kategorie
+              <select value={leadType} onChange={(event) => setLeadType(event.target.value)} disabled={saving}>
+                {LEAD_TYPE_OPTIONS.map((option) => (
+                  <option key={option.id} value={option.id}>{option.label}</option>
+                ))}
+              </select>
+            </label>
+            <label className="is-full">
+              Hinweis (optional)
+              <input
+                value={notes}
+                onChange={(event) => setNotes(event.target.value)}
+                placeholder="z. B. Fokus Selbstständige in NRW"
+                disabled={saving}
+              />
+            </label>
+            <div className="broker-request-actions is-full">
+              <button type="submit" className="broker-save broker-save--inline" disabled={saving}>
+                {saving ? 'Wird gesendet…' : 'Anfrage senden'}
+              </button>
+            </div>
+          </form>
+        ) : null}
+
+        {requests.length > 1 ? (
+          <ul className="broker-request-history">
+            {requests.slice(0, 5).map((entry) => (
+              <li key={entry.id}>
+                <span>{formatDate(entry.createdAt)} · {leadTypeLabel(entry.leadType)} · {entry.requestedCount} Leads</span>
+                <b>{requestStatusLabel(entry.status)}</b>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </section>
+
       <div className="broker-filterbar">
+        <div className="broker-tabs">
+          <button type="button" className={tab === 'delivered' ? 'is-active' : undefined} onClick={() => setTab('delivered')}>
+            Zugestellt ({delivered.length})
+          </button>
+          <button type="button" className={tab === 'reported' ? 'is-active' : undefined} onClick={() => setTab('reported')}>
+            Gemeldet ({reported.length})
+          </button>
+        </div>
         <label htmlFor="concernFilter">Hauptanliegen</label>
         <select id="concernFilter" value={concern} onChange={(event) => setConcern(event.target.value)}>
           <option value="all">Alle Anliegen</option>
@@ -111,11 +389,9 @@ export function BeraterLeads() {
           ))}
         </select>
         <span className="broker-filter-count">
-          {loading ? 'Laden…' : `${visible.length} in Ihrem Bestand`}
+          {loading ? 'Laden…' : `${visible.length} in dieser Ansicht`}
         </span>
       </div>
-
-      {error ? <div className="broker-alert">{error}</div> : null}
 
       {loading ? (
         <div className="broker-panel broker-empty">
@@ -125,13 +401,23 @@ export function BeraterLeads() {
       ) : visible.length ? (
         <div className="broker-leads-grid">
           {visible.map((lead) => (
-            <LeadCard key={lead.id} lead={lead} />
+            <LeadCard
+              key={lead.id}
+              lead={lead}
+              onReported={() => {
+                load().catch((err) => setError(err.message));
+              }}
+            />
           ))}
         </div>
       ) : (
         <div className="broker-panel broker-empty">
-          <strong>Noch keine Leads zugewiesen</strong>
-          <p>Sobald ein Admin Ihnen einen Lead zuweist, erscheint er hier.</p>
+          <strong>{tab === 'reported' ? 'Keine gemeldeten Leads' : 'Noch keine Leads zugestellt'}</strong>
+          <p>
+            {tab === 'reported'
+              ? 'Reklamierte Leads erscheinen hier, bis der Admin entschieden hat.'
+              : 'Sobald ein Admin Ihre Anfrage annimmt und Leads sendet, erscheinen sie hier.'}
+          </p>
         </div>
       )}
     </div>
@@ -143,14 +429,6 @@ export function BeraterPayments() {
 
   return (
     <div className="broker-page">
-      <div className="broker-heading">
-        <div>
-          <div className="broker-eyebrow">Wallet</div>
-          <h1>Zahlung</h1>
-          <p>Halten Sie Guthaben bereit, um den nächsten passenden Lead sofort zu übernehmen.</p>
-        </div>
-      </div>
-
       <div className="broker-payment-box">
         <div className="broker-payment-label">Verfügbares Guthaben</div>
         <div className="broker-balance">{formatEuroExact(balanceCents)}</div>
@@ -306,19 +584,13 @@ export function BeraterProfile() {
 
   return (
     <div className="broker-page">
-      <div className="broker-heading">
-        <div>
-          <div className="broker-eyebrow">Einstellungen</div>
-          <h1>Profil &amp; Stammdaten</h1>
-          <p>
+      <p className="broker-page-lede">
             {isAdmin
               ? 'Admin-Konto: Name, Telefon und Passwort. Unternehmensdaten sind optional.'
               : user?.onboardingComplete
                 ? 'Ansprechpartner, Unternehmen und Erreichbarkeit für Ihr Maklerkonto.'
                 : 'Ergänzen Sie Telefon, Firma und Adresse — danach ist Ihr Konto vollständig.'}
-          </p>
-        </div>
-      </div>
+      </p>
 
       <form className="broker-panel broker-settings broker-settings--wide" onSubmit={save}>
         <h2>Benutzerkonto und Ansprechpartner</h2>

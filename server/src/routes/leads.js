@@ -12,18 +12,55 @@ import {
   listLeads,
   listMyLeads,
   LEAD_STATUSES,
+  restoreRejectedLead,
+  tableMissingResponse,
   updateLead,
   withAssignee,
 } from '../lib/leads.js';
+import {
+  attachComplaints,
+  complaintTableMissing,
+  reportLead,
+} from '../lib/complaints.js';
 
 const router = Router();
 const adminOnly = [requireAuth, requireRole(ROLES.ADMIN)];
 
 router.get('/mine', requireAuth, async (req, res) => {
   try {
-    const leads = await listMyLeads(req.user.id);
+    const leads = await attachComplaints(await listMyLeads(req.user.id));
     res.json({ leads });
   } catch (error) {
+    if (complaintTableMissing(error)) {
+      return tableMissingResponse(
+        res,
+        'Reklamationen fehlen. Bitte server/supabase/lead_workflow.sql im Supabase SQL Editor ausführen.',
+      );
+    }
+    handleLeadError(res, error);
+  }
+});
+
+router.post('/:id/report', requireAuth, async (req, res) => {
+  try {
+    if (!isUuid(req.params.id)) {
+      return res.status(400).json({ error: 'Lead wurde nicht gefunden.' });
+    }
+    if (req.user.role !== ROLES.BERATER) {
+      return res.status(403).json({ error: 'Nur Berater können Leads reklamieren.' });
+    }
+    const complaint = await reportLead(req.params.id, req.user.id, {
+      reason: req.body?.reason,
+      comment: req.body?.comment,
+    });
+    res.status(201).json({ complaint });
+  } catch (error) {
+    if (complaintTableMissing(error)) {
+      return tableMissingResponse(
+        res,
+        'Reklamationen fehlen. Bitte server/supabase/lead_workflow.sql im Supabase SQL Editor ausführen.',
+      );
+    }
     handleLeadError(res, error);
   }
 });
@@ -112,6 +149,21 @@ router.patch('/:id/assign', ...adminOnly, async (req, res) => {
     }
     const assignedTo = req.body?.assignedTo ?? req.body?.assigned_to ?? null;
     const lead = await assignLead(req.params.id, assignedTo || null);
+    if (!lead) {
+      return res.status(404).json({ error: 'Lead wurde nicht gefunden.' });
+    }
+    res.json({ lead });
+  } catch (error) {
+    handleLeadError(res, error);
+  }
+});
+
+router.post('/:id/restore', ...adminOnly, async (req, res) => {
+  try {
+    if (!isUuid(req.params.id)) {
+      return res.status(400).json({ error: 'Lead wurde nicht gefunden.' });
+    }
+    const lead = await restoreRejectedLead(req.params.id);
     if (!lead) {
       return res.status(404).json({ error: 'Lead wurde nicht gefunden.' });
     }

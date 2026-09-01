@@ -16,6 +16,9 @@ import {
 } from './dashboard/AdminViews';
 import { AdminLeadEditor, AdminLeads } from './dashboard/AdminLeads';
 import { AdminBeraterDetail, AdminBeraterList } from './dashboard/AdminBerater';
+import { AdminRequests } from './dashboard/AdminRequests';
+import { AdminComplaints } from './dashboard/AdminComplaints';
+import { AdminRejectedLeads } from './dashboard/AdminRejectedLeads';
 
 export default function Dashboard() {
   const { isAdmin } = useAuth();
@@ -31,8 +34,11 @@ export default function Dashboard() {
                 <Route path="nutzer" element={<AdminUsers />} />
                 <Route path="berater" element={<AdminBeraterList />} />
                 <Route path="berater/:id" element={<AdminBeraterDetail />} />
+                <Route path="anfragen" element={<AdminRequests />} />
+                <Route path="reklamationen" element={<AdminComplaints />} />
                 <Route path="leads" element={<AdminLeads />} />
                 <Route path="leads/new" element={<AdminLeadEditor />} />
+                <Route path="leads/abgelehnt" element={<AdminRejectedLeads />} />
                 <Route path="leads/:id" element={<AdminLeadEditor />} />
                 <Route path="zahlung" element={<AdminPayment />} />
                 <Route path="profil" element={<BeraterProfile />} />

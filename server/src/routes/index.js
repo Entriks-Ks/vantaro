@@ -5,6 +5,8 @@ import contactRouter from './contact.js';
 import dashboardRouter from './dashboard.js';
 import leadsRouter from './leads.js';
 import beraterRouter from './berater.js';
+import requestsRouter from './requests.js';
+import complaintsRouter from './complaints.js';
 
 const router = Router();
 
@@ -14,5 +16,7 @@ router.use('/contact', contactRouter);
 router.use('/dashboard', dashboardRouter);
 router.use('/leads', leadsRouter);
 router.use('/berater', beraterRouter);
+router.use('/requests', requestsRouter);
+router.use('/complaints', complaintsRouter);
 
 export default router;

@@ -5,14 +5,18 @@ import {
   createBeraterRequest,
   fetchBeraterPipeline,
   fetchBeraterPipelines,
+  LEAD_TYPE_OPTIONS,
+  leadTypeLabel,
   recallBeraterLead,
   requestStatusLabel,
   requestStatusTone,
   sendBeraterLeads,
   updateBeraterRequest,
 } from '../../lib/berater';
+import { complaintStatusLabel, isOpenComplaint } from '../../lib/complaints';
 import { formatLeadAddress, listLabels, statusLabel } from '../../lib/leads';
 import { LeadListItem } from './AdminLeads';
+import { DashSeg } from './DashboardLayout';
 import { formatDate } from './helpers';
 
 function beraterInitials(user) {
@@ -25,7 +29,7 @@ function beraterInitials(user) {
 
 function progressPercent(request) {
   if (!request?.requestedCount) return 0;
-  return Math.min(100, Math.round((request.sentCount / request.requestedCount) * 100));
+  return Math.min(100, Math.round((request.deliveredCount / request.requestedCount) * 100));
 }
 
 function PipelineStatus({ request }) {
@@ -67,9 +71,9 @@ export function AdminBeraterList() {
     const query = search.trim().toLowerCase();
     return beraters.filter((entry) => {
       const status = entry.request?.status || 'none';
-      if (filter === 'aktiv' && status !== 'aktiv') return false;
-      if (filter === 'angefragt' && status !== 'angefragt') return false;
-      if (filter === 'offen' && !['aktiv', 'angefragt'].includes(status)) return false;
+      if (filter === 'active' && status !== 'active') return false;
+      if (filter === 'pending' && status !== 'pending') return false;
+      if (filter === 'open' && !['active', 'pending'].includes(status)) return false;
       if (query) {
         const haystack = `${entry.fullName} ${entry.email} ${entry.company}`.toLowerCase();
         if (!haystack.includes(query)) return false;
@@ -78,18 +82,11 @@ export function AdminBeraterList() {
     });
   }, [beraters, filter, search]);
 
-  const activeCount = beraters.filter((entry) => entry.request?.status === 'aktiv').length;
-  const requestedCount = beraters.filter((entry) => entry.request?.status === 'angefragt').length;
+  const activeCount = beraters.filter((entry) => entry.request?.status === 'active').length;
+  const requestedCount = beraters.filter((entry) => entry.request?.status === 'pending').length;
 
   return (
     <div className="dash-stack">
-      <div className="dash-intro">
-        <div>
-          <h2>Berater</h2>
-          <p>Aufträge prüfen, Leads senden und den Versand steuern.</p>
-        </div>
-      </div>
-
       {error ? <div className="dash-alert">{error}</div> : null}
 
       <div className="dash-metrics dash-metrics--three">
@@ -111,23 +108,24 @@ export function AdminBeraterList() {
       </div>
 
       <section className="dash-panel">
-        <div className="dash-filters">
-          <label>
-            Suche
+        <div className="dash-toolbar">
+          <DashSeg
+            value={filter}
+            onChange={setFilter}
+            options={[
+              { id: 'all', label: 'Alle', count: loading ? null : beraters.length },
+              { id: 'open', label: 'Offen' },
+              { id: 'active', label: 'Aktiv', count: loading ? null : activeCount },
+              { id: 'pending', label: 'Ausstehend', count: loading ? null : requestedCount },
+            ]}
+          />
+          <label className="dash-search">
+            <span>Suche</span>
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               placeholder="Name, E-Mail, Firma"
             />
-          </label>
-          <label>
-            Status
-            <select value={filter} onChange={(event) => setFilter(event.target.value)}>
-              <option value="all">Alle</option>
-              <option value="offen">Offen</option>
-              <option value="aktiv">Aktiv</option>
-              <option value="angefragt">Angefragt</option>
-            </select>
           </label>
         </div>
 
@@ -149,7 +147,8 @@ export function AdminBeraterList() {
                     </span>
                     {request ? (
                       <span className="dash-lead-row-tags">
-                        {request.sentCount} von {request.requestedCount} gesendet
+                        {request.deliveredCount} von {request.requestedCount} zugestellt · {request.validCount} gültig
+                        {request.refundedCount ? ` · ${request.refundedCount} erstattet` : ''}
                         {request.notes ? ` · ${request.notes}` : ''}
                       </span>
                     ) : (
@@ -189,6 +188,7 @@ export function AdminBeraterDetail() {
   const [notice, setNotice] = useState('');
   const [count, setCount] = useState(10);
   const [notes, setNotes] = useState('');
+  const [leadType, setLeadType] = useState('PKV');
   const [selected, setSelected] = useState([]);
 
   async function load() {
@@ -197,6 +197,7 @@ export function AdminBeraterDetail() {
     if (payload.request) {
       setCount(payload.request.requestedCount);
       setNotes(payload.request.notes || '');
+      setLeadType(payload.request.leadType || 'PKV');
     }
     setSelected([]);
     return payload;
@@ -212,6 +213,7 @@ export function AdminBeraterDetail() {
         if (payload.request) {
           setCount(payload.request.requestedCount);
           setNotes(payload.request.notes || '');
+          setLeadType(payload.request.leadType || 'PKV');
         }
       })
       .catch((err) => {
@@ -229,6 +231,8 @@ export function AdminBeraterDetail() {
   const request = data?.request;
   const available = data?.availableLeads || [];
   const sent = data?.sentLeads || [];
+  const requestLeads = data?.requestLeads || [];
+  const refundedLeads = requestLeads.filter((lead) => lead.refundedAt);
 
   async function run(action, success) {
     setSaving(true);
@@ -302,16 +306,21 @@ export function AdminBeraterDetail() {
         </div>
       </section>
 
-      <div className="dash-metrics dash-metrics--three">
+      <div className="dash-metrics dash-metrics--four">
         <div className="dash-metric">
           <span>Angefragt</span>
           <strong>{request?.requestedCount || 0}</strong>
-          <small>in diesem Auftrag</small>
+          <small>{request ? leadTypeLabel(request.leadType) : 'kein Auftrag'}</small>
         </div>
         <div className="dash-metric">
-          <span>Gesendet</span>
-          <strong>{request?.sentCount || 0}</strong>
+          <span>Zugestellt</span>
+          <strong>{request?.deliveredCount || 0}</strong>
           <small>{request?.remaining || 0} noch offen</small>
+        </div>
+        <div className="dash-metric">
+          <span>Gültig</span>
+          <strong>{request?.validCount || 0}</strong>
+          <small>{request?.refundedCount || 0} erstattet</small>
         </div>
         <div className="dash-metric">
           <span>Pool</span>
@@ -330,7 +339,7 @@ export function AdminBeraterDetail() {
           <>
             <div className="dash-progress-block">
               <div className="dash-progress-copy">
-                <span>{request.sentCount} von {request.requestedCount} Leads gesendet</span>
+                <span>{request.deliveredCount} von {request.requestedCount} zugestellt · {request.validCount} gültig</span>
                 <span>{progressPercent(request)}%</span>
               </div>
               <div className="dash-progress">
@@ -338,15 +347,23 @@ export function AdminBeraterDetail() {
               </div>
             </div>
 
-            <div className="dash-form dash-form--assign">
+            <div className="dash-form">
               <label>
                 Anzahl
                 <input
                   type="number"
-                  min={Math.max(1, request.sentCount)}
+                  min={Math.max(1, request.validCount)}
                   value={count}
                   onChange={(event) => setCount(Number(event.target.value))}
                 />
+              </label>
+              <label>
+                Kategorie
+                <select value={leadType} onChange={(event) => setLeadType(event.target.value)}>
+                  {LEAD_TYPE_OPTIONS.map((option) => (
+                    <option key={option.id} value={option.id}>{option.label}</option>
+                  ))}
+                </select>
               </label>
               <label className="is-full">
                 Notiz
@@ -359,33 +376,43 @@ export function AdminBeraterDetail() {
             </div>
 
             <div className="dash-form-actions">
-              {request.status === 'erledigt' ? (
+              {request.status === 'completed' ? (
                 <p className="dash-panel-note">Auftrag erfüllt. Erhöhen Sie die Anzahl, um weitere Leads zu senden.</p>
-              ) : request.status !== 'aktiv' ? (
-                <button
-                  type="button"
-                  className="dash-btn"
-                  disabled={saving}
-                  onClick={() => run(() => updateBeraterRequest(request.id, { status: 'aktiv' }), 'Berater ist jetzt aktiv.')}
-                >
-                  Aktivieren
-                </button>
-              ) : (
+              ) : request.status === 'pending' ? (
+                <>
+                  <button
+                    type="button"
+                    className="dash-btn"
+                    disabled={saving}
+                    onClick={() => run(() => updateBeraterRequest(request.id, { status: 'active' }), 'Anfrage angenommen.')}
+                  >
+                    Annehmen
+                  </button>
+                  <button
+                    type="button"
+                    className="dash-btn dash-btn--ghost"
+                    disabled={saving}
+                    onClick={() => run(() => updateBeraterRequest(request.id, { status: 'rejected' }), 'Anfrage abgelehnt.')}
+                  >
+                    Ablehnen
+                  </button>
+                </>
+              ) : request.status === 'active' ? (
                 <button
                   type="button"
                   className="dash-btn dash-btn--ghost"
                   disabled={saving}
-                  onClick={() => run(() => updateBeraterRequest(request.id, { status: 'pausiert' }), 'Versand gestoppt.')}
+                  onClick={() => run(() => updateBeraterRequest(request.id, { status: 'cancelled' }), 'Auftrag deaktiviert.')}
                 >
-                  Stoppen
+                  Deaktivieren
                 </button>
-              )}
+              ) : null}
               <button
                 type="button"
                 className="dash-btn dash-btn--ghost"
                 disabled={saving}
                 onClick={() => run(
-                  () => updateBeraterRequest(request.id, { requestedCount: request.requestedCount + 5, notes }),
+                  () => updateBeraterRequest(request.id, { requestedCount: request.requestedCount + 5, notes, leadType }),
                   'Auftrag um 5 Leads erhöht.',
                 )}
               >
@@ -396,7 +423,7 @@ export function AdminBeraterDetail() {
                 className="dash-btn dash-btn--ghost"
                 disabled={saving}
                 onClick={() => run(
-                  () => updateBeraterRequest(request.id, { requestedCount: count, notes }),
+                  () => updateBeraterRequest(request.id, { requestedCount: count, notes, leadType }),
                   'Auftrag aktualisiert.',
                 )}
               >
@@ -406,11 +433,11 @@ export function AdminBeraterDetail() {
           </>
         ) : (
           <form
-            className="dash-form dash-form--assign"
+            className="dash-form"
             onSubmit={(event) => {
               event.preventDefault();
               run(
-                () => createBeraterRequest(berater.id, { requestedCount: count, notes }),
+                () => createBeraterRequest(berater.id, { requestedCount: count, notes, leadType }),
                 'Auftrag angelegt.',
               );
             }}
@@ -423,6 +450,14 @@ export function AdminBeraterDetail() {
                 value={count}
                 onChange={(event) => setCount(Number(event.target.value))}
               />
+            </label>
+            <label>
+              Kategorie
+              <select value={leadType} onChange={(event) => setLeadType(event.target.value)}>
+                {LEAD_TYPE_OPTIONS.map((option) => (
+                  <option key={option.id} value={option.id}>{option.label}</option>
+                ))}
+              </select>
             </label>
             <label className="is-full">
               Notiz
@@ -441,15 +476,13 @@ export function AdminBeraterDetail() {
         )}
       </section>
 
-      {request && request.status !== 'erledigt' ? (
+      {request && request.status === 'active' ? (
         <section className="dash-panel">
           <div className="dash-panel-head">
             <strong>Leads senden</strong>
             <span>{selected.length} ausgewählt · {request.remaining} offen</span>
           </div>
-          {request.status === 'pausiert' ? (
-            <p className="dash-panel-note">Aktivieren Sie den Auftrag, bevor Sie weitere Leads senden.</p>
-          ) : available.length ? (
+          {available.length ? (
             <>
               <div className="dash-pick-list">
                 {available.map((lead) => (
@@ -518,7 +551,10 @@ export function AdminBeraterDetail() {
             {sent.map((lead) => (
               <div key={lead.id} className="dash-sent-item">
                 <LeadListItem lead={lead} />
-                {request && lead.requestId === request.id ? (
+                {isOpenComplaint(lead.complaint) ? (
+                  <span className="dash-badge dash-badge--warn">{complaintStatusLabel(lead.complaint.status)}</span>
+                ) : null}
+                {request && lead.requestId === request.id && !isOpenComplaint(lead.complaint) ? (
                   <button
                     type="button"
                     className="dash-btn dash-btn--ghost"
@@ -538,6 +574,23 @@ export function AdminBeraterDetail() {
           <div className="dash-empty"><p>Diesem Berater wurden noch keine Leads gesendet.</p></div>
         )}
       </section>
+
+      {refundedLeads.length ? (
+        <section className="dash-panel">
+          <div className="dash-panel-head">
+            <strong>Erstattete Leads</strong>
+            <span>{refundedLeads.length}</span>
+          </div>
+          <div className="dash-sent-list">
+            {refundedLeads.map((lead) => (
+              <div key={lead.id} className="dash-sent-item">
+                <LeadListItem lead={lead} />
+                <span className="dash-badge dash-badge--new">Erstattet</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
     </div>
   );
 }

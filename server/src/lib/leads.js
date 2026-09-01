@@ -238,6 +238,8 @@ export function toPublicLead(row, assignee = null) {
     assignedToEmail: assignee?.email || null,
     assignedAt: row.assigned_at || null,
     requestId: row.request_id || null,
+    refundedAt: row.refunded_at || null,
+    reportedAt: row.reported_at || null,
     source: row.source,
     createdBy: row.created_by || null,
     createdAt: row.created_at,
@@ -425,10 +427,14 @@ export async function listLeads({ status, assignedTo, search } = {}) {
     query = query.eq('status', status);
   }
 
-  if (assignedTo === 'unassigned') {
-    query = query.is('assigned_to', null);
+  if (assignedTo === 'rejected') {
+    query = query.not('refunded_at', 'is', null);
+  } else if (assignedTo === 'unassigned') {
+    query = query.is('assigned_to', null).is('refunded_at', null);
   } else if (assignedTo && isUuid(assignedTo)) {
     query = query.eq('assigned_to', assignedTo);
+  } else {
+    query = query.is('refunded_at', null);
   }
 
   const q = sanitizeSearch(search);
@@ -579,6 +585,11 @@ export async function assignLead(id, beraterId, { requestId } = {}) {
 
   const current = await getLeadById(id);
   if (!current) return null;
+  if (beraterId && current.refunded_at) {
+    const error = new Error('Erstattete Leads können nicht erneut zugewiesen werden.');
+    error.status = 400;
+    throw error;
+  }
 
   if (!beraterId) {
     const nextStatus = current.status === 'zugewiesen' ? 'in_bearbeitung' : current.status;
@@ -635,6 +646,36 @@ export async function assignLead(id, beraterId, { requestId } = {}) {
   return withAssignee(data);
 }
 
+export async function restoreRejectedLead(id) {
+  if (!supabaseConfig.configured || !supabase) {
+    throw Object.assign(new Error('Supabase ist nicht konfiguriert.'), { status: 503 });
+  }
+
+  const current = await getLeadById(id);
+  if (!current) return null;
+  if (!current.refunded_at) {
+    const error = new Error('Dieser Lead ist nicht verworfen.');
+    error.status = 400;
+    throw error;
+  }
+
+  const { data, error } = await supabase
+    .from('leads')
+    .update({
+      assigned_to: null,
+      assigned_at: null,
+      request_id: null,
+      refunded_at: null,
+      reported_at: null,
+      status: 'neu',
+    })
+    .eq('id', id)
+    .select('*')
+    .single();
+  if (error) throw error;
+  return withAssignee(data);
+}
+
 export async function deleteLead(id) {
   if (!supabaseConfig.configured || !supabase) {
     throw Object.assign(new Error('Supabase ist nicht konfiguriert.'), { status: 503 });
@@ -653,8 +694,8 @@ export async function countLeadStats() {
   const [totalRes, neuRes, unmatchedRes, recentRes] = await Promise.all([
     supabase.from('leads').select('*', { count: 'exact', head: true }),
     supabase.from('leads').select('*', { count: 'exact', head: true }).eq('status', 'neu'),
-    supabase.from('leads').select('*', { count: 'exact', head: true }).is('assigned_to', null),
-    supabase.from('leads').select('*').order('created_at', { ascending: false }).limit(5),
+    supabase.from('leads').select('*', { count: 'exact', head: true }).is('assigned_to', null).is('refunded_at', null),
+    supabase.from('leads').select('*').is('refunded_at', null).order('created_at', { ascending: false }).limit(5),
   ]);
 
   const firstError = totalRes.error || neuRes.error || unmatchedRes.error || recentRes.error;

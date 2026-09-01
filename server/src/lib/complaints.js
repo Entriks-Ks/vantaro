@@ -1,0 +1,288 @@
+import { supabase } from './supabase.js';
+import { toDirectoryUser } from './users.js';
+import { getLeadById, isUuid, tableMissing, toPublicLead } from './leads.js';
+import {
+  refreshRequestAfterRefund,
+  requestTableMissing,
+  sendLeadsToRequest,
+  statsForRequests,
+  toPublicRequest,
+} from './leadRequests.js';
+
+export const COMPLAINT_REASONS = ['invalid', 'duplicate', 'contact', 'requirements', 'cancelled', 'other'];
+export const COMPLAINT_STATUSES = ['pending', 'approved', 'declined'];
+
+function fail(message, status = 400) {
+  const error = new Error(message);
+  error.status = status;
+  return error;
+}
+
+export function normalizeComplaintStatus(value) {
+  if (value === 'rejected') return 'declined';
+  if (value === 'refunded') return 'approved';
+  return value || '';
+}
+
+export function toPublicComplaint(row, extras = {}) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    leadId: row.lead_id,
+    requestId: row.request_id || null,
+    beraterId: row.berater_id,
+    reason: row.reason,
+    comment: row.comment || null,
+    adminNote: row.admin_note || null,
+    status: normalizeComplaintStatus(row.status),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    reviewedAt: row.reviewed_at || null,
+    reviewedBy: row.reviewed_by || null,
+    refundedAt: row.refunded_at || null,
+    ...extras,
+  };
+}
+
+async function loadUser(id) {
+  if (!id) return null;
+  const { data } = await supabase.auth.admin.getUserById(id);
+  return data?.user ? toDirectoryUser(data.user) : null;
+}
+
+export async function reportLead(leadId, beraterId, { reason, comment } = {}) {
+  if (!isUuid(leadId)) throw fail('Lead ist ungültig.');
+  if (!COMPLAINT_REASONS.includes(reason)) throw fail('Bitte einen gültigen Grund wählen.');
+
+  const lead = await getLeadById(leadId);
+  if (!lead) throw fail('Lead wurde nicht gefunden.', 404);
+  if (lead.assigned_to !== beraterId) throw fail('Sie können nur eigene Leads melden.', 403);
+  if (lead.refunded_at) throw fail('Dieser Lead wurde bereits erstattet.');
+
+  const { data: open, error: openError } = await supabase
+    .from('lead_complaints')
+    .select('id')
+    .eq('lead_id', leadId)
+    .eq('status', 'pending')
+    .limit(1);
+  if (openError) throw openError;
+  if (open?.length) throw fail('Für diesen Lead liegt bereits eine Reklamation vor.');
+
+  const { data, error } = await supabase
+    .from('lead_complaints')
+    .insert({
+      lead_id: leadId,
+      request_id: lead.request_id || null,
+      berater_id: beraterId,
+      reason,
+      comment: String(comment || '').trim() || null,
+      status: 'pending',
+    })
+    .select('*')
+    .single();
+  if (error) throw error;
+
+  await supabase
+    .from('leads')
+    .update({ reported_at: new Date().toISOString() })
+    .eq('id', leadId);
+
+  return toPublicComplaint(data);
+}
+
+export async function listComplaints({ status } = {}) {
+  let query = supabase.from('lead_complaints').select('*').order('created_at', { ascending: false });
+  const normalized = normalizeComplaintStatus(status);
+  if (normalized && COMPLAINT_STATUSES.includes(normalized)) query = query.eq('status', normalized);
+  const { data, error } = await query;
+  if (error) throw error;
+
+  const rows = data || [];
+  const leadIds = [...new Set(rows.map((row) => row.lead_id))];
+  const beraterIds = [...new Set(rows.map((row) => row.berater_id))];
+  const requestIds = [...new Set(rows.map((row) => row.request_id).filter(Boolean))];
+
+  const leads = new Map();
+  if (leadIds.length) {
+    const { data: leadRows } = await supabase.from('leads').select('*').in('id', leadIds);
+    for (const row of leadRows || []) leads.set(row.id, toPublicLead(row));
+  }
+
+  const beraters = new Map();
+  await Promise.all(beraterIds.map(async (id) => {
+    beraters.set(id, await loadUser(id));
+  }));
+
+  const requests = new Map();
+  if (requestIds.length) {
+    const { data: requestRows } = await supabase.from('lead_requests').select('*').in('id', requestIds);
+    const stats = await statsForRequests(requestIds);
+    for (const row of requestRows || []) {
+      requests.set(row.id, toPublicRequest(row, stats.get(row.id)));
+    }
+  }
+
+  return rows.map((row) => toPublicComplaint(row, {
+    lead: leads.get(row.lead_id) || null,
+    berater: beraters.get(row.berater_id) || null,
+    request: requests.get(row.request_id) || null,
+  }));
+}
+
+export async function complaintsByLeadIds(leadIds) {
+  const ids = [...new Set((leadIds || []).filter(Boolean))];
+  const map = new Map();
+  if (!ids.length) return map;
+  const { data, error } = await supabase
+    .from('lead_complaints')
+    .select('*')
+    .in('lead_id', ids)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  for (const row of data || []) {
+    if (!map.has(row.lead_id)) map.set(row.lead_id, toPublicComplaint(row));
+  }
+  return map;
+}
+
+export async function attachComplaints(leads) {
+  const list = Array.isArray(leads) ? leads : [];
+  try {
+    const map = await complaintsByLeadIds(list.map((lead) => lead.id));
+    return list.map((lead) => ({ ...lead, complaint: map.get(lead.id) || null }));
+  } catch (error) {
+    if (complaintTableMissing(error)) {
+      return list.map((lead) => ({ ...lead, complaint: null }));
+    }
+    throw error;
+  }
+}
+
+export async function listComplaintsForBerater(beraterId) {
+  const { data, error } = await supabase
+    .from('lead_complaints')
+    .select('*')
+    .eq('berater_id', beraterId)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data || []).map((row) => toPublicComplaint(row));
+}
+
+async function moveLeadToRejected(leadId) {
+  const lead = await getLeadById(leadId);
+  if (!lead) throw fail('Lead wurde nicht gefunden.', 404);
+  const now = new Date().toISOString();
+  const nextStatus = lead.status === 'zugewiesen' ? 'in_bearbeitung' : (lead.status || 'neu');
+  const { data, error } = await supabase
+    .from('leads')
+    .update({
+      assigned_to: null,
+      assigned_at: lead.assigned_at || null,
+      refunded_at: now,
+      status: nextStatus,
+    })
+    .eq('id', leadId)
+    .select('*')
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function reviewComplaint(id, {
+  status,
+  note,
+  replaceLeadId,
+  reviewerId,
+} = {}) {
+  const next = normalizeComplaintStatus(status);
+  if (!['approved', 'declined'].includes(next)) throw fail('Status ist ungültig.');
+
+  const { data: current, error: loadError } = await supabase
+    .from('lead_complaints')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle();
+  if (loadError) throw loadError;
+  if (!current) return null;
+
+  const currentStatus = normalizeComplaintStatus(current.status);
+  if (currentStatus !== 'pending') {
+    throw fail('Diese Reklamation wurde bereits entschieden.');
+  }
+
+  const now = new Date().toISOString();
+
+  if (next === 'declined') {
+    const adminNote = String(note || '').trim();
+    if (!adminNote) throw fail('Bitte begründen Sie die Ablehnung. Der Berater sieht diese Notiz.');
+
+    const { data, error } = await supabase
+      .from('lead_complaints')
+      .update({
+        status: 'declined',
+        admin_note: adminNote,
+        reviewed_at: now,
+        reviewed_by: reviewerId || null,
+      })
+      .eq('id', id)
+      .select('*')
+      .single();
+    if (error) throw error;
+    return { complaint: toPublicComplaint(data) };
+  }
+
+  const { data: complaintRow, error } = await supabase
+    .from('lead_complaints')
+    .update({
+      status: 'approved',
+      refunded_at: now,
+      reviewed_at: now,
+      reviewed_by: reviewerId || null,
+    })
+    .eq('id', id)
+    .select('*')
+    .single();
+  if (error) throw error;
+
+  const rejectedLead = await moveLeadToRejected(current.lead_id);
+  let request = null;
+  if (current.request_id) {
+    request = await refreshRequestAfterRefund(current.request_id);
+  }
+
+  let replacement = null;
+  let replaceError = null;
+  if (replaceLeadId) {
+    try {
+      if (!current.request_id) throw fail('Dieser Lead ist keinem Auftrag zugeordnet.');
+      const sent = await sendLeadsToRequest(current.request_id, [replaceLeadId]);
+      replacement = sent?.leads?.[0] || null;
+      request = sent?.request || request;
+    } catch (err) {
+      replaceError = err.message || 'Ersatzlead konnte nicht gesendet werden.';
+    }
+  }
+
+  return {
+    complaint: toPublicComplaint(complaintRow, {
+      lead: toPublicLead(rejectedLead),
+      request,
+    }),
+    request,
+    replacement,
+    replaceError,
+  };
+}
+
+export async function refundComplaint(id, reviewerId, { replaceLeadId } = {}) {
+  return reviewComplaint(id, { status: 'approved', replaceLeadId, reviewerId });
+}
+
+export function complaintTableMissing(error) {
+  const message = String(error?.message || error?.code || '');
+  return tableMissing(error)
+    || requestTableMissing(error)
+    || /lead_complaints/i.test(message)
+    || /admin_note/i.test(message);
+}
+

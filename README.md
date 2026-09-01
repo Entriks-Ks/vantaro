@@ -87,7 +87,7 @@ Keep both Vantaro-Development and Vantaro-Production blocks in that file. Commen
 
 Lead records live in Postgres (`public.leads`). The API uses the service role; RLS is on with no anon/authenticated policies.
 
-Run [`server/supabase/leads.sql`](server/supabase/leads.sql) in the **SQL Editor** of each Supabase project you use (Development and Production). Then run [`server/supabase/lead_requests.sql`](server/supabase/lead_requests.sql) for Berater-Aufträge. Repeat after switching projects.
+Run [`server/supabase/leads.sql`](server/supabase/leads.sql) in the **SQL Editor** of each Supabase project you use (Development and Production). Then run [`server/supabase/lead_requests.sql`](server/supabase/lead_requests.sql) for Berater-Anfragen. Existing projects also need [`server/supabase/lead_workflow.sql`](server/supabase/lead_workflow.sql) (request statuses, complaints, refunds). Re-run it after pulling this change so complaint statuses become `pending | approved | declined` and `admin_note` exists. Repeat after switching projects.
 
 Registration sends a **6-digit code via Resend**. Set `RESEND_API_KEY` and `EMAIL_FROM` in `server/.env`. `EMAIL_FROM` must use a domain that is **verified** in the Resend dashboard.
 

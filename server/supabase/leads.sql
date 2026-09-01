@@ -28,6 +28,9 @@ create table if not exists public.leads (
     check (status in ('neu', 'in_bearbeitung', 'zugewiesen', 'erledigt')),
   assigned_to uuid references auth.users (id) on delete set null,
   assigned_at timestamptz,
+  request_id uuid,
+  refunded_at timestamptz,
+  reported_at timestamptz,
   source text not null default 'manual'
     check (source in ('csv', 'manual', 'api')),
   created_by uuid references auth.users (id) on delete set null,

@@ -238,6 +238,15 @@ export async function assignLead(id, assignedTo) {
   return parseResponse(response);
 }
 
+export async function restoreRejectedLead(id) {
+  const response = await fetch(apiUrl(`/api/leads/${id}/restore`), {
+    method: 'POST',
+    headers: authHeaders(true),
+    body: JSON.stringify({}),
+  });
+  return parseResponse(response);
+}
+
 export async function deleteLead(id) {
   const response = await fetch(apiUrl(`/api/leads/${id}`), {
     method: 'DELETE',

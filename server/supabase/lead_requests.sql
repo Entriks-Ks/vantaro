@@ -5,9 +5,14 @@ create table if not exists public.lead_requests (
   id uuid primary key default gen_random_uuid(),
   berater_id uuid not null references auth.users (id) on delete cascade,
   requested_count integer not null check (requested_count > 0),
-  status text not null default 'angefragt'
-    check (status in ('angefragt', 'aktiv', 'pausiert', 'erledigt')),
+  lead_type text not null default 'PKV'
+    check (lead_type in ('PKV', 'bAV', 'BU')),
+  status text not null default 'pending'
+    check (status in ('pending', 'active', 'completed', 'rejected', 'cancelled')),
+  replace_on_refund boolean not null default true,
   notes text,
+  rejected_at timestamptz,
+  cancelled_at timestamptz,
   created_by uuid references auth.users (id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),

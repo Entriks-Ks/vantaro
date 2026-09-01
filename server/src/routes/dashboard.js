@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { requireAuth } from '../lib/auth.js';
 import { ROLES } from '../lib/roles.js';
 import { countLeadStats } from '../lib/leads.js';
+import { countWorkflowStats } from '../lib/leadRequests.js';
 import { listDirectoryUsers } from '../lib/users.js';
 
 const router = Router();
@@ -19,9 +20,10 @@ router.get('/', requireAuth, async (req, res) => {
 
   if (req.user.role === ROLES.ADMIN) {
     try {
-      const [directory, leads] = await Promise.all([
+      const [directory, leads, workflow] = await Promise.all([
         listDirectoryUsers(),
         countLeadStats(),
+        countWorkflowStats(),
       ]);
       payload.admin = {
         users: directory.counts,
@@ -31,6 +33,7 @@ router.get('/', requireAuth, async (req, res) => {
         unmatched: leads.unmatched,
         leadTotal: leads.total,
         recentLeads: leads.recent,
+        workflow,
       };
     } catch (error) {
       console.error('Dashboard admin payload failed:', error.message);
@@ -42,6 +45,17 @@ router.get('/', requireAuth, async (req, res) => {
         unmatched: 0,
         leadTotal: 0,
         recentLeads: [],
+        workflow: {
+          pendingRequests: 0,
+          activeRequests: 0,
+          completedRequests: 0,
+          deliveredLeads: 0,
+          pendingComplaints: 0,
+          approvedComplaints: 0,
+          declinedComplaints: 0,
+          refundedLeads: 0,
+          recentRequests: [],
+        },
       };
     }
   }

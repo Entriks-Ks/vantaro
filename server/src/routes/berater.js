@@ -11,6 +11,7 @@ import {
   updateLeadRequest,
 } from '../lib/leadRequests.js';
 import { handleLeadError, isUuid, tableMissingResponse } from '../lib/leads.js';
+import { attachComplaints } from '../lib/complaints.js';
 
 const router = Router();
 router.use(requireAuth, requireRole(ROLES.ADMIN));
@@ -19,7 +20,7 @@ function handleError(res, error) {
   if (requestTableMissing(error)) {
     return tableMissingResponse(
       res,
-      'Berater-Aufträge fehlen. Bitte server/supabase/lead_requests.sql im Supabase SQL Editor ausführen.',
+      'Berater-Aufträge fehlen. Bitte server/supabase/lead_requests.sql und lead_workflow.sql im Supabase SQL Editor ausführen.',
     );
   }
   return handleLeadError(res, error);
@@ -43,6 +44,8 @@ router.patch('/requests/:requestId', async (req, res) => {
       requestedCount: req.body?.requestedCount ?? req.body?.requested_count,
       notes: req.body?.notes,
       status: req.body?.status,
+      leadType: req.body?.leadType ?? req.body?.lead_type,
+      replaceOnRefund: req.body?.replaceOnRefund ?? req.body?.replace_on_refund,
     });
     if (!request) {
       return res.status(404).json({ error: 'Auftrag wurde nicht gefunden.' });
@@ -95,6 +98,8 @@ router.get('/:id', async (req, res) => {
       return res.status(400).json({ error: 'Berater wurde nicht gefunden.' });
     }
     const payload = await getBeraterPipeline(req.params.id);
+    payload.sentLeads = await attachComplaints(payload.sentLeads || []);
+    payload.requestLeads = await attachComplaints(payload.requestLeads || []);
     res.json(payload);
   } catch (error) {
     handleError(res, error);
@@ -108,6 +113,7 @@ router.post('/:id/requests', async (req, res) => {
     }
     const request = await createLeadRequest(req.params.id, {
       requestedCount: req.body?.requestedCount ?? req.body?.requested_count,
+      leadType: req.body?.leadType ?? req.body?.lead_type,
       notes: req.body?.notes,
       createdBy: req.user.id,
     });

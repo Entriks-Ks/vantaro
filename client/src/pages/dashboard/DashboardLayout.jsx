@@ -7,23 +7,65 @@ import {
   ListChecks,
   Landmark,
   UserRound,
+  Inbox,
+  Flag,
+  Ban,
 } from 'lucide-react';
 import Brand from '../../components/Brand';
 import { useAuth } from '../../hooks/useAuth';
 import { roleLabel } from '../../lib/roles';
-import { firstName, initials } from './helpers';
+import { firstName, greeting, initials } from './helpers';
+
+export function DashSeg({ value, onChange, options }) {
+  return (
+    <div className="dash-seg" role="tablist">
+      {options.map((option) => (
+        <button
+          key={option.id}
+          type="button"
+          role="tab"
+          aria-selected={value === option.id}
+          className={value === option.id ? 'is-active' : undefined}
+          onClick={() => onChange(option.id)}
+        >
+          {option.label}
+          {option.count != null ? <em>{option.count}</em> : null}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 const BERATER_LINKS = [
   { to: '/dashboard', end: true, label: 'Meine Leads', icon: ListChecks },
   { to: '/dashboard/zahlung', label: 'Zahlung', icon: Landmark },
 ];
 
-const ADMIN_LINKS = [
-  { to: '/dashboard', end: true, label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/dashboard/nutzer', label: 'Nutzer', icon: Users },
-  { to: '/dashboard/berater', label: 'Berater', icon: UserRound },
-  { to: '/dashboard/leads', label: 'Leads', icon: ListChecks },
-  { to: '/dashboard/zahlung', label: 'Zahlung', icon: Landmark },
+const ADMIN_NAV = [
+  {
+    label: 'Übersicht',
+    links: [{ to: '/dashboard', end: true, label: 'Dashboard', icon: LayoutDashboard }],
+  },
+  {
+    label: 'Workflow',
+    links: [
+      { to: '/dashboard/anfragen', label: 'Anfragen', icon: Inbox },
+      { to: '/dashboard/reklamationen', label: 'Reklamationen', icon: Flag },
+      { to: '/dashboard/leads/abgelehnt', label: 'Abgelehnt', icon: Ban },
+    ],
+  },
+  {
+    label: 'Bestand',
+    links: [
+      { to: '/dashboard/leads', end: true, label: 'Leads', icon: ListChecks },
+      { to: '/dashboard/berater', label: 'Berater', icon: UserRound },
+      { to: '/dashboard/nutzer', label: 'Nutzer', icon: Users },
+    ],
+  },
+  {
+    label: 'Konto',
+    links: [{ to: '/dashboard/zahlung', label: 'Zahlung', icon: Landmark }],
+  },
 ];
 
 function pageCopy(pathname) {
@@ -31,9 +73,47 @@ function pageCopy(pathname) {
     return { title: 'Zahlung', subtitle: 'Guthaben für den nächsten Lead bereithalten.' };
   }
   if (pathname.startsWith('/dashboard/profil')) {
-    return { title: 'Profil', subtitle: 'Name, E-Mail und Passwort verwalten.' };
+    return { title: 'Profil & Stammdaten', subtitle: 'Name, Erreichbarkeit und Unternehmensdaten.' };
   }
-    return { title: 'Meine Leads', subtitle: 'Ihre zugewiesenen Chancen an einem Ort.' };
+  return { title: 'Meine Leads', subtitle: 'Anfragen, Zustellung und Reklamationen im Blick.' };
+}
+
+function adminPageCopy(pathname, user) {
+  if (pathname.startsWith('/dashboard/zahlung')) {
+    return { kicker: 'Konto', title: 'Zahlung', subtitle: 'Guthaben und Buchungen der Berater.' };
+  }
+  if (pathname.startsWith('/dashboard/profil')) {
+    return { kicker: 'Konto', title: 'Profil', subtitle: 'Name, E-Mail und Passwort.' };
+  }
+  if (pathname.startsWith('/dashboard/nutzer')) {
+    return { kicker: 'Bestand', title: 'Nutzer', subtitle: 'Konten im Workspace.' };
+  }
+  if (pathname.startsWith('/dashboard/berater')) {
+    return { kicker: 'Bestand', title: 'Berater', subtitle: 'Aufträge prüfen und Leads senden.' };
+  }
+  if (pathname.startsWith('/dashboard/anfragen')) {
+    return { kicker: 'Workflow', title: 'Anfragen', subtitle: 'Lead-Anfragen annehmen oder ablehnen.' };
+  }
+  if (pathname.startsWith('/dashboard/reklamationen')) {
+    return { kicker: 'Workflow', title: 'Reklamationen', subtitle: 'Erstattung genehmigen oder ablehnen.' };
+  }
+  if (pathname.startsWith('/dashboard/leads/abgelehnt')) {
+    return { kicker: 'Workflow', title: 'Abgelehnte Leads', subtitle: 'Erstattete Leads prüfen oder zurück in den Pool legen.' };
+  }
+  if (pathname.startsWith('/dashboard/leads/new')) {
+    return { kicker: 'Bestand', title: 'Neuer Lead', subtitle: 'Qualifizierten Kontakt anlegen.' };
+  }
+  if (pathname.startsWith('/dashboard/leads/')) {
+    return { kicker: 'Bestand', title: 'Lead', subtitle: 'Kontakt prüfen und zuweisen.' };
+  }
+  if (pathname.startsWith('/dashboard/leads')) {
+    return { kicker: 'Bestand', title: 'Leads', subtitle: 'Bestand filtern, importieren und zuweisen.' };
+  }
+  return {
+    kicker: greeting(),
+    title: firstName(user),
+    subtitle: 'Prüfen Sie offene Anfragen und Reklamationen, dann den Lead-Bestand.',
+  };
 }
 
 const ADMIN_SIDEBAR_KEY = 'vantaro-admin-sidebar';
@@ -48,6 +128,8 @@ function readAdminSidebarCollapsed() {
 
 function AdminShell({ user, logout, children }) {
   const [collapsed, setCollapsed] = useState(readAdminSidebarCollapsed);
+  const location = useLocation();
+  const copy = adminPageCopy(location.pathname, user);
 
   useEffect(() => {
     try {
@@ -85,21 +167,26 @@ function AdminShell({ user, logout, children }) {
           />
         </button>
         <nav className="dash-nav" id="dash-sidebar-nav" aria-label="Workspace">
-          {ADMIN_LINKS.map((link) => {
-            const Icon = link.icon;
-            return (
-              <NavLink
-                key={link.to}
-                to={link.to}
-                end={link.end}
-                title={link.label}
-                className={({ isActive }) => (isActive ? 'is-active' : undefined)}
-              >
-                <Icon size={16} />
-                <span>{link.label}</span>
-              </NavLink>
-            );
-          })}
+          {ADMIN_NAV.map((group) => (
+            <div className="dash-nav-group" key={group.label}>
+              <p className="dash-nav-label">{group.label}</p>
+              {group.links.map((link) => {
+                const Icon = link.icon;
+                return (
+                  <NavLink
+                    key={link.to}
+                    to={link.to}
+                    end={link.end}
+                    title={link.label}
+                    className={({ isActive }) => (isActive ? 'is-active' : undefined)}
+                  >
+                    <Icon size={16} />
+                    <span>{link.label}</span>
+                  </NavLink>
+                );
+              })}
+            </div>
+          ))}
         </nav>
         <div className="dash-sidebar-foot">
           <div className="dash-account">
@@ -131,10 +218,10 @@ function AdminShell({ user, logout, children }) {
       <div className="dash-main">
         <header className="dash-top">
           <div>
-            <p className="dash-kicker">Betrieb</p>
-            <h1>Admin-Dashboard</h1>
+            <p className="dash-kicker">{copy.kicker}</p>
+            <h1>{copy.title}</h1>
+            {copy.subtitle ? <p className="dash-top-sub">{copy.subtitle}</p> : null}
           </div>
-          <span className="dash-period">Heute</span>
         </header>
         <div className="dash-body">{children}</div>
       </div>

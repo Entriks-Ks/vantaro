@@ -1,11 +1,18 @@
 import { apiUrl } from './api';
 import { readStoredSession } from './auth';
 
+export const LEAD_TYPE_OPTIONS = [
+  { id: 'PKV', label: 'PKV' },
+  { id: 'bAV', label: 'bAV' },
+  { id: 'BU', label: 'BU' },
+];
+
 export const REQUEST_STATUS_OPTIONS = [
-  { id: 'angefragt', label: 'Angefragt' },
-  { id: 'aktiv', label: 'Aktiv' },
-  { id: 'pausiert', label: 'Pausiert' },
-  { id: 'erledigt', label: 'Erfüllt' },
+  { id: 'pending', label: 'Ausstehend' },
+  { id: 'active', label: 'Aktiv' },
+  { id: 'completed', label: 'Erfüllt' },
+  { id: 'rejected', label: 'Abgelehnt' },
+  { id: 'cancelled', label: 'Storniert' },
 ];
 
 export function requestStatusLabel(id) {
@@ -13,11 +20,15 @@ export function requestStatusLabel(id) {
 }
 
 export function requestStatusTone(id) {
-  if (id === 'aktiv') return 'ok';
-  if (id === 'angefragt') return 'warn';
-  if (id === 'pausiert') return 'muted';
-  if (id === 'erledigt') return 'new';
+  if (id === 'active') return 'ok';
+  if (id === 'pending') return 'warn';
+  if (id === 'completed') return 'new';
+  if (id === 'rejected') return 'danger';
   return 'muted';
+}
+
+export function leadTypeLabel(id) {
+  return LEAD_TYPE_OPTIONS.find((option) => option.id === id)?.label || id || '—';
 }
 
 function authHeaders(json = false) {
@@ -43,6 +54,34 @@ export async function fetchBeraterPipelines() {
 
 export async function fetchBeraterPipeline(id) {
   const response = await fetch(apiUrl(`/api/berater/${id}`), { headers: authHeaders() });
+  return parseResponse(response);
+}
+
+export async function fetchAllRequests() {
+  const response = await fetch(apiUrl('/api/requests'), { headers: authHeaders() });
+  return parseResponse(response);
+}
+
+export async function fetchMyRequests() {
+  const response = await fetch(apiUrl('/api/requests/mine'), { headers: authHeaders() });
+  return parseResponse(response);
+}
+
+export async function createMyRequest(payload) {
+  const response = await fetch(apiUrl('/api/requests'), {
+    method: 'POST',
+    headers: authHeaders(true),
+    body: JSON.stringify(payload),
+  });
+  return parseResponse(response);
+}
+
+export async function cancelMyRequest(id) {
+  const response = await fetch(apiUrl(`/api/requests/${id}/cancel`), {
+    method: 'POST',
+    headers: authHeaders(true),
+    body: JSON.stringify({}),
+  });
   return parseResponse(response);
 }
 
