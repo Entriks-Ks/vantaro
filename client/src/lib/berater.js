@@ -8,11 +8,11 @@ export const LEAD_TYPE_OPTIONS = [
 ];
 
 export const REQUEST_STATUS_OPTIONS = [
-  { id: 'pending', label: 'Ausstehend' },
   { id: 'active', label: 'Aktiv' },
+  { id: 'cancelled', label: 'Pausiert' },
   { id: 'completed', label: 'Erfüllt' },
   { id: 'rejected', label: 'Abgelehnt' },
-  { id: 'cancelled', label: 'Storniert' },
+  { id: 'pending', label: 'Aktiv' },
 ];
 
 export function requestStatusLabel(id) {
@@ -20,8 +20,8 @@ export function requestStatusLabel(id) {
 }
 
 export function requestStatusTone(id) {
-  if (id === 'active') return 'ok';
-  if (id === 'pending') return 'warn';
+  if (id === 'active' || id === 'pending') return 'ok';
+  if (id === 'cancelled') return 'warn';
   if (id === 'completed') return 'new';
   if (id === 'rejected') return 'danger';
   return 'muted';

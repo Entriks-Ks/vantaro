@@ -4,10 +4,11 @@
 create table if not exists public.lead_requests (
   id uuid primary key default gen_random_uuid(),
   berater_id uuid not null references auth.users (id) on delete cascade,
+  code text not null unique,
   requested_count integer not null check (requested_count > 0),
   lead_type text not null default 'PKV'
     check (lead_type in ('PKV', 'bAV', 'BU')),
-  status text not null default 'pending'
+  status text not null default 'active'
     check (status in ('pending', 'active', 'completed', 'rejected', 'cancelled')),
   replace_on_refund boolean not null default true,
   notes text,
@@ -23,6 +24,7 @@ create table if not exists public.lead_requests (
 create index if not exists lead_requests_berater_idx on public.lead_requests (berater_id);
 create index if not exists lead_requests_status_idx on public.lead_requests (status);
 create index if not exists lead_requests_created_at_idx on public.lead_requests (created_at desc);
+create unique index if not exists lead_requests_code_uidx on public.lead_requests (code);
 
 drop trigger if exists lead_requests_set_updated_at on public.lead_requests;
 create trigger lead_requests_set_updated_at

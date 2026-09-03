@@ -12,7 +12,12 @@ import {
 } from '../lib/leadRequests.js';
 import { handleLeadError, isUuid, tableMissingResponse } from '../lib/leads.js';
 import { attachComplaints } from '../lib/complaints.js';
-import { attachPaymentsToPipelines, attachPaymentsToRequests } from '../lib/payments.js';
+import {
+  attachPaymentsToPipelines,
+  attachPaymentsToRequests,
+  listMyPayments,
+  paymentTableMissing,
+} from '../lib/payments.js';
 
 const router = Router();
 router.use(requireAuth, requireRole(ROLES.ADMIN));
@@ -21,7 +26,7 @@ function handleError(res, error) {
   if (requestTableMissing(error)) {
     return tableMissingResponse(
       res,
-      'Berater-Aufträge fehlen. Bitte server/supabase/lead_requests.sql und lead_workflow.sql im Supabase SQL Editor ausführen.',
+      'Berater-Aufträge fehlen. Bitte server/supabase/lead_requests.sql, lead_workflow.sql und lead_request_code.sql im Supabase SQL Editor ausführen.',
     );
   }
   return handleLeadError(res, error);
@@ -106,6 +111,12 @@ router.get('/:id', async (req, res) => {
     payload.request = request;
     payload.sentLeads = await attachComplaints(payload.sentLeads || []);
     payload.requestLeads = await attachComplaints(payload.requestLeads || []);
+    try {
+      payload.payments = await listMyPayments(req.params.id);
+    } catch (error) {
+      if (!paymentTableMissing(error)) throw error;
+      payload.payments = [];
+    }
     res.json(payload);
   } catch (error) {
     handleError(res, error);

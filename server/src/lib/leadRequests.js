@@ -1,6 +1,7 @@
 import { supabase, supabaseConfig } from './supabase.js';
+import { publicUser } from './auth.js';
 import { ROLES, getUserRole } from './roles.js';
-import { listDirectoryUsers, toDirectoryUser } from './users.js';
+import { isEmailVerified, listDirectoryUsers } from './users.js';
 import {
   assignLead,
   getLeadById,
@@ -14,14 +15,15 @@ import { DEFAULT_LEAD_SCOPE, LEAD_SCOPES, leadScopeOrDefault, normalizeLeadScope
 
 export const LEAD_TYPES = ['PKV', 'bAV', 'BU'];
 export const REQUEST_STATUSES = ['pending', 'active', 'completed', 'rejected', 'cancelled'];
+const PENDING_STATUSES = new Set(['pending', 'angefragt', 'angefordert']);
 
 const STATUS_ALIASES = {
-  angefragt: 'pending',
-  angefordert: 'pending',
+  angefragt: 'active',
+  angefordert: 'active',
   aktiv: 'active',
   pausiert: 'cancelled',
   erledigt: 'completed',
-  pending: 'pending',
+  pending: 'active',
   active: 'active',
   completed: 'completed',
   rejected: 'rejected',
@@ -44,6 +46,13 @@ export function normalizeRequestStatus(value) {
   return STATUS_ALIASES[String(value || '').trim()] || '';
 }
 
+function makeRequestCode(at = new Date()) {
+  const d = new Date(at);
+  const stamp = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+  const suffix = Math.random().toString(36).slice(2, 6).toUpperCase();
+  return `ANF-${stamp}-${suffix}`;
+}
+
 export function toPublicRequest(row, stats = {}) {
   if (!row) return null;
   const requested = Number(row.requested_count) || 0;
@@ -54,6 +63,7 @@ export function toPublicRequest(row, stats = {}) {
   const remaining = Math.max(0, requested - valid);
   return {
     id: row.id,
+    code: row.code || null,
     beraterId: row.berater_id,
     leadType: row.lead_type || 'PKV',
     scope: leadScopeOrDefault(row.scope),
@@ -122,30 +132,84 @@ export async function getRequestById(id) {
   return data;
 }
 
+async function activatePendingInRows(rows) {
+  const pending = (rows || []).filter((row) => PENDING_STATUSES.has(row.status));
+  if (!pending.length) return rows || [];
+  const now = new Date().toISOString();
+  const { error } = await supabase
+    .from('lead_requests')
+    .update({
+      status: 'active',
+      activated_at: now,
+    })
+    .in('id', pending.map((row) => row.id));
+  if (error) throw error;
+  const ids = new Set(pending.map((row) => row.id));
+  return (rows || []).map((row) => (
+    ids.has(row.id)
+      ? { ...row, status: 'active', activated_at: row.activated_at || now }
+      : row
+  ));
+}
+
+/** Mark fully delivered active requests as completed (and reopen if under-delivered). */
+async function applyFulfillmentStatuses(rows, stats) {
+  const now = new Date().toISOString();
+  const completedIds = [];
+  const reopenIds = [];
+  const nextRows = (rows || []).map((row) => {
+    const status = normalizeRequestStatus(row.status) || row.status;
+    const requested = Number(row.requested_count) || 0;
+    const entry = stats?.get(row.id) || {};
+    const delivered = Number(entry.deliveredCount) || 0;
+    const refunded = Number(entry.refundedCount) || 0;
+    const valid = Math.max(0, delivered - refunded);
+    if (status === 'active' && requested > 0 && valid >= requested) {
+      completedIds.push(row.id);
+      return { ...row, status: 'completed' };
+    }
+    if (status === 'completed' && valid < requested) {
+      reopenIds.push(row.id);
+      return { ...row, status: 'active', activated_at: row.activated_at || now };
+    }
+    return row;
+  });
+
+  const tasks = [];
+  if (completedIds.length) {
+    tasks.push(supabase.from('lead_requests').update({ status: 'completed' }).in('id', completedIds));
+  }
+  if (reopenIds.length) {
+    tasks.push(
+      supabase
+        .from('lead_requests')
+        .update({ status: 'active', activated_at: now, paused_at: null })
+        .in('id', reopenIds),
+    );
+  }
+  if (tasks.length) {
+    const results = await Promise.all(tasks);
+    for (const { error } of results) {
+      if (error) throw error;
+    }
+  }
+  return nextRows;
+}
+
+async function hydrateRequestRows(rows) {
+  const activated = await activatePendingInRows(rows || []);
+  if (!activated.length) return { rows: [], stats: new Map() };
+  const stats = await statsForRequests(activated.map((row) => row.id));
+  const synced = await applyFulfillmentStatuses(activated, stats);
+  return { rows: synced, stats };
+}
+
 async function refreshRequestStatus(row) {
-  const mapped = await withStats(row);
-  if (!mapped) return { row, mapped: null };
-  if (mapped.status === 'active' && mapped.validCount >= mapped.requestedCount) {
-    const { data, error } = await supabase
-      .from('lead_requests')
-      .update({ status: 'completed' })
-      .eq('id', row.id)
-      .select('*')
-      .single();
-    if (error) throw error;
-    return { row: data, mapped: await withStats(data) };
-  }
-  if (mapped.status === 'completed' && mapped.validCount < mapped.requestedCount) {
-    const { data, error } = await supabase
-      .from('lead_requests')
-      .update({ status: 'active', activated_at: new Date().toISOString() })
-      .eq('id', row.id)
-      .select('*')
-      .single();
-    if (error) throw error;
-    return { row: data, mapped: await withStats(data) };
-  }
-  return { row, mapped };
+  const { rows } = await hydrateRequestRows(row ? [row] : []);
+  const current = rows[0];
+  if (!current) return { row, mapped: null };
+  const mapped = await withStats(current);
+  return { row: current, mapped };
 }
 
 async function requireBerater(beraterId) {
@@ -155,19 +219,26 @@ async function requireBerater(beraterId) {
   if (getUserRole(data.user) !== ROLES.BERATER) {
     throw fail('Nur Berater-Konten können Aufträge erhalten.');
   }
-  return toDirectoryUser(data.user);
+  const mapped = publicUser(data.user);
+  return {
+    ...mapped,
+    company: mapped.profile?.company || '',
+    verified: isEmailVerified(data.user),
+    createdAt: data.user.created_at || null,
+  };
 }
 
 export function pickInboxRequest(requests) {
-  return requests.find((entry) => entry.status === 'pending')
-    || requests.find((entry) => entry.status === 'active')
+  return requests.find((entry) => entry.status === 'active')
+    || requests.find((entry) => entry.status === 'cancelled')
+    || requests.find((entry) => entry.status === 'completed')
     || requests[0]
     || null;
 }
 
 export function pickWorkingRequest(requests) {
   return requests.find((entry) => entry.status === 'active')
-    || requests.find((entry) => entry.status === 'pending')
+    || requests.find((entry) => entry.status === 'cancelled')
     || requests[0]
     || null;
 }
@@ -182,9 +253,7 @@ export async function listBeraterPipelines() {
     .select('*')
     .order('created_at', { ascending: false });
   if (error) throw error;
-
-  const requestRows = requests || [];
-  const stats = await statsForRequests(requestRows.map((row) => row.id));
+  const { rows: requestRows, stats } = await hydrateRequestRows(requests || []);
   const assigned = await assignedCountsByBerater(beraters.map((user) => user.id));
 
   const byBerater = new Map();
@@ -273,8 +342,8 @@ export async function listRequestsForBerater(beraterId) {
     .eq('berater_id', beraterId)
     .order('created_at', { ascending: false });
   if (error) throw error;
-  const stats = await statsForRequests((requests || []).map((row) => row.id));
-  return (requests || []).map((row) => toPublicRequest(row, stats.get(row.id)));
+  const { rows: requestRows, stats } = await hydrateRequestRows(requests || []);
+  return requestRows.map((row) => toPublicRequest(row, stats.get(row.id)));
 }
 
 export async function listAllRequests() {
@@ -286,8 +355,8 @@ export async function listAllRequests() {
     .select('*')
     .order('created_at', { ascending: false });
   if (error) throw error;
-  const stats = await statsForRequests((requests || []).map((row) => row.id));
-  return (requests || []).map((row) => ({
+  const { rows: requestRows, stats } = await hydrateRequestRows(requests || []);
+  return requestRows.map((row) => ({
     ...toPublicRequest(row, stats.get(row.id)),
     berater: users.get(row.berater_id) || null,
   }));
@@ -311,31 +380,30 @@ export async function createLeadRequest(beraterId, {
   const packageScope = normalizeLeadScope(scope) || DEFAULT_LEAD_SCOPE;
   if (!LEAD_SCOPES.includes(packageScope)) throw fail('Paket muss deutschlandweit oder regional sein.');
 
-  const open = await listRequestsForBerater(beraterId);
-  const duplicatePending = open.find((entry) => (
-    entry.status === 'pending'
-    && leadScopeOrDefault(entry.scope) === packageScope
-    && entry.leadType === type
-  ));
-  if (duplicatePending) {
-    throw fail('Es gibt bereits eine offene Anforderung für dieses Paket. Bitte warten Sie auf die Freigabe.');
+  const now = new Date().toISOString();
+  let lastError = null;
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const { data, error } = await supabase
+      .from('lead_requests')
+      .insert({
+        berater_id: beraterId,
+        code: makeRequestCode(now),
+        requested_count: count,
+        lead_type: type,
+        scope: packageScope,
+        notes: String(notes || '').trim() || null,
+        status: 'active',
+        activated_at: now,
+        created_by: createdBy || beraterId,
+      })
+      .select('*')
+      .single();
+    if (!error) return toPublicRequest(data, {});
+    lastError = error;
+    // Retry only on rare unique-code collisions.
+    if (!/duplicate key|unique/i.test(String(error.message || ''))) break;
   }
-
-  const { data, error } = await supabase
-    .from('lead_requests')
-    .insert({
-      berater_id: beraterId,
-      requested_count: count,
-      lead_type: type,
-      scope: packageScope,
-      notes: String(notes || '').trim() || null,
-      status: 'pending',
-      created_by: createdBy || beraterId,
-    })
-    .select('*')
-    .single();
-  if (error) throw error;
-  return toPublicRequest(data, {});
+  throw lastError;
 }
 
 export async function cancelOwnRequest(id, beraterId) {
@@ -343,8 +411,9 @@ export async function cancelOwnRequest(id, beraterId) {
   const current = await getRequestById(id);
   if (!current) return null;
   if (current.berater_id !== beraterId) throw fail('Keine Berechtigung.', 403);
-  if (normalizeRequestStatus(current.status) !== 'pending') {
-    throw fail('Nur ausstehende Anforderungen können storniert werden.');
+  const status = normalizeRequestStatus(current.status);
+  if (status !== 'active' && status !== 'cancelled') {
+    throw fail('Nur aktive oder pausierte Anforderungen können storniert werden.');
   }
   return updateLeadRequest(id, { status: 'cancelled' });
 }
@@ -425,15 +494,12 @@ export async function updateLeadRequest(id, {
   return refreshed.mapped;
 }
 
-export async function sendLeadsToRequest(requestId, leadIds) {
+export async function sendLeadsToRequest(requestId, leadIds, { skipReplacementLink = false } = {}) {
   requireDb();
   const current = await getRequestById(requestId);
   if (!current) return null;
   const mapped = await withStats(current);
 
-  if (mapped.status === 'pending') {
-    throw fail('Bitte die Anforderung zuerst annehmen.');
-  }
   if (mapped.status === 'cancelled' || mapped.status === 'rejected') {
     throw fail('Dieser Auftrag ist nicht aktiv.');
   }
@@ -461,6 +527,21 @@ export async function sendLeadsToRequest(requestId, leadIds) {
       throw fail('Lead konnte nicht zugewiesen werden.');
     }
     assigned.push(lead);
+    if (!skipReplacementLink) {
+      try {
+        const { linkNextReplacementComplaint, complaintTableMissing } = await import('./complaints.js');
+        await linkNextReplacementComplaint(requestId, lead.id);
+      } catch (err) {
+        try {
+          const { complaintTableMissing } = await import('./complaints.js');
+          if (!complaintTableMissing(err)) {
+            console.warn('Replacement complaint link skipped:', err.message);
+          }
+        } catch {
+          console.warn('Replacement complaint link skipped:', err?.message || err);
+        }
+      }
+    }
   }
 
   const row = await getRequestById(requestId);
@@ -517,8 +598,9 @@ export async function countWorkflowStats() {
       .not('refunded_at', 'is', null);
 
     return {
-      pendingRequests: requests.filter((entry) => entry.status === 'pending').length,
+      pendingRequests: 0,
       activeRequests: requests.filter((entry) => entry.status === 'active').length,
+      pausedRequests: requests.filter((entry) => entry.status === 'cancelled').length,
       completedRequests: requests.filter((entry) => entry.status === 'completed').length,
       deliveredLeads: requests.reduce((sum, entry) => sum + entry.deliveredCount, 0),
       pendingComplaints: pendingComplaints || 0,
@@ -537,6 +619,7 @@ function emptyWorkflowStats() {
   return {
     pendingRequests: 0,
     activeRequests: 0,
+    pausedRequests: 0,
     completedRequests: 0,
     deliveredLeads: 0,
     pendingComplaints: 0,
@@ -562,6 +645,7 @@ export function requestTableMissing(error) {
     || /request_id/i.test(message)
     || /lead_type/i.test(message)
     || /column .*scope/i.test(message)
+    || /column .*code/i.test(message)
     || /replace_on_refund/i.test(message)
     || /refunded_at/i.test(message)
     || /reported_at/i.test(message);

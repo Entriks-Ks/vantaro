@@ -186,7 +186,12 @@ router.patch('/:id/assign', ...adminOnly, async (req, res) => {
       return res.status(400).json({ error: 'Lead wurde nicht gefunden.' });
     }
     const assignedTo = req.body?.assignedTo ?? req.body?.assigned_to ?? null;
-    const lead = await assignLead(req.params.id, assignedTo || null);
+    const requestId = req.body?.requestId ?? req.body?.request_id;
+    const lead = await assignLead(
+      req.params.id,
+      assignedTo || null,
+      requestId === undefined ? {} : { requestId: requestId || null },
+    );
     if (!lead) {
       return res.status(404).json({ error: 'Lead wurde nicht gefunden.' });
     }

@@ -1,22 +1,190 @@
-import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { fetchLeads, restoreRejectedLead } from '../../lib/leads';
-import { LeadListItem } from './AdminLeads';
+import { useEffect, useMemo, useState } from 'react';
+import { Link, useLocation } from 'react-router-dom';
+import { X } from 'lucide-react';
+import { complaintReasonLabel, fetchComplaints } from '../../lib/complaints';
+import { formatLeadAddress, listLabels, restoreRejectedLead } from '../../lib/leads';
+import { leadScopeLabel } from '../../lib/scopes';
+import { formatDate, formatDateTime, initials } from './helpers';
+
+function Field({ label, children }) {
+  const value = children == null || children === '' ? '—' : children;
+  return (
+    <div className="dash-drawer-field">
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
+  );
+}
+
+function phoneHref(phone) {
+  const cleaned = String(phone || '').replace(/\s/g, '');
+  return cleaned ? `tel:${cleaned}` : '';
+}
+
+function beraterName(complaint) {
+  return complaint?.berater?.fullName || complaint?.berater?.email || '—';
+}
+
+function isExchangedInvalidLead(complaint) {
+  return complaint?.status === 'approved'
+    && Boolean(complaint.replacementLeadId || complaint.replacementLead)
+    && Boolean(complaint.lead?.refundedAt);
+}
+
+function RestoreConfirmModal({ lead, saving, onConfirm, onCancel }) {
+  return (
+    <div className="dash-confirm-root" role="dialog" aria-modal="true" aria-labelledby="restore-confirm-title">
+      <button type="button" className="dash-confirm-overlay" aria-label="Abbrechen" onClick={onCancel} />
+      <div className="dash-confirm-panel">
+        <h3 id="restore-confirm-title">Lead wieder aktivieren?</h3>
+        <p>
+          Möchten Sie <strong>{lead?.fullName || 'diesen Lead'}</strong> wieder in den freien Pool legen?
+          Der Lead erscheint dann erneut in der Lead-Liste und kann anderen Beratern zugewiesen werden.
+        </p>
+        <div className="dash-confirm-actions">
+          <button type="button" className="dash-btn dash-btn--ghost" onClick={onCancel} disabled={Boolean(saving)}>
+            Abbrechen
+          </button>
+          <button type="button" className="dash-btn dash-btn--ok" onClick={onConfirm} disabled={Boolean(saving)}>
+            {saving ? 'Wird aktiviert…' : 'Ja, wieder aktivieren'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function InvalidLeadDrawer({ complaint, saving, onRestoreRequest, onClose, from }) {
+  const lead = complaint.lead;
+  const beraterPath = complaint.beraterId ? `/dashboard/berater/${complaint.beraterId}` : '';
+  const address = lead ? formatLeadAddress(lead) : '—';
+
+  return (
+    <div className="dash-drawer-root">
+      <button type="button" className="dash-drawer-overlay" aria-label="Details schließen" onClick={onClose} />
+      <aside className="dash-drawer dash-drawer--complaint" aria-labelledby="invalid-drawer-title">
+        <div className="dash-drawer-head">
+          <div className="dash-drawer-who">
+            <span className="dash-lead-avatar dash-lead-avatar--sm" aria-hidden="true">
+              {initials(lead || { fullName: 'Lead' })}
+            </span>
+            <div>
+              <div className="dash-lead-kicker">Ungültiger Lead</div>
+              <h3 id="invalid-drawer-title">{lead?.fullName || 'Lead'}</h3>
+              <small>
+                {beraterName(complaint)}
+                {' · '}
+                Erstattet {formatDate(complaint.refundedAt || lead?.refundedAt)}
+              </small>
+            </div>
+          </div>
+          <button type="button" className="dash-drawer-close" onClick={onClose} aria-label="Schließen">
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="dash-drawer-body">
+          <div className="dash-drawer-chips">
+            <span className="dash-badge dash-badge--danger">Ungültig</span>
+            <span className="dash-badge dash-badge--ok">Ersatz gesendet</span>
+            {lead?.scope ? (
+              <span className="dash-badge dash-badge--muted">{leadScopeLabel(lead.scope)}</span>
+            ) : null}
+          </div>
+
+          <p className="dash-complaint-reason">{complaintReasonLabel(complaint.reason)}</p>
+
+          {complaint.comment ? (
+            <blockquote className="dash-complaint-quote">
+              <span>Notiz vom Berater</span>
+              {complaint.comment}
+            </blockquote>
+          ) : null}
+
+          {complaint.adminNote ? (
+            <blockquote className="dash-complaint-quote dash-complaint-quote--admin">
+              <span>Notiz vom Admin</span>
+              {complaint.adminNote}
+            </blockquote>
+          ) : null}
+
+          {complaint.replacementLead ? (
+            <div className="dash-replacement-status dash-replacement-status--sent">
+              <span>Ersatz gesendet</span>
+              <strong>
+                <Link
+                  to={`/dashboard/leads/${complaint.replacementLead.id}`}
+                  state={{ from }}
+                >
+                  {complaint.replacementLead.fullName || 'Lead'}
+                </Link>
+              </strong>
+            </div>
+          ) : null}
+
+          <div className="dash-drawer-fields dash-drawer-fields--stack">
+            <Field label="Adresse">{address}</Field>
+            <Field label="E-Mail">
+              {lead?.email ? <a href={`mailto:${lead.email}`}>{lead.email}</a> : null}
+            </Field>
+            <Field label="Telefon">
+              {lead?.phone ? <a href={phoneHref(lead.phone)}>{lead.phone}</a> : null}
+            </Field>
+            <Field label="Berater">{beraterName(complaint)}</Field>
+            <Field label="Zugestellt">{formatDateTime(lead?.assignedAt)}</Field>
+            <Field label="Erstattet">{formatDateTime(complaint.refundedAt || lead?.refundedAt)}</Field>
+            <Field label="Versicherung">{listLabels(lead?.insuranceStatus, 'insurance')}</Field>
+          </div>
+        </div>
+
+        <div className="dash-drawer-actions dash-drawer-actions--restore">
+          <div className="dash-drawer-actions__row">
+            {lead?.id ? (
+              <Link className="dash-btn dash-btn--ghost" to={`/dashboard/leads/${lead.id}`} state={{ from }}>
+                Lead öffnen
+              </Link>
+            ) : null}
+            {beraterPath ? (
+              <Link className="dash-btn dash-btn--ghost" to={beraterPath}>
+                Berater öffnen
+              </Link>
+            ) : null}
+          </div>
+          {lead?.id ? (
+            <button
+              type="button"
+              className="dash-btn dash-btn--ok"
+              disabled={Boolean(saving)}
+              onClick={() => onRestoreRequest(lead.id)}
+            >
+              Wieder aktivieren
+            </button>
+          ) : null}
+        </div>
+      </aside>
+    </div>
+  );
+}
 
 export function AdminRejectedLeads() {
-  const [leads, setLeads] = useState([]);
+  const location = useLocation();
+  const from = `${location.pathname}${location.search}`;
+  const [complaints, setComplaints] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState('');
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [selectedId, setSelectedId] = useState('');
+  const [confirmLeadId, setConfirmLeadId] = useState('');
 
   async function load() {
-    const payload = await fetchLeads({ assignedTo: 'rejected' });
-    setLeads(payload.leads || []);
+    const payload = await fetchComplaints('approved');
+    setComplaints((payload.complaints || []).filter(isExchangedInvalidLead));
   }
 
   useEffect(() => {
     let active = true;
+    setLoading(true);
     load()
       .catch((err) => {
         if (active) setError(err.message);
@@ -29,14 +197,47 @@ export function AdminRejectedLeads() {
     };
   }, []);
 
-  async function restore(id) {
-    setSaving(id);
+  useEffect(() => {
+    if (!selectedId && !confirmLeadId) return undefined;
+    const onKey = (event) => {
+      if (event.key === 'Escape') {
+        if (confirmLeadId) setConfirmLeadId('');
+        else setSelectedId('');
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = previous;
+    };
+  }, [selectedId, confirmLeadId]);
+
+  const sorted = useMemo(
+    () => [...complaints].sort((a, b) => {
+      const left = new Date(b.refundedAt || b.updatedAt || b.createdAt || 0).getTime();
+      const right = new Date(a.refundedAt || a.updatedAt || a.createdAt || 0).getTime();
+      return left - right;
+    }),
+    [complaints],
+  );
+
+  const selected = sorted.find((entry) => entry.id === selectedId) || null;
+  const confirmLead = confirmLeadId
+    ? (sorted.find((entry) => entry.lead?.id === confirmLeadId)?.lead || null)
+    : null;
+
+  async function restore(leadId) {
+    setSaving(leadId);
     setError('');
     setNotice('');
     try {
-      await restoreRejectedLead(id);
+      await restoreRejectedLead(leadId);
       await load();
-      setNotice('Lead ist wieder im freien Pool.');
+      setConfirmLeadId('');
+      setSelectedId('');
+      setNotice('Lead ist wieder aktiv und im freien Pool.');
     } catch (err) {
       setError(err.message);
     } finally {
@@ -50,39 +251,78 @@ export function AdminRejectedLeads() {
       {error ? <div className="dash-alert">{error}</div> : null}
 
       <section className="dash-panel">
-        <div className="dash-panel-head">
-          <div>
-            <strong>Verworfen</strong>
-            <p className="dash-panel-lede">{loading ? 'Laden…' : `${leads.length} Leads`}</p>
-          </div>
-          <Link className="dash-btn dash-btn--ghost" to="/dashboard/reklamationen">
-            Zu den Reklamationen
-          </Link>
-        </div>
         {loading ? (
           <div className="dash-empty"><p>Laden…</p></div>
-        ) : leads.length ? (
-          <div className="dash-sent-list">
-            {leads.map((lead) => (
-              <div key={lead.id} className="dash-sent-item">
-                <LeadListItem lead={lead} />
-                <button
-                  type="button"
-                  className="dash-btn dash-btn--ghost"
-                  disabled={Boolean(saving)}
-                  onClick={() => restore(lead.id)}
+        ) : sorted.length ? (
+          <div className="dash-lead-list">
+            {sorted.map((complaint) => {
+              const lead = complaint.lead;
+              return (
+                <article
+                  key={complaint.id}
+                  className={`dash-lead-row dash-rejected-row${selectedId === complaint.id ? ' is-selected' : ''}`}
+                  onClick={() => setSelectedId(complaint.id)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      setSelectedId(complaint.id);
+                    }
+                  }}
+                  role="button"
+                  tabIndex={0}
                 >
-                  Zurück in den Pool
-                </button>
-              </div>
-            ))}
+                  <span className="dash-lead-avatar dash-lead-avatar--sm" aria-hidden="true">
+                    {initials(lead || { fullName: 'Lead' })}
+                  </span>
+                  <div className="dash-lead-row-main">
+                    <strong>{lead?.fullName || 'Lead'}</strong>
+                    <span className="dash-lead-row-sub">{beraterName(complaint)}</span>
+                    <span className="dash-lead-row-tags">
+                      {complaintReasonLabel(complaint.reason)}
+                      {complaint.replacementLead?.fullName
+                        ? ` · Ersatz: ${complaint.replacementLead.fullName}`
+                        : ''}
+                    </span>
+                  </div>
+                  <div className="dash-request-meta">
+                    <time dateTime={complaint.refundedAt || lead?.refundedAt}>
+                      {formatDate(complaint.refundedAt || lead?.refundedAt)}
+                    </time>
+                    <span className="dash-badge dash-badge--danger">Ungültig</span>
+                    <span className="dash-badge dash-badge--ok">Ersetzt</span>
+                  </div>
+                </article>
+              );
+            })}
           </div>
         ) : (
           <div className="dash-empty">
-            <p>Keine abgelehnten Leads. Genehmigte Erstattungen erscheinen hier.</p>
+            <p>
+              Noch keine ungültigen Leads. Erstattete Leads erscheinen hier,
+              sobald ein Ersatzlead gesendet wurde.
+            </p>
           </div>
         )}
       </section>
+
+      {selected ? (
+        <InvalidLeadDrawer
+          complaint={selected}
+          saving={saving}
+          onRestoreRequest={setConfirmLeadId}
+          onClose={() => setSelectedId('')}
+          from={from}
+        />
+      ) : null}
+
+      {confirmLead ? (
+        <RestoreConfirmModal
+          lead={confirmLead}
+          saving={saving}
+          onConfirm={() => restore(confirmLeadId)}
+          onCancel={() => setConfirmLeadId('')}
+        />
+      ) : null}
     </div>
   );
 }

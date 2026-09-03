@@ -8,9 +8,6 @@ import { useAuth } from '../../hooks/useAuth';
 import { useBroker } from '../../hooks/useBroker';
 import { didGoogleMapsAuthFail, geocodeAddress, hasGoogleMapsKey, isInGermany, reverseGeocode } from '../../lib/googleMaps';
 import {
-  fetchMyRequests,
-} from '../../lib/berater';
-import {
   COMPLAINT_REASON_OPTIONS,
   complaintReasonLabel,
   complaintStatusLabel,
@@ -775,7 +772,6 @@ export function BeraterPayments() {
   ));
   const [payments, setPayments] = useState([]);
   const [leadsUsed, setLeadsUsed] = useState(0);
-  const [pendingByScope, setPendingByScope] = useState({});
   const [checkout, setCheckout] = useState(null);
   const [card, setCard] = useState({ holder: '', number: '', expiry: '', cvc: '' });
   const [paying, setPaying] = useState(false);
@@ -783,17 +779,11 @@ export function BeraterPayments() {
   const [notice, setNotice] = useState('');
 
   async function loadBilling() {
-    const [leadPayload, requestPayload, paymentPayload] = await Promise.all([
+    const [leadPayload, paymentPayload] = await Promise.all([
       fetchMyLeads(),
-      fetchMyRequests(),
       fetchMyPayments().catch(() => ({ payments: [] })),
     ]);
     setLeadsUsed((leadPayload.leads || []).length);
-    const pending = {};
-    for (const entry of requestPayload.requests || []) {
-      if (entry.status === 'pending') pending[entry.scope || DEFAULT_LEAD_SCOPE] = true;
-    }
-    setPendingByScope(pending);
     setPayments(paymentPayload.payments || []);
   }
 
@@ -862,7 +852,7 @@ export function BeraterPayments() {
       setCheckout(null);
       setCard({ holder: '', number: '', expiry: '', cvc: '' });
       await loadBilling();
-      setNotice(`${checkoutPkg.label} ist bezahlt. Der Admin sieht die Anforderung und die Zahlungsdaten.`);
+      setNotice(`${checkoutPkg.label} ist bezahlt. Die Anforderung ist sofort aktiv.`);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -877,7 +867,7 @@ export function BeraterPayments() {
           <div className="eyebrow">Abrechnung</div>
           <h1>Zah<em>lung</em></h1>
           <p className="lede">
-            Paket wählen, Testzahlung durchführen, Anforderung geht an den Admin.
+            Paket wählen, Testzahlung durchführen. Die Anforderung ist danach sofort aktiv.
             Mindestabnahme {MIN_LEAD_PACK} Leads. Keine echte Bankverbindung.
           </p>
         </div>
@@ -919,7 +909,7 @@ export function BeraterPayments() {
         <div className="broker-billing-section-head">
           <div>
             <h2>Pakete</h2>
-            <p>Deutschlandweit oder regional wählen, dann mit Testdaten bezahlen. Der Admin nimmt die Anforderung danach manuell an.</p>
+            <p>Deutschlandweit oder regional wählen, dann mit Testdaten bezahlen. Die Anforderung ist danach sofort aktiv.</p>
           </div>
         </div>
 
@@ -987,16 +977,14 @@ export function BeraterPayments() {
                   <button
                     type="button"
                     className="btn btn-primary"
-                    disabled={paying || pendingByScope[pkg.scope]}
+                    disabled={paying}
                     onClick={() => {
                       setError('');
                       setNotice('');
                       setCheckout({ packageId: pkg.id, qty });
                     }}
                   >
-                    {pendingByScope[pkg.scope]
-                      ? 'Anforderung ausstehend'
-                      : `Weiter zur Zahlung · ${qty} Leads`}
+                    {`Weiter zur Zahlung · ${qty} Leads`}
                   </button>
                   {!active ? (
                     <button
@@ -1204,8 +1192,8 @@ export function BeraterPayments() {
       </section>
 
       <p className="broker-muted-note">
-        Testbetrieb ohne Bank oder Zahlungsanbieter. Nach der Zahlung erscheint die Anforderung
-        beim Admin zur manuellen Annahme.
+        Testbetrieb ohne Bank oder Zahlungsanbieter. Nach der Zahlung ist die Anforderung
+        beim Admin sofort aktiv.
       </p>
     </div>
   );

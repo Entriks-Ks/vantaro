@@ -52,6 +52,7 @@ router.get('/', requireAuth, async (req, res) => {
         workflow: {
           pendingRequests: 0,
           activeRequests: 0,
+          pausedRequests: 0,
           completedRequests: 0,
           deliveredLeads: 0,
           pendingComplaints: 0,

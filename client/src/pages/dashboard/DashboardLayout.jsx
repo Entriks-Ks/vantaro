@@ -55,7 +55,7 @@ const ADMIN_NAV = [
     links: [
       { to: '/dashboard/anfordern', label: 'Anforderungen', icon: Inbox },
       { to: '/dashboard/reklamationen', label: 'Reklamationen', icon: Flag },
-      { to: '/dashboard/leads/abgelehnt', label: 'Abgelehnt', icon: Ban },
+      { to: '/dashboard/leads/ungueltig', label: 'Ungültige Leads', icon: Ban },
     ],
   },
   {
@@ -85,16 +85,20 @@ function adminPageCopy(pathname, user) {
     return { kicker: 'Bestand', title: 'Nutzer', subtitle: 'Konten im Portal.' };
   }
   if (pathname.startsWith('/dashboard/berater')) {
-    return { kicker: 'Bestand', title: 'Berater', subtitle: 'Aufträge prüfen und Leads senden.' };
+    return { kicker: 'Bestand', title: 'Berater', subtitle: 'Konten und Stammdaten der Berater.' };
   }
   if (pathname.startsWith('/dashboard/anfordern') || pathname.startsWith('/dashboard/anfragen')) {
-    return { kicker: 'Workflow', title: 'Anforderungen', subtitle: 'Lead-Anforderungen annehmen oder ablehnen.' };
+    return { kicker: 'Workflow', title: 'Anforderungen', subtitle: 'Anforderungen prüfen, Leads senden und den Versand steuern.' };
   }
   if (pathname.startsWith('/dashboard/reklamationen')) {
     return { kicker: 'Workflow', title: 'Reklamationen', subtitle: 'Erstattung genehmigen oder ablehnen.' };
   }
-  if (pathname.startsWith('/dashboard/leads/abgelehnt')) {
-    return { kicker: 'Workflow', title: 'Abgelehnte Leads', subtitle: 'Erstattete Leads prüfen oder zurück in den Pool legen.' };
+  if (pathname.startsWith('/dashboard/leads/ungueltig') || pathname.startsWith('/dashboard/leads/abgelehnt')) {
+    return {
+      kicker: 'Workflow',
+      title: 'Ungültige Leads',
+      subtitle: 'Erstattete Leads mit Ersatz — Reklamationsgrund und Details nachprüfen.',
+    };
   }
   if (pathname.startsWith('/dashboard/leads/new')) {
     return { kicker: 'Bestand', title: 'Neuer Lead', subtitle: 'Qualifizierten Kontakt anlegen.' };
@@ -108,7 +112,7 @@ function adminPageCopy(pathname, user) {
   return {
     kicker: greeting(),
     title: firstName(user),
-    subtitle: 'Prüfen Sie offene Anforderungen und Reklamationen, dann den Lead-Bestand.',
+    subtitle: 'Prüfen Sie aktive Anforderungen und Reklamationen, dann den Lead-Bestand.',
   };
 }
 

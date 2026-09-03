@@ -20,7 +20,7 @@ function handleError(res, error) {
   if (requestTableMissing(error)) {
     return tableMissingResponse(
       res,
-      'Lead-Anforderungen fehlen. Bitte server/supabase/lead_workflow.sql im Supabase SQL Editor ausführen.',
+      'Lead-Anforderungen fehlen. Bitte server/supabase/lead_workflow.sql und lead_request_code.sql im Supabase SQL Editor ausführen.',
     );
   }
   return handleLeadError(res, error);
@@ -40,7 +40,7 @@ router.get('/mine', async (req, res) => {
     const requests = await attachPaymentsToRequests(await listRequestsForBerater(req.user.id));
     res.json({
       request: pickWorkingRequest(requests),
-      pending: requests.find((entry) => entry.status === 'pending') || null,
+      pending: null,
       requests,
     });
   } catch (error) {

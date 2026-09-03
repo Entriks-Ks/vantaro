@@ -68,6 +68,15 @@ export async function reviewComplaint(id, { status, note, replaceLeadId } = {}) 
   return parseResponse(response);
 }
 
+export async function sendComplaintReplacement(id, replaceLeadId) {
+  const response = await fetch(apiUrl(`/api/complaints/${id}/replacement`), {
+    method: 'POST',
+    headers: authHeaders(true),
+    body: JSON.stringify({ replaceLeadId }),
+  });
+  return parseResponse(response);
+}
+
 export async function reportLead(leadId, payload) {
   const response = await fetch(apiUrl(`/api/leads/${leadId}/report`), {
     method: 'POST',

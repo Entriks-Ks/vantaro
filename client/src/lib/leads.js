@@ -31,7 +31,6 @@ export const CONCERN_OPTIONS = [
 
 export const STATUS_OPTIONS = [
   { id: 'neu', label: 'Neu' },
-  { id: 'in_bearbeitung', label: 'In Bearbeitung' },
   { id: 'zugewiesen', label: 'Zugewiesen' },
   { id: 'erledigt', label: 'Erledigt' },
 ];
@@ -61,7 +60,10 @@ const LABEL_MAPS = {
   insurance: Object.fromEntries(INSURANCE_OPTIONS.map((item) => [item.id, item.label])),
   coverage: Object.fromEntries(COVERAGE_OPTIONS.map((item) => [item.id, item.label])),
   concern: Object.fromEntries(CONCERN_OPTIONS.map((item) => [item.id, item.label])),
-  status: Object.fromEntries(STATUS_OPTIONS.map((item) => [item.id, item.label])),
+  status: {
+    ...Object.fromEntries(STATUS_OPTIONS.map((item) => [item.id, item.label])),
+    in_bearbeitung: 'In Bearbeitung',
+  },
 };
 
 function optionLabel(map, id) {
@@ -234,11 +236,14 @@ export async function updateLead(id, payload) {
   return parseResponse(response);
 }
 
-export async function assignLead(id, assignedTo) {
+export async function assignLead(id, assignedTo, { requestId } = {}) {
   const response = await fetch(apiUrl(`/api/leads/${id}/assign`), {
     method: 'PATCH',
     headers: authHeaders(true),
-    body: JSON.stringify({ assignedTo }),
+    body: JSON.stringify({
+      assignedTo,
+      requestId: requestId === undefined ? undefined : requestId,
+    }),
   });
   return parseResponse(response);
 }
@@ -276,27 +281,92 @@ function normalizeHeader(value) {
     .replace(/strasse/g, 'straße');
 }
 
-const CSV_HEADER_LOOKUP = Object.fromEntries(
-  CSV_COLUMNS.map((column) => [normalizeHeader(column.header), column.key]),
-);
+const CSV_HEADER_LOOKUP = {
+  ...Object.fromEntries(CSV_COLUMNS.map((column) => [normalizeHeader(column.header), column.key])),
+  vorname: 'firstName',
+  nachname: 'lastName',
+  'first name': 'firstName',
+  'last name': 'lastName',
+  email: 'email',
+  'e-mail': 'email',
+  telefon: 'phone',
+  mobilnummer: 'phone',
+  phone: 'phone',
+  plz: 'zip',
+  ort: 'city',
+  stadt: 'city',
+  strasse: 'street',
+  street: 'street',
+  paket: 'scope',
+  package: 'scope',
+  scope: 'scope',
+  typ: 'scope',
+  art: 'scope',
+  pakettyp: 'scope',
+  exclusive: 'scope',
+  exclusiv: 'scope',
+  exklusiv: 'scope',
+  regional: 'scope',
+  notizen: 'notes',
+  notes: 'notes',
+  gespraechsnotizen: 'notes',
+  personenkreis: 'coverageCircle',
+  coverage: 'coverageCircle',
+  hauptanliegen: 'mainConcerns',
+};
+
+function detectCsvDelimiter(text) {
+  const line = String(text || '').split(/\r?\n/).find((entry) => entry.trim()) || '';
+  const counts = [
+    ['\t', (line.match(/\t/g) || []).length],
+    [';', (line.match(/;/g) || []).length],
+    [',', (line.match(/,/g) || []).length],
+  ].sort((left, right) => right[1] - left[1]);
+  return counts[0][1] > 0 ? counts[0][0] : ',';
+}
+
+function cleanCsvRow(row) {
+  const cleaned = {};
+  for (const [key, value] of Object.entries(row || {})) {
+    if (!key || key.startsWith('_')) continue;
+    cleaned[key] = typeof value === 'string' ? value.trim() : value;
+  }
+  const scope = String(cleaned.scope || '').trim();
+  const notes = String(cleaned.notes || '').trim();
+  if (scope && !notes && (/\s/.test(scope) || scope.length > 24)) {
+    const known = /^(deutschlandweit|regional|exklusiv|exclusive|exclusiv|bundesweit)$/i.test(scope);
+    if (!known) {
+      cleaned.notes = scope;
+      cleaned.scope = '';
+    }
+  }
+  return cleaned;
+}
 
 export function parseLeadCsv(file) {
   return new Promise((resolve, reject) => {
-    Papa.parse(file, {
-      header: true,
-      skipEmptyLines: 'greedy',
-      transformHeader: (header) => CSV_HEADER_LOOKUP[normalizeHeader(header)] || header.trim(),
-      complete(result) {
-        if (result.errors?.length && !result.data?.length) {
-          reject(new Error(result.errors[0].message || 'CSV konnte nicht gelesen werden.'));
-          return;
-        }
-        resolve(result.data || []);
-      },
-      error(error) {
-        reject(error);
-      },
-    });
+    const reader = new FileReader();
+    reader.onerror = () => reject(reader.error || new Error('CSV konnte nicht gelesen werden.'));
+    reader.onload = () => {
+      const text = String(reader.result || '').replace(/^\uFEFF/, '');
+      Papa.parse(text, {
+        header: true,
+        skipEmptyLines: 'greedy',
+        delimiter: detectCsvDelimiter(text),
+        transformHeader: (header) => CSV_HEADER_LOOKUP[normalizeHeader(header)] || header.trim(),
+        complete(result) {
+          if (result.errors?.length && !result.data?.length) {
+            reject(new Error(result.errors[0].message || 'CSV konnte nicht gelesen werden.'));
+            return;
+          }
+          resolve((result.data || []).map(cleanCsvRow));
+        },
+        error(error) {
+          reject(error);
+        },
+      });
+    };
+    reader.readAsText(file);
   });
 }
 
@@ -321,7 +391,26 @@ export function downloadLeadCsvTemplate() {
     'deutschlandweit',
     'Erstgespräch vereinbart',
   ];
-  const csv = Papa.unparse({ fields: headers, data: [example] });
+  const regional = [
+    'Anna',
+    'Schulz',
+    '04.07.1988',
+    'zusätzlich angestellt',
+    '',
+    'anna.schulz@example.de',
+    '+491701234567',
+    'PKV-Vollversicherung',
+    'Continentale',
+    '580',
+    'Familie',
+    'Beitrag',
+    '34117',
+    'Kassel',
+    'Obere Königsstraße 22',
+    'regional',
+    'Regionaler Familientarif prüfen',
+  ];
+  const csv = Papa.unparse({ fields: headers, data: [example, regional] });
   const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');

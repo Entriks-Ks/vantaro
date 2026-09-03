@@ -6,6 +6,7 @@ import {
   listComplaints,
   listComplaintsForBerater,
   reviewComplaint,
+  sendComplaintReplacement,
 } from '../lib/complaints.js';
 import { handleLeadError, isUuid, tableMissingResponse } from '../lib/leads.js';
 
@@ -52,6 +53,24 @@ router.patch('/:id', requireRole(ROLES.ADMIN), async (req, res) => {
       replaceLeadId: req.body?.replaceLeadId ?? req.body?.replace_lead_id,
       reviewerId: req.user.id,
     });
+    if (!result) {
+      return res.status(404).json({ error: 'Reklamation wurde nicht gefunden.' });
+    }
+    res.json(result);
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+router.post('/:id/replacement', requireRole(ROLES.ADMIN), async (req, res) => {
+  try {
+    if (!isUuid(req.params.id)) {
+      return res.status(400).json({ error: 'Reklamation wurde nicht gefunden.' });
+    }
+    const result = await sendComplaintReplacement(
+      req.params.id,
+      req.body?.replaceLeadId ?? req.body?.replace_lead_id ?? req.body?.leadId ?? req.body?.lead_id,
+    );
     if (!result) {
       return res.status(404).json({ error: 'Reklamation wurde nicht gefunden.' });
     }

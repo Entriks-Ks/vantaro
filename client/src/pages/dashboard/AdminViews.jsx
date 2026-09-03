@@ -120,8 +120,8 @@ export function AdminOverview() {
         <div className="dash-focus-grid">
           <FocusCard
             label="Anforderungen"
-            value={dash ?? (workflow.pendingRequests || 0)}
-            hint="warten auf Freigabe"
+            value={dash ?? (workflow.activeRequests || 0)}
+            hint="aktiv, Leads zu senden"
             to="/dashboard/anfordern"
             icon={Inbox}
           />
@@ -155,7 +155,7 @@ export function AdminOverview() {
           <Metric label="Berater" value={dash ?? counts.berater} hint="Konten" to="/dashboard/berater" />
           <Metric label="Aktive Aufträge" value={dash ?? (workflow.activeRequests || 0)} hint="empfangsberechtigt" to="/dashboard/anfordern" />
           <Metric label="Zugestellt" value={dash ?? (workflow.deliveredLeads || 0)} hint="Leads gesendet" to="/dashboard/leads" />
-          <Metric label="Erstattet" value={dash ?? (workflow.refundedLeads || 0)} hint="verworfene Leads" to="/dashboard/leads/abgelehnt" />
+          <Metric label="Ungültig" value={dash ?? (workflow.refundedLeads || 0)} hint="ersetzt nach Erstattung" to="/dashboard/leads/ungueltig" />
         </div>
       </section>
 
@@ -180,7 +180,10 @@ export function AdminOverview() {
                     {initials(entry.berater || {})}
                   </span>
                   <div className="dash-lead-row-main">
-                    <strong>{entry.berater?.fullName || entry.berater?.email || 'Berater'}</strong>
+                    <strong>
+                      {entry.berater?.fullName || entry.berater?.email || 'Berater'}
+                      {entry.code ? <span className="dash-request-code"> · {entry.code}</span> : null}
+                    </strong>
                     <span className="dash-lead-row-sub">
                       {leadScopeLabel(entry.scope)} · {leadTypeLabel(entry.leadType)} · {entry.requestedCount} angefordert · {entry.validCount} gültig
                       {entry.payment ? ` · ${entry.payment.invoiceNumber} · ${formatEuroExact(entry.payment.grossCents)}` : ''}

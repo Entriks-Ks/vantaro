@@ -45,34 +45,48 @@ const EMPLOYMENT_ALIASES = aliasMap({
     'selbstständig',
     'hauptberuflich selbststaendig',
     'hauptberuflich selbstständig',
+    'self-employed',
+    'self employed',
+    'freelancer',
+    'freiberuflich',
   ],
   zusaetzlich_angestellt: [
     'zusaetzlich_angestellt',
     'zusaetzlich angestellt',
     'zusätzlich angestellt',
+    'angestellt',
+    'employed',
   ],
-  sonstiges: ['sonstiges'],
+  sonstiges: ['sonstiges', 'other', 'sonstige'],
 });
 
 const INSURANCE_ALIASES = aliasMap({
-  gkv: ['gkv'],
-  pkv_voll: ['pkv_voll', 'pkv-vollversicherung', 'pkv vollversicherung', 'pkv'],
+  gkv: ['gkv', 'gesetzlich', 'gesetzliche krankenversicherung'],
+  pkv_voll: [
+    'pkv_voll',
+    'pkv-vollversicherung',
+    'pkv vollversicherung',
+    'pkv',
+    'privat',
+    'privatversichert',
+    'private krankenversicherung',
+  ],
   zusatz: ['zusatz', 'zusatzversicherung'],
-  unbekannt: ['unbekannt'],
+  unbekannt: ['unbekannt', 'unknown', 'k.a.', 'ka'],
 });
 
 const COVERAGE_ALIASES = aliasMap({
-  allein: ['allein', 'allein versichert'],
-  partner: ['partner'],
-  kinder: ['kinder'],
-  familie: ['familie'],
+  allein: ['allein', 'allein versichert', 'single', 'alone', 'selbst'],
+  partner: ['partner', 'partnerin', 'ehepartner', 'spouse'],
+  kinder: ['kinder', 'kind', 'child', 'children', 'kids'],
+  familie: ['familie', 'family', 'families', 'famile', 'familien'],
 });
 
 const CONCERN_ALIASES = aliasMap({
-  beitrag: ['beitrag'],
-  leistungen: ['leistungen'],
+  beitrag: ['beitrag', 'beitraege', 'premium', 'contribution'],
+  leistungen: ['leistungen', 'leistung', 'benefits'],
   krankentagegeld: ['krankentagegeld'],
-  check: ['check', 'allgemeiner check'],
+  check: ['check', 'allgemeiner check', 'pruefung', 'prüfung'],
 });
 
 export function isUuid(value) {
@@ -175,24 +189,77 @@ export function parseMonthlyPremium(value) {
   return { value: Math.round(amount * 100) / 100 };
 }
 
-function parseEmployment(raw) {
+function parseEmployment(raw, { lenient = false } = {}) {
   const text = trim(raw);
   if (!text) return { value: null };
   const mapped = mapAlias(text, EMPLOYMENT_ALIASES);
-  if (!mapped) return { error: 'Berufliche Situation ist ungültig.' };
+  if (!mapped) {
+    return lenient ? { value: null } : { error: 'Berufliche Situation ist ungültig.' };
+  }
   return { value: mapped };
 }
 
-function parseEnumList(raw, aliases, allowed, label) {
+function parseEnumList(raw, aliases, allowed, label, { lenient = false } = {}) {
   const items = splitList(raw);
   if (!items.length) return { value: [] };
   const mapped = [];
   for (const item of items) {
     const value = mapAlias(item, aliases);
-    if (!value) return { error: `${label} enthält einen ungültigen Wert: ${item}` };
+    if (!value) {
+      if (lenient) continue;
+      return { error: `${label} enthält einen ungültigen Wert: ${item}` };
+    }
     mapped.push(value);
   }
   return { value: uniqueAllowed(mapped, allowed) };
+}
+
+function looksLikeNotes(value) {
+  const text = trim(value);
+  if (!text) return false;
+  if (normalizeLeadScope(text)) return false;
+  return /\s/.test(text) || text.length > 24;
+}
+
+function isTruthyFlag(value) {
+  return /^(1|true|yes|ja|y|regional)$/i.test(trim(value));
+}
+
+export function inferImportScope(input = {}) {
+  const direct = normalizeLeadScope(input.scope ?? input.package ?? input.paket);
+  if (direct) return direct;
+
+  for (const [key, value] of Object.entries(input)) {
+    const header = fold(key);
+    const mapped = normalizeLeadScope(value);
+    if (mapped) return mapped;
+    if ((header === 'regional' || header === 'region') && isTruthyFlag(value)) {
+      return 'regional';
+    }
+    if ((header === 'exklusiv' || header === 'exclusive') && isTruthyFlag(value)) {
+      return 'deutschlandweit';
+    }
+  }
+
+  const zip = trim(input.zip).replace(/\D/g, '');
+  if (zip.length === 5) {
+    return Number(zip[zip.length - 1]) >= 5 ? 'regional' : 'deutschlandweit';
+  }
+  return '';
+}
+
+export function recoverImportFields(input = {}) {
+  const next = { ...input };
+  const rawScope = next.scope ?? next.package ?? next.paket;
+  if (looksLikeNotes(rawScope) && !trim(next.notes)) {
+    next.notes = trim(rawScope);
+    next.scope = '';
+    next.package = '';
+    next.paket = '';
+  }
+  const inferred = inferImportScope(next);
+  if (inferred) next.scope = inferred;
+  return next;
 }
 
 export function tableMissing(error) {
@@ -253,7 +320,7 @@ function hasField(body, ...keys) {
   return keys.some((key) => Object.prototype.hasOwnProperty.call(body, key));
 }
 
-export function parseLeadInput(body = {}, { partial = false } = {}) {
+export function parseLeadInput(body = {}, { partial = false, lenient = false } = {}) {
   const errors = [];
   const row = {};
 
@@ -278,7 +345,7 @@ export function parseLeadInput(body = {}, { partial = false } = {}) {
 
   const hasEmployment = 'employmentStatus' in body || 'employment_status' in body;
   if (!partial || hasEmployment) {
-    const employment = parseEmployment(body.employmentStatus ?? body.employment_status);
+    const employment = parseEmployment(body.employmentStatus ?? body.employment_status, { lenient });
     if (employment.error) errors.push(employment.error);
     else if (!partial || hasEmployment) row.employment_status = employment.value;
   }
@@ -307,6 +374,7 @@ export function parseLeadInput(body = {}, { partial = false } = {}) {
       INSURANCE_ALIASES,
       INSURANCE_STATUSES,
       'Versicherungsstatus',
+      { lenient },
     );
     if (insurance.error) errors.push(insurance.error);
     else if (!partial || hasInsurance) row.insurance_status = insurance.value;
@@ -331,6 +399,7 @@ export function parseLeadInput(body = {}, { partial = false } = {}) {
       COVERAGE_ALIASES,
       COVERAGE_CIRCLES,
       'Personenkreis',
+      { lenient },
     );
     if (coverage.error) errors.push(coverage.error);
     else if (!partial || hasCoverage) row.coverage_circle = coverage.value;
@@ -343,6 +412,7 @@ export function parseLeadInput(body = {}, { partial = false } = {}) {
       CONCERN_ALIASES,
       MAIN_CONCERNS,
       'Hauptanliegen',
+      { lenient },
     );
     if (concerns.error) errors.push(concerns.error);
     else if (!partial || hasConcerns) row.main_concerns = concerns.value;
@@ -366,7 +436,8 @@ export function parseLeadInput(body = {}, { partial = false } = {}) {
     const raw = body.scope ?? body.package ?? body.paket;
     const scope = normalizeLeadScope(raw);
     if (trim(raw) && !scope) {
-      errors.push('Paket muss deutschlandweit oder regional sein.');
+      if (lenient) row.scope = DEFAULT_LEAD_SCOPE;
+      else errors.push('Paket muss deutschlandweit oder regional sein.');
     } else {
       row.scope = scope || DEFAULT_LEAD_SCOPE;
     }
@@ -529,7 +600,7 @@ export async function importLeads(rows, { createdBy } = {}) {
       && !trim(input?.phone);
     if (empty) return;
 
-    const parsed = parseLeadInput(input);
+    const parsed = parseLeadInput(recoverImportFields(input), { lenient: true });
     if (parsed.errors.length) {
       errors.push({ row: sheetRow, message: parsed.errors[0] });
       return;
@@ -644,14 +715,44 @@ export async function assignLead(id, beraterId, { requestId } = {}) {
     throw error;
   }
 
+  const { data: activeRequests, error: activeError } = await supabase
+    .from('lead_requests')
+    .select('id, berater_id, status, code')
+    .eq('berater_id', beraterId)
+    .eq('status', 'active')
+    .order('created_at', { ascending: false });
+  if (activeError) throw activeError;
+  if (!activeRequests?.length) {
+    const error = new Error('Nur Berater mit aktivem Auftrag können Leads erhalten.');
+    error.status = 400;
+    throw error;
+  }
+
+  let resolvedRequestId = requestId;
+  if (resolvedRequestId) {
+    if (!isUuid(resolvedRequestId)) {
+      const error = new Error('Anforderung ist ungültig.');
+      error.status = 400;
+      throw error;
+    }
+    const matched = activeRequests.find((entry) => entry.id === resolvedRequestId);
+    if (!matched) {
+      const error = new Error('Die gewählte Anforderung ist nicht aktiv oder gehört nicht zu diesem Berater.');
+      error.status = 400;
+      throw error;
+    }
+  } else if (resolvedRequestId === null) {
+    resolvedRequestId = null;
+  } else {
+    resolvedRequestId = activeRequests[0].id;
+  }
+
   const patch = {
     assigned_to: beraterId,
     assigned_at: new Date().toISOString(),
     status: 'zugewiesen',
+    request_id: resolvedRequestId,
   };
-  if (requestId || requestId === null) {
-    patch.request_id = requestId;
-  }
 
   const { data, error } = await supabase
     .from('leads')

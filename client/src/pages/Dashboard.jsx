@@ -44,7 +44,8 @@ export default function Dashboard() {
                 <Route path="reklamationen" element={<AdminComplaints />} />
                 <Route path="leads" element={<AdminLeads />} />
                 <Route path="leads/new" element={<AdminLeadEditor />} />
-                <Route path="leads/abgelehnt" element={<AdminRejectedLeads />} />
+                <Route path="leads/ungueltig" element={<AdminRejectedLeads />} />
+                <Route path="leads/abgelehnt" element={<Navigate to="/dashboard/leads/ungueltig" replace />} />
                 <Route path="leads/:id" element={<AdminLeadEditor />} />
                 <Route path="zahlung" element={<AdminPayment />} />
                 <Route path="profil" element={<AdminProfile />} />

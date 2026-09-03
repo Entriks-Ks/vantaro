@@ -212,6 +212,7 @@ export function toDirectoryUser(user) {
     company: metadata.company || '',
     customerNumber: metadata.customer_number || '',
     phone: metadata.phone || '',
+    avatarUrl: metadata.avatar_url || '',
     role: getUserRole(user),
     verified: isEmailVerified(user),
     onboardingComplete: metadata.onboarding_complete === true,

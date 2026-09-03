@@ -40,6 +40,7 @@ export function toPublicComplaint(row, extras = {}) {
     reviewedAt: row.reviewed_at || null,
     reviewedBy: row.reviewed_by || null,
     refundedAt: row.refunded_at || null,
+    replacementLeadId: row.replacement_lead_id || null,
     ...extras,
   };
 }
@@ -99,12 +100,14 @@ export async function listComplaints({ status } = {}) {
 
   const rows = data || [];
   const leadIds = [...new Set(rows.map((row) => row.lead_id))];
+  const replacementLeadIds = [...new Set(rows.map((row) => row.replacement_lead_id).filter(Boolean))];
   const beraterIds = [...new Set(rows.map((row) => row.berater_id))];
   const requestIds = [...new Set(rows.map((row) => row.request_id).filter(Boolean))];
 
   const leads = new Map();
-  if (leadIds.length) {
-    const { data: leadRows } = await supabase.from('leads').select('*').in('id', leadIds);
+  const allLeadIds = [...new Set([...leadIds, ...replacementLeadIds])];
+  if (allLeadIds.length) {
+    const { data: leadRows } = await supabase.from('leads').select('*').in('id', allLeadIds);
     for (const row of leadRows || []) leads.set(row.id, toPublicLead(row));
   }
 
@@ -126,6 +129,7 @@ export async function listComplaints({ status } = {}) {
     lead: leads.get(row.lead_id) || null,
     berater: beraters.get(row.berater_id) || null,
     request: requests.get(row.request_id) || null,
+    replacementLead: row.replacement_lead_id ? leads.get(row.replacement_lead_id) || null : null,
   }));
 }
 
@@ -255,7 +259,9 @@ export async function reviewComplaint(id, {
   if (replaceLeadId) {
     try {
       if (!current.request_id) throw fail('Dieser Lead ist keinem Auftrag zugeordnet.');
-      const sent = await sendLeadsToRequest(current.request_id, [replaceLeadId]);
+      const sent = await sendLeadsToRequest(current.request_id, [replaceLeadId], {
+        skipReplacementLink: true,
+      });
       replacement = sent?.leads?.[0] || null;
       request = sent?.request || request;
     } catch (err) {
@@ -263,14 +269,101 @@ export async function reviewComplaint(id, {
     }
   }
 
+  let complaintRowFinal = complaintRow;
+  if (replacement?.id) {
+    const { data: linked, error: linkError } = await supabase
+      .from('lead_complaints')
+      .update({ replacement_lead_id: replacement.id })
+      .eq('id', id)
+      .select('*')
+      .single();
+    if (linkError) throw linkError;
+    complaintRowFinal = linked;
+  }
+
   return {
-    complaint: toPublicComplaint(complaintRow, {
+    complaint: toPublicComplaint(complaintRowFinal, {
       lead: toPublicLead(rejectedLead),
       request,
+      replacementLead: replacement,
     }),
     request,
     replacement,
     replaceError,
+  };
+}
+
+export async function linkNextReplacementComplaint(requestId, replacementLeadId) {
+  if (!requestId || !replacementLeadId) return null;
+  const { data: pending, error: pendingError } = await supabase
+    .from('lead_complaints')
+    .select('id')
+    .eq('request_id', requestId)
+    .eq('status', 'approved')
+    .is('replacement_lead_id', null)
+    .order('refunded_at', { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  if (pendingError) throw pendingError;
+  if (!pending) return null;
+
+  const { data, error } = await supabase
+    .from('lead_complaints')
+    .update({ replacement_lead_id: replacementLeadId })
+    .eq('id', pending.id)
+    .select('*')
+    .single();
+  if (error) throw error;
+  return toPublicComplaint(data);
+}
+
+export async function sendComplaintReplacement(id, replaceLeadId) {
+  if (!isUuid(replaceLeadId)) throw fail('Bitte einen Ersatzlead wählen.');
+
+  const { data: current, error: loadError } = await supabase
+    .from('lead_complaints')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle();
+  if (loadError) throw loadError;
+  if (!current) return null;
+
+  if (normalizeComplaintStatus(current.status) !== 'approved') {
+    throw fail('Nur erstattete Reklamationen können einen Ersatz erhalten.');
+  }
+  if (current.replacement_lead_id) {
+    throw fail('Für diese Reklamation wurde bereits ein Ersatzlead gesendet.');
+  }
+  if (!current.request_id) {
+    throw fail('Dieser Lead ist keinem Auftrag zugeordnet.');
+  }
+
+  const sent = await sendLeadsToRequest(current.request_id, [replaceLeadId], {
+    skipReplacementLink: true,
+  });
+  const replacement = sent?.leads?.[0] || null;
+  if (!replacement?.id) throw fail('Ersatzlead konnte nicht gesendet werden.');
+
+  const { data: linked, error: linkError } = await supabase
+    .from('lead_complaints')
+    .update({ replacement_lead_id: replacement.id })
+    .eq('id', id)
+    .select('*')
+    .single();
+  if (linkError) throw linkError;
+
+  const rejectedLead = await getLeadById(current.lead_id);
+  const berater = await loadUser(current.berater_id);
+
+  return {
+    complaint: toPublicComplaint(linked, {
+      lead: rejectedLead ? toPublicLead(rejectedLead) : null,
+      berater,
+      request: sent?.request || null,
+      replacementLead: replacement,
+    }),
+    replacement,
+    request: sent?.request || null,
   };
 }
 
@@ -283,6 +376,7 @@ export function complaintTableMissing(error) {
   return tableMissing(error)
     || requestTableMissing(error)
     || /lead_complaints/i.test(message)
-    || /admin_note/i.test(message);
+    || /admin_note/i.test(message)
+    || /replacement_lead_id/i.test(message);
 }
 
