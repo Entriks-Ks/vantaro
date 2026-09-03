@@ -109,6 +109,40 @@ export function formatPremium(value) {
   }).format(Number(value));
 }
 
+function presentLabel(value) {
+  const text = String(value || '').trim();
+  return !text || text === '—' ? '' : text;
+}
+
+export function leadAgeLabel(value) {
+  const iso = String(value || '').slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return '';
+  const [year, month, day] = iso.split('-').map(Number);
+  const now = new Date();
+  let age = now.getFullYear() - year;
+  const beforeBirthday = now.getMonth() + 1 < month
+    || (now.getMonth() + 1 === month && now.getDate() < day);
+  if (beforeBirthday) age -= 1;
+  if (age < 16 || age > 99) return '';
+  return `${age} Jahre`;
+}
+
+export function leadBriefing(lead) {
+  const employment = lead?.employmentStatus === 'sonstiges' && lead?.employmentOther
+    ? lead.employmentOther
+    : employmentLabel(lead?.employmentStatus);
+
+  return {
+    employment: presentLabel(employment),
+    insurance: presentLabel(listLabels(lead?.insuranceStatus, 'insurance')),
+    coverage: presentLabel(listLabels(lead?.coverageCircle, 'coverage')),
+    concerns: presentLabel(listLabels(lead?.mainConcerns, 'concern')),
+    premium: presentLabel(formatPremium(lead?.monthlyPremium)),
+    insurer: presentLabel(lead?.currentInsurer),
+    age: leadAgeLabel(lead?.dateOfBirth),
+  };
+}
+
 export function emptyLeadForm() {
   return {
     firstName: '',

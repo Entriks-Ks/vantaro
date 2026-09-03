@@ -54,6 +54,7 @@ SUPABASE_URL=...
 SUPABASE_ANON_KEY=...
 SUPABASE_SERVICE_ROLE_KEY=...
 EMAIL_FROM=VANTARO <noreply@your-verified-domain.com>
+EMAIL_FROM_LEADS=VANTARO Leads <lead@vantaro.io>
 RESEND_API_KEY=...
 ADMIN_EMAILS=you@your-domain.com
 ```
@@ -87,9 +88,9 @@ Keep both Vantaro-Development and Vantaro-Production blocks in that file. Commen
 
 Lead records live in Postgres (`public.leads`). The API uses the service role; RLS is on with no anon/authenticated policies.
 
-Run [`server/supabase/leads.sql`](server/supabase/leads.sql) in the **SQL Editor** of each Supabase project you use (Development and Production). Then run [`server/supabase/lead_requests.sql`](server/supabase/lead_requests.sql) for Berater-Anforderungen. Existing projects also need [`server/supabase/lead_workflow.sql`](server/supabase/lead_workflow.sql) (request statuses, complaints, refunds). After that, run [`server/supabase/lead_scope.sql`](server/supabase/lead_scope.sql) so leads and requests are split into **deutschlandweit** and **regional**. Then run [`server/supabase/lead_payments.sql`](server/supabase/lead_payments.sql) for the test checkout (invoice + masked card data). Re-run the workflow script after pulling this change so complaint statuses become `pending | approved | declined` and `admin_note` exists. Repeat after switching projects.
+Run [`server/supabase/leads.sql`](server/supabase/leads.sql) in the **SQL Editor** of each Supabase project you use (Development and Production). Then run [`server/supabase/lead_requests.sql`](server/supabase/lead_requests.sql) for Berater-Anforderungen. Existing projects also need [`server/supabase/lead_workflow.sql`](server/supabase/lead_workflow.sql) (request statuses, complaints, refunds). After that, run [`server/supabase/lead_scope.sql`](server/supabase/lead_scope.sql) so leads and requests are split into **deutschlandweit** and **regional**. Then run [`server/supabase/lead_payments.sql`](server/supabase/lead_payments.sql) for the test checkout (invoice + masked card data). Then run [`server/supabase/lead_follow_up.sql`](server/supabase/lead_follow_up.sql) for Termin / Wiedervorlage timestamps and reminder mail. Re-run the workflow script after pulling this change so complaint statuses become `pending | approved | declined` and `admin_note` exists. Repeat after switching projects.
 
-Registration sends a **6-digit code via Resend**. Set `RESEND_API_KEY` and `EMAIL_FROM` in `server/.env`. `EMAIL_FROM` must use a domain that is **verified** in the Resend dashboard.
+Registration sends a **6-digit code via Resend**. Set `RESEND_API_KEY` and `EMAIL_FROM` in `server/.env`. `EMAIL_FROM` must use a domain that is **verified** in the Resend dashboard. Wiedervorlage reminders use the same key and `EMAIL_FROM_LEADS` (e.g. `VANTARO Leads <lead@vantaro.io>`).
 
 ## Header
 

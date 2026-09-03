@@ -29,3 +29,13 @@ export function packTotalCents(pkg, count = MIN_LEAD_PACK) {
   if (!pkg) return 0;
   return (pkg.packCents || 0) * count;
 }
+
+export function leadPurchaseCents(lead) {
+  if (lead?.priceCents != null && lead.priceCents !== '') {
+    const explicit = Number(lead.priceCents);
+    if (Number.isFinite(explicit) && explicit > 0) return Math.round(explicit);
+  }
+  const scope = lead?.scope === 'regional' ? 'regional' : 'deutschlandweit';
+  const pkg = PACKAGES.find((item) => item.scope === scope);
+  return pkg?.packCents || 11900;
+}

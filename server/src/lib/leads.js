@@ -8,6 +8,7 @@ export const INSURANCE_STATUSES = ['gkv', 'pkv_voll', 'zusatz', 'unbekannt'];
 export const COVERAGE_CIRCLES = ['allein', 'partner', 'kinder', 'familie'];
 export const MAIN_CONCERNS = ['beitrag', 'leistungen', 'krankentagegeld', 'check'];
 export const LEAD_STATUSES = ['neu', 'in_bearbeitung', 'zugewiesen', 'erledigt'];
+export const CONTACT_STATUSES = ['neu', 'kontaktiert', 'termin', 'wiedervorlage', 'abgeschlossen'];
 export const LEAD_SOURCES = ['csv', 'manual', 'api'];
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -82,6 +83,13 @@ export function isUuid(value) {
 function emptyToNull(value) {
   const text = trim(value);
   return text || null;
+}
+
+function parseIsoTimestamp(value, label) {
+  if (value == null || value === '') return { value: null };
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return { error: `${label} ist ungültig.` };
+  return { value: date.toISOString() };
 }
 
 function uniqueAllowed(values, allowed) {
@@ -233,6 +241,11 @@ export function toPublicLead(row, assignee = null) {
     city: row.city || null,
     street: row.street || null,
     notes: row.notes || null,
+    brokerNotes: row.broker_notes || null,
+    contactStatus: CONTACT_STATUSES.includes(row.contact_status) ? row.contact_status : null,
+    appointmentAt: row.appointment_at || null,
+    followUpAt: row.follow_up_at || null,
+    followUpRemindedAt: row.follow_up_reminded_at || null,
     status: row.status,
     scope: leadScopeOrDefault(row.scope),
     assignedTo: row.assigned_to || null,
@@ -374,6 +387,48 @@ export function parseLeadInput(body = {}, { partial = false } = {}) {
 
   const hasNotes = 'notes' in body;
   if (!partial || hasNotes) row.notes = emptyToNull(body.notes);
+
+  const hasBrokerNotes = hasField(body, 'brokerNotes', 'broker_notes');
+  if (hasBrokerNotes) row.broker_notes = emptyToNull(body.brokerNotes ?? body.broker_notes);
+
+  const hasContact = hasField(body, 'contactStatus', 'contact_status');
+  if (hasContact) {
+    const contact = trim(body.contactStatus ?? body.contact_status);
+    if (contact && !CONTACT_STATUSES.includes(contact)) errors.push('Gesprächsstatus ist ungültig.');
+    else row.contact_status = contact || null;
+  }
+
+  const hasFollowUp = hasField(body, 'followUpAt', 'follow_up_at');
+  if (hasFollowUp) {
+    const followUp = parseIsoTimestamp(body.followUpAt ?? body.follow_up_at, 'Wiedervorlage');
+    if (followUp.error) errors.push(followUp.error);
+    else {
+      row.follow_up_at = followUp.value;
+      row.follow_up_reminded_at = null;
+    }
+  }
+
+  const hasAppointment = hasField(body, 'appointmentAt', 'appointment_at');
+  if (hasAppointment) {
+    const appointment = parseIsoTimestamp(body.appointmentAt ?? body.appointment_at, 'Termin');
+    if (appointment.error) errors.push(appointment.error);
+    else row.appointment_at = appointment.value;
+  }
+
+  if (row.contact_status === 'wiedervorlage') {
+    if (!hasAppointment) row.appointment_at = null;
+  } else if (row.contact_status === 'termin') {
+    if (!hasFollowUp) {
+      row.follow_up_at = null;
+      row.follow_up_reminded_at = null;
+    }
+  } else if (hasContact && row.contact_status && row.contact_status !== 'wiedervorlage' && row.contact_status !== 'termin') {
+    if (!hasFollowUp) {
+      row.follow_up_at = null;
+      row.follow_up_reminded_at = null;
+    }
+    if (!hasAppointment) row.appointment_at = null;
+  }
 
   const hasStatus = 'status' in body;
   if (hasStatus) {
@@ -746,6 +801,18 @@ export function handleLeadError(res, error) {
     return tableMissingResponse(
       res,
       'Lead-Pakete fehlen. Bitte server/supabase/lead_scope.sql im Supabase SQL Editor ausführen.',
+    );
+  }
+  if (/broker_notes/i.test(String(error?.message || error?.code || ''))) {
+    return tableMissingResponse(
+      res,
+      'Berater-Notizen fehlen. Bitte server/supabase/lead_workflow.sql im Supabase SQL Editor ausführen.',
+    );
+  }
+  if (/contact_status|appointment_at|follow_up_at|follow_up_reminded_at/i.test(String(error?.message || error?.code || ''))) {
+    return tableMissingResponse(
+      res,
+      'Wiedervorlage fehlt. Bitte server/supabase/lead_follow_up.sql im Supabase SQL Editor ausführen.',
     );
   }
   console.error('Leads error:', error.message);

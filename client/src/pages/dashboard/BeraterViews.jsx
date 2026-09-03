@@ -1,8 +1,9 @@
 ﻿import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Building2, Check, ChevronDown, ChevronRight, Eye, EyeOff, FileText, Flag, LayoutGrid, List, Shield, User, Wand2, X } from 'lucide-react';
+import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { ArrowLeft, ArrowRight, Building2, CalendarClock, Check, ChevronDown, ChevronLeft, ChevronRight, CircleCheck, Clock, Eye, EyeOff, FileCheck2, FileText, Flag, Globe, KeyRound, LayoutGrid, List, Mail, MapPin, MessageCircle, Paperclip, Phone, Save, Shield, Sparkles, StickyNote, User, UserPlus, Users, Wand2, X } from 'lucide-react';
 import AddressAutocomplete from '../../components/AddressAutocomplete';
 import AddressMap from '../../components/AddressMap';
+import BootScreen from '../../components/BootScreen';
 import PhoneField, { isValidMobile } from '../../components/PhoneField';
 import { useAuth } from '../../hooks/useAuth';
 import { useBroker } from '../../hooks/useBroker';
@@ -11,9 +12,12 @@ import {
   fetchMyRequests,
 } from '../../lib/berater';
 import {
+  COMPLAINT_COMMENT_MIN,
   COMPLAINT_REASON_OPTIONS,
+  canAmendComplaint,
   complaintReasonLabel,
   complaintStatusLabel,
+  contactStatusLabel,
   isOpenComplaint,
   reportLead,
 } from '../../lib/complaints';
@@ -24,11 +28,13 @@ import {
   formatLeadAddress,
   formatLeadDate,
   formatPremium,
+  INSURANCE_OPTIONS,
+  leadBriefing,
   listLabels,
   updateLead,
 } from '../../lib/leads';
 import { LEGAL_FORMS, fileToAvatarDataUrl, generatePassword, validatePassword } from '../../lib/profile';
-import { firstName, formatDate, formatDateTime, formatEuroExact, greeting, initials } from './helpers';
+import { accountSetupGaps, displayName, firstName, formatDate, formatDateTime, formatEuroExact, initials } from './helpers';
 import { MIN_LEAD_PACK, PACKAGES, packageById, packTotalCents } from './packages';
 import { DEFAULT_LEAD_SCOPE, leadScopeLabel } from '../../lib/scopes';
 import { checkoutLeadPackage, fetchMyPayments, formatCardMask, formatCardNumberInput, formatExpiryInput, TEST_CARD } from '../../lib/payments';
@@ -41,6 +47,8 @@ import {
   leadProductCode,
   leadQualityLabel,
   pipelineStatusOf,
+  contactUpdatePayload,
+  shortLeadId,
   statusLabel,
 } from './leads';
 
@@ -63,29 +71,659 @@ function withPipeline(lead, leadStatuses) {
   };
 }
 
-function LeadReportPanel({ lead, onReported }) {
+function leadInitials(lead) {
+  const first = String(lead?.firstName || '').trim();
+  const last = String(lead?.lastName || '').trim();
+  if (first || last) return `${first[0] || ''}${last[0] || ''}`.toUpperCase() || 'L';
+  const name = String(lead?.fullName || lead?.name || '').trim();
+  if (!name) return 'L';
+  return name
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() || '')
+    .join('') || 'L';
+}
+
+function leadCoverageShort(lead) {
+  const circle = Array.isArray(lead?.coverageCircle) ? lead.coverageCircle : [];
+  if (circle.includes('familie')) return 'Familie';
+  if (circle.includes('kinder')) return 'Kinder';
+  if (circle.includes('partner')) return 'Partner';
+  if (circle.includes('allein')) return 'Allein';
+  return '';
+}
+
+function leadProductShort(lead) {
+  const insurance = Array.isArray(lead?.insuranceStatus) ? lead.insuranceStatus : [];
+  if (insurance.includes('zusatz') && !insurance.includes('pkv_voll')) return 'Zusatz';
+  return lead.productCode || leadProductCode(lead);
+}
+
+function leadPreviewLine(lead) {
+  const brief = leadBriefing(lead);
+  return [leadProductShort(lead), brief.age, leadCoverageShort(lead)]
+    .filter(Boolean)
+    .join(' • ');
+}
+
+function leadScheduleOf(lead) {
+  const status = lead?.status || lead?.contactStatus;
+  if (status === 'termin' && lead?.appointmentAt) {
+    return {
+      kind: 'termin',
+      at: lead.appointmentAt,
+      label: formatScheduleLabel(lead.appointmentAt),
+      overdue: false,
+    };
+  }
+  if (status === 'wiedervorlage' && lead?.followUpAt) {
+    return {
+      kind: 'wiedervorlage',
+      at: lead.followUpAt,
+      label: formatScheduleLabel(lead.followUpAt),
+      overdue: new Date(lead.followUpAt).getTime() < Date.now(),
+    };
+  }
+  return null;
+}
+
+function pad2(value) {
+  return String(value).padStart(2, '0');
+}
+
+function toDateKey(date) {
+  return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
+}
+
+function splitDateTimeLocal(value) {
+  if (!value) return { date: '', time: '' };
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return { date: '', time: '' };
+  return { date: toDateKey(date), time: `${pad2(date.getHours())}:${pad2(date.getMinutes())}` };
+}
+
+function combineDateAndTime(dateStr, timeStr) {
+  if (!dateStr || !timeStr) return '';
+  const [year, month, day] = dateStr.split('-').map(Number);
+  const [hours, minutes] = timeStr.split(':').map(Number);
+  const next = new Date(year, month - 1, day, hours || 0, minutes || 0, 0, 0);
+  if (Number.isNaN(next.getTime())) return '';
+  return next.toISOString();
+}
+
+function startOfDay(date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+function isPastDateTime(dateStr, timeStr) {
+  const iso = combineDateAndTime(dateStr, timeStr);
+  if (!iso) return true;
+  return new Date(iso).getTime() <= Date.now() - 30_000;
+}
+
+function defaultTimeForDate(dateKey) {
+  const now = new Date();
+  if (dateKey !== toDateKey(now)) return '09:00';
+  const next = new Date(now.getTime() + 60 * 60 * 1000);
+  next.setMinutes(0, 0, 0);
+  if (toDateKey(next) !== dateKey) {
+    return `${pad2(Math.min(23, now.getHours()))}:${pad2(Math.min(59, now.getMinutes() + 5))}`;
+  }
+  return `${pad2(next.getHours())}:00`;
+}
+
+function addDays(date, amount) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + amount);
+  return next;
+}
+
+function schedulePresets() {
+  const now = new Date();
+  const atNine = (date) => {
+    const next = new Date(date);
+    next.setHours(9, 0, 0, 0);
+    return next;
+  };
+  const inHour = new Date(now.getTime() + 60 * 60 * 1000);
+  inHour.setSeconds(0, 0);
+  inHour.setMilliseconds(0);
+  return [
+    { id: 'hour', label: 'In 1 Stunde', at: inHour },
+    { id: 'tomorrow', label: 'Morgen 09:00 Uhr', at: atNine(addDays(now, 1)) },
+    { id: 'three', label: 'In 3 Tagen 09:00 Uhr', at: atNine(addDays(now, 3)) },
+    { id: 'week', label: 'Nächste Woche 09:00 Uhr', at: atNine(addDays(now, 7)) },
+  ];
+}
+
+function formatScheduleLabel(value) {
+  if (!value) return '';
+  const text = formatDateTime(value).replace(',', ' · ');
+  return /uhr/i.test(text) ? text : `${text} Uhr`;
+}
+
+const TIME_HOURS = Array.from({ length: 24 }, (_, index) => pad2(index));
+const TIME_MINUTES = ['00', '15', '30', '45'];
+
+function GermanTimeSelect({ id, value, disabled, onChange }) {
+  const [rawHour = '09', rawMinute = '00'] = String(value || '09:00').split(':');
+  const hour = pad2(Number.parseInt(rawHour, 10) || 0);
+  const minute = pad2(Number.parseInt(rawMinute, 10) || 0);
+  const minutes = TIME_MINUTES.includes(minute) ? TIME_MINUTES : [...TIME_MINUTES, minute].sort();
+
+  function emit(nextHour, nextMinute) {
+    onChange(`${nextHour}:${nextMinute}`);
+  }
+
+  return (
+    <div className="broker-calendar-time-de" role="group" aria-labelledby={id}>
+      <select
+        id={id}
+        aria-label="Stunde"
+        value={hour}
+        disabled={disabled}
+        onChange={(event) => emit(event.target.value, minute)}
+      >
+        {TIME_HOURS.map((option) => (
+          <option key={option} value={option}>{option}</option>
+        ))}
+      </select>
+      <span className="broker-calendar-time-de__sep" aria-hidden="true">:</span>
+      <select
+        aria-label="Minute"
+        value={minute}
+        disabled={disabled}
+        onChange={(event) => emit(hour, event.target.value)}
+      >
+        {minutes.map((option) => (
+          <option key={option} value={option}>{option}</option>
+        ))}
+      </select>
+      <span className="broker-calendar-time-de__unit">Uhr</span>
+    </div>
+  );
+}
+
+function monthCells(year, month) {
+  const offset = (new Date(year, month, 1).getDay() + 6) % 7;
+  const count = new Date(year, month + 1, 0).getDate();
+  return [...Array(offset).fill(null), ...Array.from({ length: count }, (_, index) => index + 1)];
+}
+
+function LeadSchedulePicker({ kind, value, saving, locked, onSave, variant = 'sidebar' }) {
+  const saved = splitDateTimeLocal(value);
+  const [cursor, setCursor] = useState(() => {
+    const base = saved.date || toDateKey(new Date());
+    const [year, month] = base.split('-').map(Number);
+    return { year, month: month - 1 };
+  });
+  const [date, setDate] = useState(saved.date);
+  const [time, setTime] = useState(saved.time || '09:00');
+
+  useEffect(() => {
+    const next = splitDateTimeLocal(value);
+    setDate(next.date);
+    setTime(next.time || '09:00');
+    if (next.date) {
+      const [year, month] = next.date.split('-').map(Number);
+      setCursor({ year, month: month - 1 });
+    }
+  }, [value, kind]);
+
+  const todayKey = toDateKey(new Date());
+  const monthLabel = new Date(cursor.year, cursor.month, 1).toLocaleDateString('de-DE', {
+    month: 'long',
+    year: 'numeric',
+  });
+  const iso = combineDateAndTime(date, time);
+  const past = date && time ? isPastDateTime(date, time) : false;
+  const canSave = Boolean(date && time && iso && !past && !saving && !locked);
+  const isTermin = kind === 'termin';
+  const Icon = isTermin ? CalendarClock : Clock;
+  const savedLabel = formatScheduleLabel(value);
+  const isModal = variant === 'modal';
+
+  function selectDay(day) {
+    if (!day) return;
+    const key = `${cursor.year}-${pad2(cursor.month + 1)}-${pad2(day)}`;
+    if (startOfDay(new Date(cursor.year, cursor.month, day)) < startOfDay(new Date())) return;
+    setDate(key);
+    if (!time || (key === todayKey && isPastDateTime(key, time))) {
+      setTime(defaultTimeForDate(key));
+    }
+  }
+
+  function applyPreset(at) {
+    setDate(toDateKey(at));
+    setTime(`${pad2(at.getHours())}:${pad2(at.getMinutes())}`);
+    setCursor({ year: at.getFullYear(), month: at.getMonth() });
+  }
+
+  const fields = (
+    <>
+      {savedLabel ? (
+        <p className="broker-calendar-saved">
+          <Check size={16} aria-hidden="true" />
+          {isTermin ? 'Termin' : 'Wiedervorlage'} am {savedLabel}
+        </p>
+      ) : null}
+
+      <div className="broker-calendar-presets">
+        {schedulePresets().map((preset) => (
+          <button
+            key={preset.id}
+            type="button"
+            className="broker-calendar-preset"
+            disabled={locked}
+            onClick={() => applyPreset(preset.at)}
+          >
+            {preset.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="broker-calendar">
+        <div className="broker-calendar-nav">
+          <button
+            type="button"
+            className="broker-calendar-nav-btn"
+            aria-label="Voriger Monat"
+            disabled={locked}
+            onClick={() => setCursor((current) => (
+              current.month === 0
+                ? { year: current.year - 1, month: 11 }
+                : { year: current.year, month: current.month - 1 }
+            ))}
+          >
+            <ChevronLeft size={16} />
+          </button>
+          <strong>{monthLabel}</strong>
+          <button
+            type="button"
+            className="broker-calendar-nav-btn"
+            aria-label="Nächster Monat"
+            disabled={locked}
+            onClick={() => setCursor((current) => (
+              current.month === 11
+                ? { year: current.year + 1, month: 0 }
+                : { year: current.year, month: current.month + 1 }
+            ))}
+          >
+            <ChevronRight size={16} />
+          </button>
+        </div>
+        <div className="broker-calendar-weekdays">
+          {['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'].map((day) => (
+            <span key={day}>{day}</span>
+          ))}
+        </div>
+        <div className="broker-calendar-grid">
+          {monthCells(cursor.year, cursor.month).map((day, index) => {
+            if (!day) {
+              return <span key={`empty-${index}`} className="broker-calendar-day is-empty" />;
+            }
+            const key = `${cursor.year}-${pad2(cursor.month + 1)}-${pad2(day)}`;
+            const pastDay = startOfDay(new Date(cursor.year, cursor.month, day)) < startOfDay(new Date());
+            return (
+              <button
+                key={key}
+                type="button"
+                className={[
+                  'broker-calendar-day',
+                  pastDay ? 'is-past' : '',
+                  key === todayKey ? 'is-today' : '',
+                  key === date ? 'is-selected' : '',
+                ].filter(Boolean).join(' ')}
+                disabled={pastDay || locked}
+                onClick={() => selectDay(day)}
+              >
+                {day}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="broker-calendar-time">
+        <label htmlFor={`lead-schedule-time-${kind}`}>
+          <Clock size={14} aria-hidden="true" />
+          Uhrzeit
+        </label>
+        <GermanTimeSelect
+          id={`lead-schedule-time-${kind}`}
+          value={time}
+          disabled={locked}
+          onChange={setTime}
+        />
+      </div>
+      {past ? (
+        <p className="broker-calendar-hint">Bitte eine Uhrzeit in der Zukunft wählen.</p>
+      ) : !date ? (
+        <p className="broker-calendar-hint">Bitte zuerst ein Datum wählen.</p>
+      ) : null}
+
+      <button
+        type="button"
+        className="btn btn-primary broker-calendar-save"
+        disabled={!canSave}
+        onClick={() => onSave(iso)}
+      >
+        <Save size={16} aria-hidden="true" />
+        {saving ? 'Wird gespeichert…' : isTermin ? 'Termin speichern' : 'Wiedervorlage speichern'}
+      </button>
+    </>
+  );
+
+  if (isModal) {
+    return <div className="broker-schedule-modal__picker">{fields}</div>;
+  }
+
+  return (
+    <div className={`broker-detail-side-block broker-detail-wiedervorlage${value ? ' is-active' : ''}`}>
+      <div className="broker-detail-wiedervorlage-head">
+        <span className="broker-detail-wiedervorlage-icon" aria-hidden="true">
+          <Icon size={18} />
+        </span>
+        <div>
+          <h3>{isTermin ? 'Termin legen' : 'Wiedervorlage legen'}</h3>
+          <p>
+            {isTermin
+              ? 'Datum und Uhrzeit für das Gespräch mit dem Kunden.'
+              : 'Datum und Uhrzeit, wann Sie den Lead wieder anrufen. Sie erhalten dann eine E-Mail.'}
+          </p>
+        </div>
+      </div>
+      {fields}
+    </div>
+  );
+}
+
+function LeadScheduleSummary({ kind = 'wiedervorlage', value, locked, onEdit }) {
+  const isTermin = kind === 'termin';
+  const Icon = isTermin ? CalendarClock : Clock;
+  const label = formatScheduleLabel(value);
+  return (
+    <div className={`broker-detail-side-block broker-detail-schedule-summary${value ? ' is-active' : ''}`}>
+      <div className="broker-detail-wiedervorlage-head">
+        <span className="broker-detail-wiedervorlage-icon" aria-hidden="true">
+          <Icon size={18} />
+        </span>
+        <div>
+          <h3>{isTermin ? 'Termin' : 'Wiedervorlage'}</h3>
+          <p>{label ? `Am ${label}` : 'Noch kein Zeitpunkt gewählt'}</p>
+        </div>
+      </div>
+      <button type="button" className="btn btn-outline broker-calendar-save" disabled={locked} onClick={onEdit}>
+        {label ? 'Ändern' : 'Zeitpunkt wählen'}
+      </button>
+    </div>
+  );
+}
+
+function LeadScheduleModal({ kind, value, saving, locked, leadName, onSave, onClose }) {
+  const isTermin = kind === 'termin';
+  const titleId = 'lead-schedule-modal-title';
+
+  useEffect(() => {
+    function onKey(event) {
+      if (event.key === 'Escape' && !saving) onClose();
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [saving, onClose]);
+
+  return (
+    <div className="broker-modal" role="dialog" aria-modal="true" aria-labelledby={titleId}>
+      <button type="button" className="broker-modal__backdrop" aria-label="Schließen" onClick={saving ? undefined : onClose} />
+      <div className="broker-modal__panel broker-schedule-modal">
+        <div className="broker-modal__top">
+          <h2 id={titleId}>{isTermin ? 'Termin legen' : 'Wiedervorlage legen'}</h2>
+          <button type="button" className="broker-modal__close" aria-label="Schließen" disabled={saving} onClick={onClose}>
+            <X size={18} />
+          </button>
+        </div>
+        <p className="broker-schedule-modal__lede">
+          {leadName ? `${leadName} · ` : ''}
+          {isTermin
+            ? 'Datum und Uhrzeit für das Gespräch mit dem Kunden.'
+            : 'Wann Sie den Lead wieder anrufen. Sie erhalten dann eine E-Mail.'}
+        </p>
+        <LeadSchedulePicker
+          kind={kind}
+          value={value}
+          saving={saving}
+          locked={locked}
+          variant="modal"
+          onSave={onSave}
+        />
+      </div>
+    </div>
+  );
+}
+
+function inProgressHint(stats) {
+  const bits = [
+    stats.kontaktiert ? `${stats.kontaktiert} In Kontakt` : '',
+    stats.termin ? `${stats.termin} ${stats.termin === 1 ? 'Termin' : 'Termine'}` : '',
+    stats.wiedervorlage ? `${stats.wiedervorlage} Wiedervorlage` : '',
+  ].filter(Boolean);
+  return bits.join(' · ') || 'Noch ohne Fortschritt';
+}
+
+const PIPELINE_ICONS = {
+  neu: Sparkles,
+  kontaktiert: Phone,
+  termin: CalendarClock,
+  wiedervorlage: Clock,
+  abgeschlossen: CircleCheck,
+};
+
+function complaintTone(status) {
+  if (status === 'approved' || status === 'refunded') return 'gutgeschrieben';
+  if (status === 'partial' || status === 'teilweise') return 'teilweise';
+  if (status === 'declined' || status === 'rejected') return 'abgelehnt';
+  if (status === 'info_needed' || status === 'infos_noetig') return 'infos_noetig';
+  return 'in_pruefung';
+}
+
+function ComplaintStatusIcon({ status, size = 18 }) {
+  if (status === 'approved' || status === 'refunded' || status === 'partial') return <Check size={size} />;
+  if (status === 'declined' || status === 'rejected') return <X size={size} />;
+  if (status === 'info_needed' || status === 'infos_noetig') return <MessageCircle size={size} />;
+  return <Flag size={size} />;
+}
+
+function LeadStatusMark({ lead, large = false, placement = 'list' }) {
+  const reviewing = isOpenComplaint(lead?.complaint);
+  const Icon = PIPELINE_ICONS[lead.status] || Sparkles;
+  const compact = placement === 'home';
+  const reviewMark = reviewing ? (
+    <span className={`broker-status is-reported${large ? ' broker-status--lg' : ''}${compact ? ' is-compact' : ''}`}>
+      <Flag size={compact ? 11 : large ? 14 : 12} aria-hidden="true" />
+      {compact ? 'Prüfung' : 'In Prüfung'}
+    </span>
+  ) : null;
+
+  return (
+    <span className={`broker-status-stack${large ? ' is-large' : ''}${placement === 'kanban' ? ' is-kanban' : ''}${compact ? ' is-home' : ''}`}>
+      {placement === 'kanban' ? null : (
+        <span className={`broker-status-iconic${large ? ' is-large' : ''}`}>
+          <Icon size={large ? 15 : 14} aria-hidden="true" />
+          {statusLabel(lead.status)}
+        </span>
+      )}
+      {reviewMark}
+    </span>
+  );
+}
+
+function DetailFact({ label, children, wide = false }) {
+  const empty = children == null || children === '' || children === '—';
+  return (
+    <div className={`broker-detail-fact${wide ? ' is-wide' : ''}${empty ? ' is-empty' : ''}`}>
+      <span>{label}</span>
+      <strong>{empty ? 'Nicht hinterlegt' : children}</strong>
+    </div>
+  );
+}
+
+const PROOF_MAX_BYTES = 1_200_000;
+
+function readProofFile(file) {
+  return new Promise((resolve, reject) => {
+    if (!file) {
+      resolve(null);
+      return;
+    }
+    const okType = /^(image\/(jpeg|jpg|png|webp|gif)|application\/pdf)$/i.test(file.type);
+    if (!okType) {
+      reject(new Error('Nachweis bitte als PDF oder Bild (JPG, PNG, WebP) hochladen.'));
+      return;
+    }
+    if (file.size > PROOF_MAX_BYTES) {
+      reject(new Error('Der Nachweis ist zu groß. Maximal 1,2 MB.'));
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => resolve({ name: file.name, data: String(reader.result || '') });
+    reader.onerror = () => reject(new Error('Datei konnte nicht gelesen werden.'));
+    reader.readAsDataURL(file);
+  });
+}
+
+function ComplaintFacts({ lead, notes, contactStatus }) {
+  const brief = leadBriefing(lead);
+  const employment = lead?.employmentStatus === 'sonstiges' && lead?.employmentOther
+    ? lead.employmentOther
+    : employmentLabel(lead?.employmentStatus);
+  const talk = [
+    lead?.phone,
+    lead?.email,
+    employment,
+    brief.insurance,
+  ].filter((value) => value && value !== '—').join(' · ') || 'Keine Gesprächsdaten hinterlegt';
+  const brokerNotes = String(notes || lead?.brokerNotes || '').trim();
+  const stockNotes = String(lead?.notes || '').trim();
+
+  return (
+    <dl className="broker-report-facts">
+      <div>
+        <dt>Lead-ID</dt>
+        <dd title={lead?.id || ''}>{shortLeadId(lead?.id)}</dd>
+      </div>
+      <div>
+        <dt>Übergabezeitpunkt</dt>
+        <dd>{formatDateTime(lead?.assignedAt)}</dd>
+      </div>
+      <div>
+        <dt>Kaufpreis</dt>
+        <dd>{formatEuroExact(leadPriceCents(lead))}</dd>
+      </div>
+      <div>
+        <dt>Kontaktversuche</dt>
+        <dd>{contactStatusLabel(contactStatus)}</dd>
+      </div>
+      <div className="is-wide">
+        <dt>Gesprächsdaten</dt>
+        <dd>{talk}</dd>
+      </div>
+      <div className="is-wide">
+        <dt>Vorhandene Notizen</dt>
+        <dd>
+          {brokerNotes || stockNotes || 'Keine Notizen'}
+          {brokerNotes && stockNotes && brokerNotes !== stockNotes ? (
+            <small>Bestand: {stockNotes}</small>
+          ) : null}
+        </dd>
+      </div>
+    </dl>
+  );
+}
+
+function LeadReportPanel({ lead, notes, contactStatus, onReported }) {
   const complaint = lead?.complaint;
   const openComplaint = isOpenComplaint(complaint);
+  const canAmend = canAmendComplaint(complaint);
   const [open, setOpen] = useState(false);
-  const [reason, setReason] = useState('invalid');
+  const [step, setStep] = useState(1);
+  const [reason, setReason] = useState('');
   const [comment, setComment] = useState('');
+  const [proof, setProof] = useState(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const panelRef = useRef(null);
+  const detailRef = useRef(null);
 
   function closeModal() {
     setOpen(false);
+    setStep(1);
     setError('');
     setComment('');
-    setReason('invalid');
+    setReason('');
+    setProof(null);
+  }
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape' && !saving) closeModal();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.body.style.overflow = previous;
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [open, saving]);
+
+  useEffect(() => {
+    if (open && step === 2) {
+      detailRef.current?.focus();
+    }
+  }, [open, step]);
+
+  async function handleProof(file) {
+    setError('');
+    try {
+      setProof(await readProofFile(file));
+    } catch (err) {
+      setProof(null);
+      setError(err.message);
+    }
   }
 
   async function handleSubmit(event) {
     event.preventDefault();
-    setSaving(true);
     setError('');
+    if (step === 1) {
+      if (!reason) {
+        setError('Bitte einen akzeptierten Stornierungsgrund wählen.');
+        return;
+      }
+      setStep(2);
+      return;
+    }
+    const detail = comment.trim();
+    if (!reason) {
+      setStep(1);
+      setError('Bitte einen akzeptierten Stornierungsgrund wählen.');
+      return;
+    }
+    if (detail.length < COMPLAINT_COMMENT_MIN) {
+      setError(`Bitte die Begründung mit mindestens ${COMPLAINT_COMMENT_MIN} Zeichen beschreiben.`);
+      return;
+    }
+    setSaving(true);
     try {
-      await reportLead(lead.id, { reason, comment });
+      await reportLead(lead.id, {
+        reason,
+        comment: detail,
+        proofName: proof?.name,
+        proofData: proof?.data,
+        contactStatus,
+        notes,
+      });
       closeModal();
       onReported?.();
     } catch (err) {
@@ -95,31 +733,63 @@ function LeadReportPanel({ lead, onReported }) {
     }
   }
 
+  const modal = open ? (
+    <ReportModal
+      lead={lead}
+      notes={notes}
+      contactStatus={contactStatus}
+      step={step}
+      setStep={setStep}
+      reason={reason}
+      setReason={setReason}
+      comment={comment}
+      setComment={setComment}
+      proof={proof}
+      onProof={handleProof}
+      error={error}
+      saving={saving}
+      onClose={closeModal}
+      onSubmit={handleSubmit}
+      panelRef={panelRef}
+      detailRef={detailRef}
+    />
+  ) : null;
+
   if (complaint) {
     return (
       <div className="broker-detail-side-block broker-detail-report-block is-submitted">
-        <div className={`broker-detail-report-done broker-detail-report-done--${complaint.status}`}>
+        <div className={`broker-detail-report-done broker-detail-report-done--${complaintTone(complaint.status)}`}>
           <span className="broker-detail-report-done-icon" aria-hidden="true">
-            <Check size={18} />
+            <ComplaintStatusIcon status={complaint.status} size={16} />
           </span>
-          <div>
+          <div className="broker-detail-report-done-body">
             <strong>{complaintStatusLabel(complaint.status)}</strong>
             <span>{complaintReasonLabel(complaint.reason)}</span>
-            {complaint.comment ? <em>{complaint.comment}</em> : null}
-            {complaint.status === 'declined' && complaint.adminNote ? (
-              <span><strong>Antwort Admin:</strong> {complaint.adminNote}</span>
+            {complaint.refundCents != null ? (
+              <span>Gutschrift: {formatEuroExact(complaint.refundCents)}</span>
+            ) : null}
+            {complaint.comment ? <em>Reklamation: {complaint.comment}</em> : null}
+            {complaint.adminNote ? (
+              <p className="broker-detail-report-done-reply">
+                <b>Antwort VANTARO</b>
+                {complaint.adminNote}
+              </p>
             ) : null}
             <small>{formatDate(complaint.createdAt)}</small>
           </div>
         </div>
-        {complaint.status === 'declined' ? (
-          <button type="button" className="broker-text-btn" onClick={() => setOpen(true)}>
-            Erneut reklamieren
+        {canAmend ? (
+          <button type="button" className="broker-detail-report-again" onClick={() => setOpen(true)}>
+            {complaint.status === 'info_needed' || complaint.status === 'infos_noetig'
+              ? 'Angaben ergänzen'
+              : 'Erneut reklamieren'}
           </button>
         ) : openComplaint ? (
-          <p className="broker-muted-note">Die Reklamation liegt dem Admin zur Prüfung vor.</p>
+          <p className="broker-muted-note">VANTARO prüft den Fall. Sie sehen das Ergebnis hier.</p>
+        ) : complaint.status === 'approved' || complaint.status === 'partial' || complaint.status === 'refunded' ? (
+          <p className="broker-muted-note">Die Gutschrift wird dem VANTARO-Guthaben wieder gutgeschrieben.</p>
         ) : null}
-        {open ? <ReportModal lead={lead} reason={reason} setReason={setReason} comment={comment} setComment={setComment} error={error} saving={saving} onClose={closeModal} onSubmit={handleSubmit} panelRef={panelRef} /> : null}
+        {modal}
       </div>
     );
   }
@@ -132,84 +802,218 @@ function LeadReportPanel({ lead, onReported }) {
             <Flag size={18} />
           </span>
           <span className="broker-report-trigger-copy">
-            <strong>Lead reklamieren</strong>
-            <small>Admin prüft und erstattet oder lehnt ab</small>
+            <strong>Reklamation einreichen</strong>
+            <small>Standardgrund, Begründung und optional Nachweis</small>
           </span>
           <ChevronRight size={16} className="broker-report-trigger-caret" aria-hidden="true" />
         </button>
       </div>
-      {open ? (
-        <ReportModal
-          lead={lead}
-          reason={reason}
-          setReason={setReason}
-          comment={comment}
-          setComment={setComment}
-          error={error}
-          saving={saving}
-          onClose={closeModal}
-          onSubmit={handleSubmit}
-          panelRef={panelRef}
-        />
-      ) : null}
+      {modal}
     </>
   );
 }
 
 function ReportModal({
   lead,
+  notes,
+  contactStatus,
+  step,
+  setStep,
   reason,
   setReason,
   comment,
   setComment,
+  proof,
+  onProof,
   error,
   saving,
   onClose,
   onSubmit,
   panelRef,
+  detailRef,
 }) {
+  const selectedReason = COMPLAINT_REASON_OPTIONS.find((option) => option.id === reason);
+  const detailLen = comment.trim().length;
+  const canContinue = Boolean(reason);
+  const canSubmit = Boolean(reason && detailLen >= COMPLAINT_COMMENT_MIN);
+  const titleId = `report-modal-title-${lead.id}`;
+  const proofId = `report-proof-${lead.id}`;
+
   return (
-    <div className="broker-modal broker-report-modal-wrap" role="dialog" aria-modal="true">
-      <button type="button" className="broker-modal__backdrop" aria-label="Schließen" onClick={onClose} />
-      <form ref={panelRef} className="broker-modal__panel broker-report-modal" onSubmit={onSubmit}>
+    <div className="broker-modal broker-report-modal-wrap" role="dialog" aria-modal="true" aria-labelledby={titleId}>
+      <button type="button" className="broker-modal__backdrop" aria-label="Schließen" onClick={saving ? undefined : onClose} disabled={saving} />
+      <form
+        ref={panelRef}
+        className={`broker-modal__panel broker-report-modal${step === 2 ? ' is-step-2' : ''}`}
+        onSubmit={onSubmit}
+      >
         <div className="broker-report-modal__head">
           <div className="broker-report-modal__intro">
             <span className="broker-report-modal__badge">Reklamation</span>
-            <h2>Lead reklamieren</h2>
-            <p className="broker-report-modal__lead">{lead.fullName}</p>
+            <h2 id={titleId}>Reklamation einreichen</h2>
+            {lead.fullName ? <p className="broker-report-modal__lead">{lead.fullName}</p> : null}
+            <p className="broker-report-modal__hint">
+              Nur bei akzeptierten Stornierungsgründen. VANTARO prüft den Fall und entscheidet über die Gutschrift.
+            </p>
+            <div className="broker-report-progress" aria-label={`Schritt ${step} von 2`}>
+              <span className={step === 1 ? 'is-current' : 'is-done'}>
+                <span>1</span>
+                Grund
+              </span>
+              <span aria-hidden="true" className={`broker-report-progress__rail${step > 1 ? ' is-done' : ''}`} />
+              <span className={step === 2 ? 'is-current' : undefined}>
+                <span>2</span>
+                Angaben
+              </span>
+            </div>
           </div>
           <button type="button" className="broker-report-close" onClick={onClose} aria-label="Schließen">
             <X size={18} />
           </button>
         </div>
+
         <div className="broker-report-modal__body">
           {error ? <div className="broker-alert">{error}</div> : null}
-          <label>
-            Grund
-            <select value={reason} onChange={(event) => setReason(event.target.value)} disabled={saving}>
-              {COMPLAINT_REASON_OPTIONS.map((option) => (
-                <option key={option.id} value={option.id}>{option.label}</option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Zusatzinfo (freiwillig)
-            <textarea
-              rows={3}
-              value={comment}
-              onChange={(event) => setComment(event.target.value)}
-              disabled={saving}
-              placeholder="Was ist an diesem Lead nicht korrekt?"
-            />
-          </label>
+
+          {step === 1 ? (
+            <section className="broker-report-step">
+              <div className="broker-report-step__copy">
+                <h3>Grund wählen</h3>
+                <p>Akzeptierte Stornierungsgründe laut Vantaro-Richtlinie</p>
+              </div>
+              <div className="broker-report-reasons" role="radiogroup" aria-label="Grund der Reklamation">
+                {COMPLAINT_REASON_OPTIONS.map((option) => {
+                  const selected = reason === option.id;
+                  return (
+                    <label
+                      key={option.id}
+                      className={selected ? 'is-selected' : undefined}
+                      onDoubleClick={() => {
+                        setReason(option.id);
+                        setStep(2);
+                      }}
+                    >
+                      <input
+                        type="radio"
+                        className="broker-report-reason-input"
+                        name={`report-grund-${lead.id}`}
+                        value={option.id}
+                        checked={selected}
+                        disabled={saving}
+                        onChange={() => setReason(option.id)}
+                      />
+                      <span className="broker-report-reason-card">
+                        <span className="broker-report-reason-check" aria-hidden="true">
+                          {selected ? <Check size={14} strokeWidth={2.5} /> : null}
+                        </span>
+                        <span className="broker-report-reason-copy">
+                          <strong>{option.label}</strong>
+                          <small>{option.hint}</small>
+                        </span>
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            </section>
+          ) : (
+            <section className="broker-report-step">
+              <div className="broker-report-step__copy">
+                <h3>Angaben zur Reklamation</h3>
+                <p>Diese Lead-Daten werden automatisch mitgeschickt. Ergänzen Sie eine kurze Begründung.</p>
+              </div>
+              {selectedReason ? (
+                <button
+                  type="button"
+                  className="broker-report-chosen"
+                  onClick={() => setStep(1)}
+                  disabled={saving}
+                >
+                  <span>
+                    <small>Gewählter Grund</small>
+                    <strong>{selectedReason.label}</strong>
+                  </span>
+                  <em>Ändern</em>
+                </button>
+              ) : null}
+
+              <ComplaintFacts lead={lead} notes={notes} contactStatus={contactStatus} />
+
+              <label className="broker-report-detail-field" htmlFor={`report-detail-${lead.id}`}>
+                <span>Kurze Begründung</span>
+                <textarea
+                  ref={detailRef}
+                  id={`report-detail-${lead.id}`}
+                  className="broker-report-detail"
+                  value={comment}
+                  onChange={(event) => setComment(event.target.value)}
+                  placeholder={selectedReason?.placeholder || 'Beschreiben Sie den Mangel möglichst konkret…'}
+                  rows={5}
+                  disabled={saving}
+                  required
+                />
+                <span className={`broker-report-detail-meta${detailLen < COMPLAINT_COMMENT_MIN ? ' is-short' : ' is-ok'}`}>
+                  <strong>{detailLen}</strong>
+                  <span>/</span>
+                  <span>{COMPLAINT_COMMENT_MIN}</span>
+                  <em>Zeichen min.</em>
+                </span>
+              </label>
+
+              <div className="broker-report-proof">
+                <span className="broker-report-proof__label">Nachweis (falls erforderlich)</span>
+                <label className="broker-report-proof__btn" htmlFor={proofId}>
+                  <Paperclip size={16} aria-hidden="true" />
+                  {proof ? 'Datei ersetzen' : 'PDF oder Bild anhängen'}
+                  <input
+                    id={proofId}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,application/pdf"
+                    disabled={saving}
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      event.target.value = '';
+                      if (file) onProof(file);
+                    }}
+                  />
+                </label>
+                {proof ? (
+                  <span className="broker-report-proof-chip">
+                    <FileCheck2 size={14} aria-hidden="true" />
+                    {proof.name}
+                    <button type="button" onClick={() => onProof(null)} disabled={saving}>
+                      Entfernen
+                    </button>
+                  </span>
+                ) : (
+                  <span className="broker-report-proof-chip">Optional · max. 1,2 MB</span>
+                )}
+              </div>
+            </section>
+          )}
         </div>
-        <div className="broker-report-actions">
-          <button type="submit" className="broker-save broker-save--inline" disabled={saving}>
-            {saving ? 'Wird gesendet⬦' : 'Reklamation senden'}
-          </button>
-          <button type="button" className="broker-text-btn" disabled={saving} onClick={onClose}>
-            Abbrechen
-          </button>
+
+        <div className="broker-report-modal__footer">
+          <div className={`broker-report-actions${step === 2 ? ' is-split' : ''}`}>
+            {step === 1 ? (
+              <button type="button" className="btn btn-outline" onClick={onClose} disabled={saving}>
+                Abbrechen
+              </button>
+            ) : (
+              <button type="button" className="btn btn-outline" onClick={() => setStep(1)} disabled={saving}>
+                Zurück
+              </button>
+            )}
+            {step === 1 ? (
+              <button type="submit" className="btn btn-primary" disabled={!canContinue || saving}>
+                Weiter
+              </button>
+            ) : (
+              <button type="submit" className="btn btn-primary" disabled={!canSubmit || saving}>
+                {saving ? 'Wird gesendet…' : 'Reklamation einreichen'}
+              </button>
+            )}
+          </div>
         </div>
       </form>
     </div>
@@ -261,53 +1065,76 @@ export function BeraterHome() {
     };
   }, [pipelineLeads]);
 
-  const recent = pipelineLeads.slice(0, 5);
+  const recent = pipelineLeads.slice(0, 3);
+  const inProgress = stats.kontaktiert + stats.termin + stats.wiedervorlage;
 
   return (
     <div className="broker-page">
       <div className="broker-heading">
         <div>
-          <div className="eyebrow">Lead-Übersicht</div>
-          <h1>{greeting()}, <em>{firstName(user)}</em></h1>
-          <p className="lede">Pipeline und Bestand Ihrer Chancen — ohne Zahlungsfokus.</p>
+          <div className="eyebrow">Ihr Tag</div>
+          <h1>Willkommen zurück, <em>{displayName(user)}</em></h1>
+          <p className="lede">Schön, dass Sie da sind. Hier sehen Sie, welche Gespräche als Nächstes warten.</p>
         </div>
       </div>
 
       {error ? <div className="broker-alert">{error}</div> : null}
 
       <div className="broker-home-metrics broker-home-metrics--leads">
-        <div className="broker-home-metric is-signal">
-          <span>Im Bestand</span>
-          <strong>{loading ? '—' : stats.total}</strong>
-          <small>Aktive Leads</small>
-        </div>
-        <div className="broker-home-metric">
-          <span>Neu</span>
-          <strong>{loading ? '—' : stats.neu}</strong>
-          <small>Noch nicht kontaktiert</small>
-        </div>
-        <div className="broker-home-metric">
-          <span>In Bearbeitung</span>
-          <strong>{loading ? '—' : stats.kontaktiert + stats.termin + stats.wiedervorlage}</strong>
-          <small>{stats.kontaktiert} kontaktiert · {stats.termin} Termin · {stats.wiedervorlage} Wiedervorlage</small>
-        </div>
-        <div className="broker-home-metric">
-          <span>Abgeschlossen</span>
-          <strong>{loading ? '—' : stats.abgeschlossen}</strong>
-          <small>Vorgänge beendet</small>
-        </div>
+        <article className="broker-home-metric is-signal">
+          <div className="broker-home-metric-body">
+            <span>Im Bestand</span>
+            <strong>{loading ? '—' : stats.total}</strong>
+            <small>Aktive Leads</small>
+          </div>
+          <span className="broker-home-metric-icon" aria-hidden="true">
+            <Users size={22} />
+          </span>
+        </article>
+        <article className="broker-home-metric">
+          <div className="broker-home-metric-body">
+            <span>Neu</span>
+            <strong>{loading ? '—' : stats.neu}</strong>
+            <small>Noch nicht kontaktiert</small>
+          </div>
+          <span className="broker-home-metric-icon" aria-hidden="true">
+            <UserPlus size={22} />
+          </span>
+        </article>
+        <article className="broker-home-metric">
+          <div className="broker-home-metric-body">
+            <span>In Bearbeitung</span>
+            <strong>{loading ? '—' : inProgress}</strong>
+            <small>{loading ? '—' : inProgressHint(stats)}</small>
+          </div>
+          <span className="broker-home-metric-icon" aria-hidden="true">
+            <MessageCircle size={22} />
+          </span>
+        </article>
+        <article className="broker-home-metric">
+          <div className="broker-home-metric-body">
+            <span>Abgeschlossen</span>
+            <strong>{loading ? '—' : stats.abgeschlossen}</strong>
+            <small>Verträge abgeschlossen</small>
+          </div>
+          <span className="broker-home-metric-icon" aria-hidden="true">
+            <FileCheck2 size={22} />
+          </span>
+        </article>
       </div>
 
       <div className="broker-home-actions">
-        <Link className="btn btn-primary" to="/dashboard/leads">Zu Meine Leads</Link>
-        <Link className="btn btn-outline" to="/dashboard/leads">Kanban öffnen</Link>
+        <Link className="btn btn-primary" to="/dashboard/leads">
+          Zu meinen Leads
+          <ArrowRight size={16} aria-hidden="true" />
+        </Link>
       </div>
 
       <section className="broker-panel broker-home-recent">
         <div className="broker-panel-header">
           <div>
             <h2>Aktuelle Leads</h2>
-            <p>Schnellzugriff auf Ihren Bestand</p>
+            <p>Die letzten Chancen in Ihrem Bestand</p>
           </div>
           <Link to="/dashboard/leads" className="broker-text-btn">Alle anzeigen</Link>
         </div>
@@ -318,22 +1145,52 @@ export function BeraterHome() {
           </div>
         ) : recent.length ? (
           <ul className="broker-home-lead-list">
-            {recent.map((lead) => (
-              <li key={lead.id}>
-                <Link to={`/dashboard/leads/${lead.id}`}>
-                  <span>
-                    <strong>{lead.name}</strong>
-                    <small>{lead.productCode} · {statusLabel(lead.status)}</small>
-                  </span>
-                  <b className={`broker-status broker-status--${lead.status}`}>{statusLabel(lead.status)}</b>
-                </Link>
-              </li>
-            ))}
+            {recent.map((lead) => {
+              const preview = leadPreviewLine(lead);
+              const schedule = leadScheduleOf(lead);
+              return (
+                <li key={lead.id}>
+                  <Link to={`/dashboard/leads/${lead.id}`}>
+                    <span className="broker-home-lead-person">
+                      <span className="broker-home-lead-avatar" aria-hidden="true">
+                        {leadInitials(lead)}
+                      </span>
+                      <span className="broker-home-lead-copy">
+                        <strong>{lead.name || 'Ohne Namen'}</strong>
+                        {preview ? <small>{preview}</small> : null}
+                        {schedule ? (
+                          <small className={`broker-home-lead-schedule${schedule.overdue ? ' is-overdue' : ''}`}>
+                            {schedule.label}
+                          </small>
+                        ) : null}
+                      </span>
+                    </span>
+                    <span className={`broker-home-lead-phone${lead.phone ? '' : ' is-empty'}`}>
+                      {lead.phone ? (
+                        <>
+                          <Phone size={15} aria-hidden="true" />
+                          {lead.phone}
+                        </>
+                      ) : null}
+                    </span>
+                    <span className={`broker-home-lead-email${lead.email ? '' : ' is-empty'}`}>
+                      {lead.email ? (
+                        <>
+                          <Mail size={15} aria-hidden="true" />
+                          {lead.email}
+                        </>
+                      ) : null}
+                    </span>
+                    <LeadStatusMark lead={lead} placement="home" />
+                  </Link>
+                </li>
+              );
+            })}
           </ul>
         ) : (
           <div className="broker-empty">
             <strong>Noch keine Leads</strong>
-            <p>Zugewiesene Chancen erscheinen hier und unter Meine Leads.</p>
+            <p>Sobald wir Ihnen Chancen zuteilen, finden Sie sie hier und unter Meine Leads.</p>
           </div>
         )}
       </section>
@@ -341,15 +1198,37 @@ export function BeraterHome() {
   );
 }
 
-function LeadCard({ lead, onOpen }) {
+function LeadCard({ lead, onOpen, dragging = false, onDragStart, onDragEnd }) {
   const distance = formatDistance(lead.distanceKm);
+  const skipClick = useRef(false);
+  const schedule = leadScheduleOf(lead);
+  const needsSchedule = lead.status === 'termin' || lead.status === 'wiedervorlage';
 
   return (
     <article
-      className="broker-panel broker-lead-card is-clickable"
+      className={`broker-panel broker-lead-card is-clickable${dragging ? ' is-dragging' : ''}`}
       role="button"
       tabIndex={0}
-      onClick={() => onOpen(lead.id)}
+      draggable="true"
+      onDragStart={(event) => {
+        skipClick.current = true;
+        event.dataTransfer.setData('text/plain', lead.id);
+        event.dataTransfer.effectAllowed = 'move';
+        onDragStart?.(lead.id);
+      }}
+      onDragEnd={() => {
+        onDragEnd?.();
+        window.setTimeout(() => {
+          skipClick.current = false;
+        }, 0);
+      }}
+      onClick={() => {
+        if (skipClick.current) {
+          skipClick.current = false;
+          return;
+        }
+        onOpen(lead.id);
+      }}
       onKeyDown={(event) => {
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault();
@@ -362,50 +1241,125 @@ function LeadCard({ lead, onOpen }) {
           <div className="broker-lead-name">{lead.name}</div>
           <div className="broker-lead-address">{lead.address}</div>
         </div>
-        <span className={`broker-status broker-status--${lead.status}`}>{statusLabel(lead.status)}</span>
+        <LeadStatusMark lead={lead} placement="kanban" />
       </div>
       <div className="broker-lead-meta">
         {distance ? <span>{distance} entfernt</span> : null}
         <span>{lead.productCode || leadProductCode(lead)}</span>
         <span>{lead.quality || 'Exklusiv'}</span>
       </div>
+      {schedule ? (
+        <div className={`broker-lead-schedule${schedule.overdue ? ' is-overdue' : ''}`}>
+          {schedule.kind === 'termin' ? <CalendarClock size={14} aria-hidden="true" /> : <Clock size={14} aria-hidden="true" />}
+          {schedule.label}
+        </div>
+      ) : needsSchedule ? (
+        <div className="broker-lead-schedule is-missing">Datum und Uhrzeit wählen</div>
+      ) : null}
       {lead.notes ? <p className="broker-lead-note">{lead.notes}</p> : null}
       <div className="broker-lead-bottom">
         <div className="broker-lead-price">
           {formatEuroExact(lead.priceCents)}
           <span>bezahlt</span>
         </div>
-        <span className="broker-muted-action">Details öffnen</span>
+        <span className="broker-muted-action">Ziehen oder öffnen</span>
       </div>
     </article>
   );
 }
 
 function LeadListRow({ lead, onOpen }) {
+  const schedule = leadScheduleOf(lead);
   return (
     <button type="button" className="broker-list-row" onClick={() => onOpen(lead.id)}>
       <span className="broker-list-name">
         <strong>{lead.name}</strong>
         <small>{lead.address}</small>
+        {schedule ? (
+          <small className={`broker-lead-schedule${schedule.overdue ? ' is-overdue' : ''}`}>
+            {schedule.label}
+          </small>
+        ) : null}
       </span>
       <span className="broker-list-meta">{lead.productCode || leadProductCode(lead)}</span>
       <span className="broker-list-meta">{lead.quality}</span>
-      <span className={`broker-status broker-status--${lead.status}`}>{statusLabel(lead.status)}</span>
+      <LeadStatusMark lead={lead} />
       <span className="broker-list-price">{formatEuroExact(lead.priceCents)}</span>
     </button>
   );
 }
 
+function KanbanColumn({
+  column,
+  items,
+  dropStatus,
+  draggingId,
+  onOpen,
+  onDrop,
+  onDragOver,
+  onDragLeave,
+  onDragStart,
+  onDragEnd,
+}) {
+  const Icon = PIPELINE_ICONS[column.id] || Sparkles;
+  const active = dropStatus === column.id;
+
+  return (
+    <section
+      className={`broker-kanban-column${column.id === 'abgeschlossen' ? ' is-closed' : ''}${active ? ' is-drop-target' : ''}`}
+      onDragOver={(event) => onDragOver(column.id, event)}
+      onDragLeave={onDragLeave}
+      onDrop={(event) => onDrop(column.id, event)}
+    >
+      <header>
+        <span className={`broker-kanban-icon broker-kanban-icon--${column.id}`} aria-hidden="true">
+          <Icon size={16} />
+        </span>
+        <div>
+          <strong>{column.label}</strong>
+          <small>{column.hint}</small>
+        </div>
+        <span className="broker-count">{items.length}</span>
+      </header>
+      <div className={`broker-kanban-stack${active ? ' is-drop-target' : ''}`}>
+        {items.length ? items.map((lead) => (
+          <LeadCard
+            key={lead.id}
+            lead={lead}
+            onOpen={onOpen}
+            dragging={draggingId === lead.id}
+            onDragStart={onDragStart}
+            onDragEnd={onDragEnd}
+          />
+        )) : (
+          <div className="broker-kanban-empty">Hierhin ziehen</div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function leadMatchesInsurance(lead, selected) {
+  if (!selected.length) return true;
+  const statuses = Array.isArray(lead?.insuranceStatus) ? lead.insuranceStatus : [];
+  const values = statuses.length ? statuses : ['unbekannt'];
+  return selected.some((id) => values.includes(id));
+}
+
 export function BeraterLeads() {
   const navigate = useNavigate();
-  const { leadStatuses } = useBroker();
+  const { leadStatuses, setLeadStatus, showToast } = useBroker();
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [product, setProduct] = useState('all');
+  const [insurance, setInsurance] = useState([]);
   const [view, setView] = useState('kanban');
   const [page, setPage] = useState(1);
-  const pageSize = 6;
+  const [draggingId, setDraggingId] = useState('');
+  const [dropStatus, setDropStatus] = useState('');
+  const [scheduleTarget, setScheduleTarget] = useState(null);
+  const [savingSchedule, setSavingSchedule] = useState(false);
+  const pageSize = 8;
 
   useEffect(() => {
     let active = true;
@@ -425,17 +1379,18 @@ export function BeraterLeads() {
     };
   }, []);
 
-  const visible = useMemo(() => (
+  const pipeline = useMemo(() => (
     leads
       .map((lead) => withPipeline(lead, leadStatuses))
-      .filter((lead) => product === 'all' || lead.productCode === product)
-  ), [leads, leadStatuses, product]);
+      .filter((lead) => leadMatchesInsurance(lead, insurance))
+  ), [leads, leadStatuses, insurance]);
 
+  const visible = pipeline;
   const totalPages = Math.max(1, Math.ceil(visible.length / pageSize));
 
   useEffect(() => {
     setPage(1);
-  }, [product, view]);
+  }, [insurance, view]);
 
   useEffect(() => {
     setPage((current) => Math.min(current, totalPages));
@@ -448,54 +1403,163 @@ export function BeraterLeads() {
 
   const openLead = (id) => navigate(`/dashboard/leads/${id}`);
 
+  const handleDrop = (statusId, event) => {
+    event.preventDefault();
+    const id = event.dataTransfer.getData('text/plain') || draggingId;
+    const current = leads.find((entry) => String(entry.id) === String(id));
+    if (id && (statusId === 'wiedervorlage' || statusId === 'termin') && current) {
+      setScheduleTarget({ lead: current, kind: statusId });
+      setDraggingId('');
+      setDropStatus('');
+      return;
+    }
+    if (id && statusId) {
+      setLeadStatus(id, statusId);
+      updateLead(id, contactUpdatePayload(statusId, {
+        followUpAt: current?.followUpAt,
+        appointmentAt: current?.appointmentAt,
+      }))
+        .then((payload) => {
+          setLeads((list) => list.map((entry) => (
+            String(entry.id) === String(id)
+              ? { ...entry, ...payload.lead, complaint: entry.complaint }
+              : entry
+          )));
+        })
+        .catch((err) => setError(err.message));
+    }
+    setDraggingId('');
+    setDropStatus('');
+  };
+
+  async function saveKanbanSchedule(iso) {
+    const current = scheduleTarget?.lead;
+    const kind = scheduleTarget?.kind;
+    if (!current || (kind !== 'wiedervorlage' && kind !== 'termin')) return;
+    setSavingSchedule(true);
+    setError('');
+    try {
+      const payload = await updateLead(current.id, contactUpdatePayload(kind, {
+        followUpAt: kind === 'wiedervorlage' ? iso : null,
+        appointmentAt: kind === 'termin' ? iso : null,
+      }));
+      setLeadStatus(current.id, kind);
+      setLeads((list) => list.map((entry) => (
+        String(entry.id) === String(current.id)
+          ? { ...entry, ...payload.lead, complaint: entry.complaint }
+          : entry
+      )));
+      setScheduleTarget(null);
+      showToast(
+        kind === 'termin'
+          ? 'Termin gespeichert.'
+          : 'Wiedervorlage gespeichert. Wir erinnern Sie per E-Mail.',
+      );
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSavingSchedule(false);
+    }
+  }
+
+  function toggleInsurance(id) {
+    setInsurance((current) => (
+      current.includes(id) ? current.filter((value) => value !== id) : [...current, id]
+    ));
+  }
+
+  const kanbanProps = {
+    dropStatus,
+    draggingId,
+    onOpen: openLead,
+    onDrop: handleDrop,
+    onDragOver: (statusId, event) => {
+      event.preventDefault();
+      event.dataTransfer.dropEffect = 'move';
+      setDropStatus(statusId);
+    },
+    onDragLeave: (event) => {
+      if (!event.currentTarget.contains(event.relatedTarget)) setDropStatus('');
+    },
+    onDragStart: setDraggingId,
+    onDragEnd: () => {
+      setDraggingId('');
+      setDropStatus('');
+    },
+  };
+
   return (
     <div className="broker-page">
       <div className="broker-heading">
         <div>
-          <div className="eyebrow">Gekaufte Chancen</div>
+          <div className="eyebrow">Ihr Bestand</div>
           <h1>Meine <em>Leads</em></h1>
-          <p className="lede">Kanban oder Liste — klicken Sie einen Lead für alle Details.</p>
+          <p className="lede">Karten in die passende Spalte ziehen — oder in der Liste öffnen.</p>
         </div>
       </div>
 
       {error ? <div className="broker-alert">{error}</div> : null}
 
       <div className="broker-filterbar">
-        <div className="broker-tabs" role="tablist" aria-label="Ansicht">
-          {VIEW_MODES.map((mode) => (
-            <button
-              key={mode.id}
-              type="button"
-              role="tab"
-              aria-selected={view === mode.id}
-              className={view === mode.id ? 'is-active' : undefined}
-              onClick={() => setView(mode.id)}
-            >
-              {mode.id === 'kanban' ? <LayoutGrid size={14} /> : <List size={14} />}
-              {mode.label}
-            </button>
-          ))}
+        <div className="broker-ins-filter" role="group" aria-label="Versicherungsstatus">
+          <span className="broker-ins-filter__label">Versicherungsstatus</span>
+          <div className="broker-ins-filter__options">
+            {INSURANCE_OPTIONS.map((option) => {
+              const checked = insurance.includes(option.id);
+              return (
+                <label key={option.id} className={checked ? 'is-checked' : undefined}>
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => toggleInsurance(option.id)}
+                  />
+                  <span className="broker-ins-filter__box" aria-hidden="true">
+                    {checked ? <Check size={12} strokeWidth={3} /> : null}
+                  </span>
+                  <span className="broker-ins-filter__text">{option.label}</span>
+                </label>
+              );
+            })}
+          </div>
         </div>
-        <label htmlFor="productFilter">Produkt</label>
-        <select id="productFilter" value={product} onChange={(event) => setProduct(event.target.value)}>
-          {PRODUCT_FILTERS.map((option) => (
-            <option key={option.id} value={option.id}>{option.label}</option>
-          ))}
-        </select>
-        <span className="broker-filter-count">
-          {loading ? 'Laden…' : `${visible.length} in Ihrem Bestand`}
-        </span>
+
+        <div className="broker-filterbar-end">
+          <div className="broker-pills broker-pills--view" role="tablist" aria-label="Ansicht">
+            {VIEW_MODES.map((mode) => (
+              <button
+                key={mode.id}
+                type="button"
+                role="tab"
+                aria-selected={view === mode.id}
+                className={view === mode.id ? 'is-active' : undefined}
+                onClick={() => setView(mode.id)}
+                title={mode.label}
+              >
+                {mode.id === 'kanban' ? <LayoutGrid size={15} strokeWidth={2.1} /> : <List size={15} strokeWidth={2.1} />}
+                <span>{mode.label}</span>
+              </button>
+            ))}
+          </div>
+          <span className="broker-filter-count">
+            {loading ? 'Laden…' : `${visible.length} ${visible.length === 1 ? 'Chance' : 'Chancen'}`}
+          </span>
+        </div>
       </div>
 
       {loading ? (
         <div className="broker-panel broker-empty">
+          <span className="broker-inline-loader" aria-hidden="true" />
           <strong>Leads werden geladen</strong>
           <p>Einen Moment bitte.</p>
         </div>
       ) : !visible.length ? (
         <div className="broker-panel broker-empty">
-          <strong>Noch keine Leads gekauft</strong>
-          <p>Sobald Ihnen Chancen zugestellt werden, erscheinen sie hier in Ihrem Bestand.</p>
+          <strong>{insurance.length ? 'Keine Leads für diesen Filter' : 'Noch keine Leads'}</strong>
+          <p>
+            {insurance.length
+              ? 'Andere Versicherungsstatus wählen — oder alle Häkchen entfernen, um den gesamten Bestand zu sehen.'
+              : 'Sobald wir Ihnen Chancen zuteilen, erscheinen sie hier.'}
+          </p>
         </div>
       ) : view === 'list' ? (
         <>
@@ -539,29 +1603,29 @@ export function BeraterLeads() {
         </>
       ) : (
         <div className="broker-kanban">
-          {LEAD_STATUSES.map((column) => {
-            const items = visible.filter((lead) => lead.status === column.id);
-            return (
-              <section key={column.id} className="broker-kanban-column">
-                <header>
-                  <div>
-                    <strong>{column.label}</strong>
-                    <small>{column.hint}</small>
-                  </div>
-                  <span className="broker-count">{items.length}</span>
-                </header>
-                <div className="broker-kanban-stack">
-                  {items.length ? items.map((lead) => (
-                    <LeadCard key={lead.id} lead={lead} onOpen={openLead} />
-                  )) : (
-                    <div className="broker-kanban-empty">Keine Leads</div>
-                  )}
-                </div>
-              </section>
-            );
-          })}
+          {LEAD_STATUSES.map((column) => (
+            <KanbanColumn
+              key={column.id}
+              column={column}
+              items={visible.filter((lead) => lead.status === column.id)}
+              {...kanbanProps}
+            />
+          ))}
         </div>
       )}
+      {scheduleTarget ? (
+        <LeadScheduleModal
+          kind={scheduleTarget.kind}
+          value={scheduleTarget.kind === 'termin' ? scheduleTarget.lead.appointmentAt : scheduleTarget.lead.followUpAt}
+          saving={savingSchedule}
+          locked={false}
+          leadName={scheduleTarget.lead.fullName || scheduleTarget.lead.name}
+          onSave={saveKanbanSchedule}
+          onClose={() => {
+            if (!savingSchedule) setScheduleTarget(null);
+          }}
+        />
+      ) : null}
     </div>
   );
 }
@@ -575,11 +1639,16 @@ export function BeraterLeadDetail() {
   const [error, setError] = useState('');
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
+  const [draftStatus, setDraftStatus] = useState('');
+  const [savingSchedule, setSavingSchedule] = useState(false);
+  const [scheduleOpen, setScheduleOpen] = useState(false);
+  const savingNotesRef = useRef(false);
 
   async function load() {
     const payload = await fetchLead(leadId);
     setLead(payload.lead);
-    setNotes(payload.lead?.notes || '');
+    setNotes(payload.lead?.brokerNotes || '');
+    setDraftStatus('');
   }
 
   useEffect(() => {
@@ -598,29 +1667,86 @@ export function BeraterLeadDetail() {
   }, [leadId]);
 
   async function saveNotes() {
-    if (!lead || notes === (lead.notes || '')) return;
+    if (!lead || lead.refundedAt || savingNotesRef.current) return;
+    if (notes === (lead.brokerNotes || '')) return;
+    savingNotesRef.current = true;
     setSaving(true);
     setError('');
     try {
-      const payload = await updateLead(lead.id, { notes });
+      const payload = await updateLead(lead.id, { brokerNotes: notes });
       setLead((current) => ({ ...current, ...payload.lead, complaint: current?.complaint }));
       showToast('Notizen gespeichert.');
     } catch (err) {
       setError(err.message);
     } finally {
+      savingNotesRef.current = false;
       setSaving(false);
     }
   }
 
+  async function persistContact(statusId, times = {}) {
+    const payload = await updateLead(lead.id, contactUpdatePayload(statusId, {
+      followUpAt: times.followUpAt,
+      appointmentAt: times.appointmentAt,
+    }));
+    setLead((current) => ({ ...current, ...payload.lead, complaint: current?.complaint }));
+    setLeadStatus(lead.id, statusId);
+    setDraftStatus('');
+    return payload.lead;
+  }
+
+  async function handleStatusClick(statusId) {
+    if (!lead || lead.refundedAt || savingSchedule) return;
+    if (statusId === 'wiedervorlage' || statusId === 'termin') {
+      setDraftStatus(statusId);
+      setScheduleOpen(true);
+      return;
+    }
+    setSavingSchedule(true);
+    setError('');
+    try {
+      await persistContact(statusId);
+      showToast('Status gespeichert.');
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSavingSchedule(false);
+    }
+  }
+
+  async function saveSchedule(iso) {
+    const statusId = draftStatus || pipelineStatusOf(lead, leadStatuses);
+    if (statusId !== 'termin' && statusId !== 'wiedervorlage') return;
+    setSavingSchedule(true);
+    setError('');
+    try {
+      await persistContact(statusId, {
+        followUpAt: statusId === 'wiedervorlage' ? iso : null,
+        appointmentAt: statusId === 'termin' ? iso : null,
+      });
+      setScheduleOpen(false);
+      showToast(
+        statusId === 'termin'
+          ? 'Termin gespeichert.'
+          : 'Wiedervorlage gespeichert. Wir erinnern Sie per E-Mail.',
+      );
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSavingSchedule(false);
+    }
+  }
+
+  function closeScheduleModal() {
+    if (savingSchedule) return;
+    setScheduleOpen(false);
+    if (lead && draftStatus && pipelineStatusOf(lead, leadStatuses) !== draftStatus) {
+      setDraftStatus('');
+    }
+  }
+
   if (loading) {
-    return (
-      <div className="broker-page">
-        <div className="broker-panel broker-empty">
-          <strong>Lead wird geladen</strong>
-          <p>Einen Moment bitte.</p>
-        </div>
-      </div>
-    );
+    return <BootScreen caption="Lead wird geladen" />;
   }
 
   if (!lead) {
@@ -628,8 +1754,15 @@ export function BeraterLeadDetail() {
   }
 
   const view = withPipeline(lead, leadStatuses);
-  const status = view.status;
-  const pkg = packageById(lead.scope === 'regional' ? 'pkv-regional' : 'pkv-deutschlandweit');
+  const status = draftStatus || view.status;
+  const scheduleKind = draftStatus === 'termin' || draftStatus === 'wiedervorlage'
+    ? draftStatus
+    : (view.status === 'termin' || view.status === 'wiedervorlage' ? view.status : 'wiedervorlage');
+  const brief = leadBriefing(lead);
+  const distance = formatDistance(lead.distanceKm);
+  const phoneHref = lead.phone ? `tel:${String(lead.phone).replace(/\s/g, '')}` : '';
+  const notesDirty = notes !== (lead.brokerNotes || '');
+  const notesLocked = Boolean(lead.refundedAt);
   const employment = lead.employmentStatus === 'sonstiges' && lead.employmentOther
     ? lead.employmentOther
     : employmentLabel(lead.employmentStatus);
@@ -638,131 +1771,244 @@ export function BeraterLeadDetail() {
     <div className="broker-page">
       <button type="button" className="broker-back" onClick={() => navigate('/dashboard/leads')}>
         <ArrowLeft size={16} />
-        Zurück zu Meine Leads
+        Zurück zu Ihren Leads
       </button>
 
       {error ? <div className="broker-alert">{error}</div> : null}
 
-      <div className="broker-heading">
+      <div className="broker-heading broker-detail-heading">
+        <span className="broker-detail-avatar" aria-hidden="true">{leadInitials(lead)}</span>
         <div>
-          <div className="eyebrow">Lead-Details</div>
-          <h1>{view.name}</h1>
-          <p className="lede">{view.product} · {view.address}</p>
+          <div className="eyebrow">Ihr Gespräch</div>
+          <h1>{view.name || 'Ohne Namen'}</h1>
+          <p className="lede">
+            {[view.address !== '—' ? view.address : '', distance ? `${distance} entfernt` : '']
+              .filter(Boolean)
+              .join(' · ') || 'Keine Adresse hinterlegt'}
+          </p>
         </div>
-        <span className={`broker-status broker-status--lg broker-status--${status}`}>
-          {statusLabel(status)}
-        </span>
+        <LeadStatusMark lead={view} large />
+      </div>
+
+      <div className="broker-detail-actions">
+        {phoneHref ? (
+          <a className="btn btn-primary" href={phoneHref}>
+            <Phone size={16} aria-hidden="true" />
+            Anrufen{lead.phone ? ` · ${lead.phone}` : ''}
+          </a>
+        ) : (
+          <span className="broker-detail-action-missing">Keine Telefonnummer</span>
+        )}
+        {lead.email ? (
+          <a className="btn btn-outline" href={`mailto:${lead.email}`}>
+            <Mail size={16} aria-hidden="true" />
+            E-Mail schreiben
+          </a>
+        ) : null}
       </div>
 
       <div className="broker-detail-grid">
-        <section className="broker-panel broker-detail-main">
-          <h2>Kontaktdaten</h2>
-          <dl className="broker-detail-dl">
-            <div>
-              <dt>Adresse</dt>
-              <dd>{view.address}</dd>
+        <div className="broker-detail-sections">
+          <section className="broker-panel broker-detail-section">
+            <div className="broker-detail-section-head">
+              <span className="broker-detail-section-icon" aria-hidden="true">
+                <User size={18} />
+              </span>
+              <div>
+                <h2>Kontakt</h2>
+                <p>Zum Anrufen und Schreiben</p>
+              </div>
             </div>
-            <div>
-              <dt>Telefon</dt>
-              <dd>
-                {lead.phone ? (
-                  <a href={`tel:${String(lead.phone).replace(/\s/g, '')}`}>{lead.phone}</a>
-                ) : '—'}
-              </dd>
+            <div className="broker-detail-facts">
+              <DetailFact label="Telefon">
+                {lead.phone ? <a href={phoneHref}>{lead.phone}</a> : null}
+              </DetailFact>
+              <DetailFact label="E-Mail">
+                {lead.email ? <a href={`mailto:${lead.email}`}>{lead.email}</a> : null}
+              </DetailFact>
+              <DetailFact label="Adresse" wide>
+                {view.address !== '—' ? view.address : null}
+              </DetailFact>
+              <DetailFact label="Alter">
+                {brief.age || null}
+              </DetailFact>
+              <DetailFact label="Geburtsdatum">
+                {formatLeadDate(lead.dateOfBirth) !== '—' ? formatLeadDate(lead.dateOfBirth) : null}
+              </DetailFact>
+              <DetailFact label="Beruf / Situation" wide>
+                {employment || null}
+              </DetailFact>
             </div>
-            <div>
-              <dt>E-Mail</dt>
-              <dd>
-                {lead.email ? <a href={`mailto:${lead.email}`}>{lead.email}</a> : '—'}
-              </dd>
-            </div>
-            <div>
-              <dt>Beruf / Situation</dt>
-              <dd>{employment}</dd>
-            </div>
-            <div>
-              <dt>Geburtsdatum</dt>
-              <dd>{formatLeadDate(lead.dateOfBirth)}</dd>
-            </div>
-          </dl>
+          </section>
 
-          <h2>Chance</h2>
-          <dl className="broker-detail-dl">
-            <div>
-              <dt>Produkt</dt>
-              <dd>{view.product}</dd>
+          <section className="broker-panel broker-detail-section">
+            <div className="broker-detail-section-head">
+              <span className="broker-detail-section-icon" aria-hidden="true">
+                <Shield size={18} />
+              </span>
+              <div>
+                <h2>Versicherung & Anliegen</h2>
+                <p>Worum es im Gespräch geht</p>
+              </div>
             </div>
-            <div>
-              <dt>Qualität</dt>
-              <dd>{view.quality}</dd>
+            <div className="broker-detail-facts">
+              <DetailFact label="Anliegen" wide>
+                {brief.concerns || listLabels(lead.mainConcerns, 'concern')}
+              </DetailFact>
+              <DetailFact label="Aktuelle Gesellschaft">
+                {brief.insurer}
+              </DetailFact>
+              <DetailFact label="Beitrag / Monat">
+                {brief.premium}
+              </DetailFact>
+              <DetailFact label="Versicherungsstatus">
+                {brief.insurance}
+              </DetailFact>
+              <DetailFact label="Personenkreis">
+                {brief.coverage}
+              </DetailFact>
+              <DetailFact label="Produkt" wide>
+                {view.product}
+              </DetailFact>
             </div>
-            <div>
-              <dt>Paket</dt>
-              <dd>{pkg?.label || '—'}</dd>
-            </div>
-            <div>
-              <dt>Preis</dt>
-              <dd>{formatEuroExact(view.priceCents)}</dd>
-            </div>
-            <div>
-              <dt>Versicherung</dt>
-              <dd>{listLabels(lead.insuranceStatus, 'insurance')}</dd>
-            </div>
-            <div>
-              <dt>Monatlicher Beitrag</dt>
-              <dd>{formatPremium(lead.monthlyPremium)}</dd>
-            </div>
-          </dl>
+          </section>
 
-          <h2>Hinweis</h2>
-          <p className="broker-detail-note">{lead.notes || 'Kein Hinweis hinterlegt.'}</p>
-        </section>
+          <section className="broker-panel broker-detail-section">
+            <div className="broker-detail-section-head">
+              <span className="broker-detail-section-icon" aria-hidden="true">
+                <FileText size={18} />
+              </span>
+              <div>
+                <h2>Hinweis zum Lead</h2>
+                <p>Vom Bestand — vor dem Anruf lesen</p>
+              </div>
+            </div>
+            <p className="broker-detail-note">{lead.notes || 'Kein Hinweis hinterlegt.'}</p>
+          </section>
+        </div>
 
         <aside className="broker-panel broker-detail-side">
-          <h2>Bearbeitungsstatus</h2>
-          <p>Verschieben Sie den Lead im Pipeline-Status.</p>
-          <div className="broker-status-picker">
-            {LEAD_STATUSES.map((option) => (
+          <div className="broker-detail-side-block">
+            <div className="broker-detail-section-head">
+              <span className="broker-detail-section-icon" aria-hidden="true">
+                <MessageCircle size={18} />
+              </span>
+              <div>
+                <h2>Gesprächsstatus</h2>
+                <p>Tippen Sie, wo der Lead gerade steht</p>
+              </div>
+            </div>
+            <div className="broker-status-picker">
+              {LEAD_STATUSES.map((option) => {
+                const Icon = PIPELINE_ICONS[option.id] || Sparkles;
+                const active = status === option.id;
+                return (
+                  <button
+                    key={option.id}
+                    type="button"
+                    className={[
+                      active ? 'is-active' : '',
+                      option.id === 'abgeschlossen' ? 'is-closed' : '',
+                      option.id === 'wiedervorlage' && active ? 'is-wiedervorlage' : '',
+                    ].filter(Boolean).join(' ') || undefined}
+                    disabled={notesLocked || savingSchedule}
+                    onClick={() => handleStatusClick(option.id)}
+                  >
+                    <span className={`broker-status-picker-icon broker-kanban-icon--${option.id}`} aria-hidden="true">
+                      <Icon size={16} />
+                    </span>
+                    <span className="broker-status-picker-copy">
+                      <strong>{option.label}</strong>
+                      <small>{option.hint}</small>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {view.status === 'termin' ? (
+            <LeadScheduleSummary
+              kind="termin"
+              value={lead.appointmentAt}
+              locked={notesLocked}
+              onEdit={() => {
+                setDraftStatus('termin');
+                setScheduleOpen(true);
+              }}
+            />
+          ) : null}
+
+          {view.status === 'wiedervorlage' ? (
+            <LeadScheduleSummary
+              kind="wiedervorlage"
+              value={lead.followUpAt}
+              locked={notesLocked}
+              onEdit={() => {
+                setDraftStatus('wiedervorlage');
+                setScheduleOpen(true);
+              }}
+            />
+          ) : null}
+
+          <div className="broker-detail-side-block">
+            <div className="broker-detail-section-head">
+              <span className="broker-detail-section-icon" aria-hidden="true">
+                <StickyNote size={18} />
+              </span>
+              <div>
+                <h2>Ihre Notizen</h2>
+                <p>Zum Gespräch — nicht die Reklamation</p>
+              </div>
+            </div>
+            <textarea
+              className="broker-detail-notes"
+              value={notes}
+              onChange={(event) => setNotes(event.target.value)}
+              placeholder="z. B. Rückruf vereinbart, offene Fragen…"
+              rows={5}
+              disabled={saving || notesLocked}
+            />
+            <div className="broker-detail-notes-actions">
               <button
-                key={option.id}
                 type="button"
-                className={[
-                  status === option.id ? 'is-active' : '',
-                  option.id === 'wiedervorlage' && status === option.id ? 'is-wiedervorlage' : '',
-                ].filter(Boolean).join(' ') || undefined}
-                onClick={() => setLeadStatus(lead.id, option.id)}
+                className="btn btn-primary"
+                onClick={saveNotes}
+                disabled={saving || notesLocked || !notesDirty}
               >
-                <strong>{option.label}</strong>
-                <small>{option.hint}</small>
+                <Save size={16} aria-hidden="true" />
+                {saving ? 'Wird gespeichert…' : 'Notiz speichern'}
               </button>
-            ))}
+            </div>
+            <p className="broker-detail-notes-hint">
+              {notesLocked
+                ? 'Erstattete Leads können nicht mehr bearbeitet werden.'
+                : 'Persönliche Gesprächsnotiz zu diesem Lead. Eine Reklamation senden Sie darunter extra.'}
+            </p>
           </div>
 
           <LeadReportPanel
             lead={lead}
+            notes={notes}
+            contactStatus={status}
             onReported={() => {
               load().catch((err) => setError(err.message));
-              showToast('Reklamation gesendet. Der Admin sieht sie unter Reklamationen.');
+              showToast('Reklamation gesendet. VANTARO prüft den Fall.');
             }}
           />
-
-          <h2>Notizen</h2>
-          <p className="broker-detail-side-hint">Sichtbar für Sie und den Admin.</p>
-          <textarea
-            className="broker-detail-notes"
-            value={notes}
-            onChange={(event) => setNotes(event.target.value)}
-            onBlur={saveNotes}
-            placeholder="z. B. Rückruf vereinbart, offene Fragen…"
-            rows={5}
-            disabled={saving}
-          />
-
-          <Link className="btn btn-outline broker-detail-link" to="/dashboard/zahlung">
-            Kontingent prüfen
-          </Link>
         </aside>
       </div>
+      {scheduleOpen ? (
+        <LeadScheduleModal
+          kind={scheduleKind}
+          value={scheduleKind === 'termin' ? lead.appointmentAt : lead.followUpAt}
+          saving={savingSchedule}
+          locked={notesLocked}
+          leadName={lead.fullName}
+          onSave={saveSchedule}
+          onClose={closeScheduleModal}
+        />
+      ) : null}
     </div>
   );
 }
@@ -877,7 +2123,7 @@ export function BeraterPayments() {
           <div className="eyebrow">Abrechnung</div>
           <h1>Zah<em>lung</em></h1>
           <p className="lede">
-            Paket wählen, Testzahlung durchführen, Anforderung geht an den Admin.
+            Wählen Sie Ihr Paket, zahlen Sie testhalber — danach kümmert sich der Admin um die Zustellung.
             Mindestabnahme {MIN_LEAD_PACK} Leads. Keine echte Bankverbindung.
           </p>
         </div>
@@ -1211,10 +2457,29 @@ export function BeraterPayments() {
   );
 }
 
+function useHashScroll() {
+  const location = useLocation();
+
+  useEffect(() => {
+    const id = location.hash.replace('#', '');
+    if (!id) return undefined;
+    const timer = window.setTimeout(() => {
+      document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 80);
+    return () => window.clearTimeout(timer);
+  }, [location.hash]);
+
+  return location.hash.replace('#', '');
+}
+
 function ProfileNav({ active }) {
+  const { user } = useAuth();
+  const gaps = accountSetupGaps(user);
+  const countFor = (id) => gaps.filter((gap) => gap.nav === id).length;
+  const hrefFor = (id, fallback) => gaps.find((gap) => gap.nav === id)?.to || fallback;
   const links = [
-    { id: 'profil', to: '/dashboard/profil', label: 'Profil', icon: User },
-    { id: 'unternehmen', to: '/dashboard/unternehmen', label: 'Unternehmen', icon: Building2 },
+    { id: 'profil', to: hrefFor('profil', '/dashboard/profil'), label: 'Profil', icon: User },
+    { id: 'unternehmen', to: hrefFor('unternehmen', '/dashboard/unternehmen'), label: 'Unternehmen', icon: Building2 },
     { id: 'sicherheit', to: '/dashboard/sicherheit', label: 'Sicherheit', icon: Shield },
   ];
 
@@ -1222,6 +2487,7 @@ function ProfileNav({ active }) {
     <nav className="broker-profile-nav" aria-label="Einstellungen">
       {links.map((link) => {
         const Icon = link.icon;
+        const count = countFor(link.id);
         return (
           <Link
             key={link.id}
@@ -1230,6 +2496,9 @@ function ProfileNav({ active }) {
           >
             <Icon size={16} strokeWidth={2} />
             {link.label}
+            {count > 0 ? (
+              <span className="broker-setup-count" aria-label={`${count} Angaben fehlen`}>{count}</span>
+            ) : null}
           </Link>
         );
       })}
@@ -1237,12 +2506,12 @@ function ProfileNav({ active }) {
   );
 }
 
-function SettingsShell({ active, eyebrow, title, lede, children }) {
+function SettingsShell({ active, title, lede, children }) {
   return (
-    <div className="broker-page">
+    <div className="broker-page broker-page--settings">
       <div className="broker-heading">
         <div>
-          <div className="eyebrow">{eyebrow}</div>
+          <div className="eyebrow">Einstellungen</div>
           <h1>{title}</h1>
           <p className="lede">{lede}</p>
         </div>
@@ -1549,6 +2818,7 @@ function ChangePasswordModal({ open, onClose }) {
 export function BeraterProfile() {
   const { user, updateProfile } = useAuth();
   const { showToast } = useBroker();
+  useHashScroll();
   const [form, setForm] = useState(() => personalForm(user));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -1608,99 +2878,115 @@ export function BeraterProfile() {
   return (
     <SettingsShell
       active="profil"
-      eyebrow="Einstellungen"
       title={<>Pro<em>fil</em></>}
-      lede="Ihre persönlichen Daten: Bild, Name, E-Mail und Telefonnummer."
+      lede="Bild, Name und Telefon — so erscheint Ihr Konto im Portal."
     >
       <form className="broker-panel broker-settings broker-settings--wide" onSubmit={save}>
-        <h2>Persönliche Daten</h2>
         {error && <div className="broker-alert">{error}</div>}
 
-        <div className="broker-avatar-edit">
-          <div className="broker-avatar broker-avatar--xl" aria-hidden="true">
-            {form.avatarUrl ? (
-              <img src={form.avatarUrl} alt="" />
-            ) : (
-              initials({ firstName: form.firstName, lastName: form.lastName, email: user?.email })
-            )}
-          </div>
-          <div>
-            <span className="broker-field-label">
+        <section className="broker-settings-section" id="foto">
+          <header>
+            <h3>
+              <span className="broker-settings-section__icon" aria-hidden="true">
+                <User size={16} strokeWidth={2.2} />
+              </span>
               Profilbild
-            </span>
-            {!form.avatarUrl ? (
-              <p className="broker-avatar-soft-hint">Freiwillig — ein Foto macht Ihr Konto persönlicher.</p>
-            ) : null}
-            <label className="broker-file-btn" htmlFor="profile-avatar">
-              <input
-                id="profile-avatar"
-                type="file"
-                accept="image/*"
-                onChange={handleAvatar}
-                disabled={saving}
-              />
-              <span>Bild auswählen</span>
-              <small>{avatarName || (form.avatarUrl ? 'Aktuelles Bild behalten' : 'Freiwillig')}</small>
-            </label>
-            {form.avatarUrl ? (
-              <button
-                type="button"
-                className="broker-text-btn"
-                onClick={() => {
-                  setForm((prev) => ({ ...prev, avatarUrl: '' }));
-                  setAvatarName('');
-                }}
-                disabled={saving}
-              >
-                Bild entfernen
-              </button>
-            ) : null}
+            </h3>
+            <p>Freiwillig — ein Foto macht Ihr Konto persönlicher.</p>
+          </header>
+          <div className="broker-avatar-edit">
+            <div className="broker-avatar broker-avatar--xl" aria-hidden="true">
+              {form.avatarUrl ? (
+                <img src={form.avatarUrl} alt="" />
+              ) : (
+                initials({ firstName: form.firstName, lastName: form.lastName, email: user?.email })
+              )}
+            </div>
+            <div>
+              <label className="broker-file-btn" htmlFor="profile-avatar">
+                <input
+                  id="profile-avatar"
+                  type="file"
+                  accept="image/*"
+                  onChange={handleAvatar}
+                  disabled={saving}
+                />
+                <span>Bild auswählen</span>
+                <small>{avatarName || (form.avatarUrl ? 'Aktuelles Bild behalten' : 'PNG oder JPG')}</small>
+              </label>
+              {form.avatarUrl ? (
+                <button
+                  type="button"
+                  className="broker-text-btn"
+                  onClick={() => {
+                    setForm((prev) => ({ ...prev, avatarUrl: '' }));
+                    setAvatarName('');
+                  }}
+                  disabled={saving}
+                >
+                  Bild entfernen
+                </button>
+              ) : null}
+            </div>
           </div>
-        </div>
+        </section>
 
-        <div className="broker-form-grid">
-          <label>
-            <FieldLabel required>Vorname</FieldLabel>
-            <input
-              name="firstName"
-              value={form.firstName}
-              onChange={handleChange}
-              autoComplete="given-name"
-              disabled={saving}
-              required
-            />
-          </label>
-          <label>
-            <FieldLabel required>Nachname</FieldLabel>
-            <input
-              name="lastName"
-              value={form.lastName}
-              onChange={handleChange}
-              autoComplete="family-name"
-              disabled={saving}
-              required
-            />
-          </label>
-          <label className="is-full">
-            <FieldLabel>E-Mail-Adresse</FieldLabel>
-            <input type="email" value={user?.email || ''} autoComplete="email" disabled />
-          </label>
-          <label className="is-full">
-            <FieldLabel required>Telefonnummer</FieldLabel>
-            <PhoneField
-              id="profile-phone"
-              value={form.phone}
-              onChange={(phone) => setForm((prev) => ({ ...prev, phone }))}
-              disabled={saving}
-              required
-              className="vantaro-phone-input--light"
-            />
-          </label>
-        </div>
+        <section className="broker-settings-section" id="kontakt">
+          <header>
+            <h3>
+              <span className="broker-settings-section__icon" aria-hidden="true">
+                <Phone size={16} strokeWidth={2.2} />
+              </span>
+              Name & Telefon
+            </h3>
+            <p>Für Vertrag, Rückfragen und die Anzeige in Ihrem Konto.</p>
+          </header>
+          <div className="broker-form-grid">
+            <label>
+              <FieldLabel required>Vorname</FieldLabel>
+              <input
+                name="firstName"
+                value={form.firstName}
+                onChange={handleChange}
+                autoComplete="given-name"
+                disabled={saving}
+                required
+              />
+            </label>
+            <label>
+              <FieldLabel required>Nachname</FieldLabel>
+              <input
+                name="lastName"
+                value={form.lastName}
+                onChange={handleChange}
+                autoComplete="family-name"
+                disabled={saving}
+                required
+              />
+            </label>
+            <label className="is-full">
+              <FieldLabel>E-Mail-Adresse</FieldLabel>
+              <input type="email" value={user?.email || ''} autoComplete="email" disabled />
+            </label>
+            <label className="is-full">
+              <FieldLabel required>Telefonnummer</FieldLabel>
+              <PhoneField
+                id="profile-phone"
+                value={form.phone}
+                onChange={(phone) => setForm((prev) => ({ ...prev, phone }))}
+                disabled={saving}
+                required
+                className="vantaro-phone-input--light"
+              />
+            </label>
+          </div>
+        </section>
 
-        <button type="submit" className="btn btn-primary broker-save" disabled={saving}>
-          {saving ? 'Wird gespeichert⬦' : 'Profil speichern'}
-        </button>
+        <div className="broker-settings-actions">
+          <button type="submit" className="btn btn-primary" disabled={saving}>
+            {saving ? 'Wird gespeichert⬦' : 'Profil speichern'}
+          </button>
+        </div>
       </form>
     </SettingsShell>
   );
@@ -1709,6 +2995,7 @@ export function BeraterProfile() {
 export function BeraterCompany() {
   const { user, updateProfile } = useAuth();
   const { showToast } = useBroker();
+  const hash = useHashScroll();
   const [form, setForm] = useState(() => companyForm(user));
   const [mapPin, setMapPin] = useState({ lat: null, lng: null });
   const [mapNotice, setMapNotice] = useState('');
@@ -1860,18 +3147,16 @@ export function BeraterCompany() {
   return (
     <SettingsShell
       active="unternehmen"
-      eyebrow="Einstellungen"
       title={<>Unterneh<em>men</em></>}
       lede={
         user?.onboardingComplete
-          ? 'Firma, Rechtsform und Adressen für Ihr Maklerkonto.'
-          : 'Ergänzen Sie Firma und Adresse — danach ist Ihr Konto vollständig.'
+          ? 'Firma, Rechtsform und Adresse für Vertrag, Rechnung und Verifizierung.'
+          : 'Firma und Adresse ergänzen — danach ist Ihr Konto vollständig.'
       }
     >
       <form className="broker-panel broker-settings broker-settings--wide" onSubmit={save}>
         <div className="broker-settings-head">
           <div>
-            <h2>Unternehmensdaten</h2>
             <p className="broker-muted-note">
               Angaben für Vertrag, Rechnungen und Verifizierung im Portal.
             </p>
@@ -1889,7 +3174,7 @@ export function BeraterCompany() {
         {needsPhone ? (
           <div className="broker-inline-hint">
             <p>Telefonnummer fehlt noch im Profil — bitte zuerst ergänzen.</p>
-            <Link to="/dashboard/profil" className="broker-text-btn">
+            <Link to="/dashboard/profil#kontakt" className="broker-text-btn">
               Zum Profil
             </Link>
           </div>
@@ -1912,10 +3197,17 @@ export function BeraterCompany() {
           </div>
         ) : null}
 
-        <section className="broker-settings-section">
+        <section
+          className={`broker-settings-section${highlightMissing && !firmDone ? ' is-incomplete' : ''}${hash === 'firma' ? ' is-focus' : ''}`}
+          id="firma"
+        >
           <header>
             <h3>
-              {highlightMissing ? <span className="broker-step-num">1</span> : null}
+              {highlightMissing ? <span className="broker-step-num">1</span> : (
+                <span className="broker-settings-section__icon" aria-hidden="true">
+                  <Building2 size={16} strokeWidth={2.2} />
+                </span>
+              )}
               Firma
             </h3>
             <p>Name und Rechtsform für Dokumente und Anzeige.</p>
@@ -1945,10 +3237,17 @@ export function BeraterCompany() {
           </div>
         </section>
 
-        <section className="broker-settings-section">
+        <section
+          className={`broker-settings-section${highlightMissing && !addressDone ? ' is-incomplete' : ''}${hash === 'adresse' ? ' is-focus' : ''}`}
+          id="adresse"
+        >
           <header>
             <h3>
-              {highlightMissing ? <span className="broker-step-num">2</span> : null}
+              {highlightMissing ? <span className="broker-step-num">2</span> : (
+                <span className="broker-settings-section__icon" aria-hidden="true">
+                  <MapPin size={16} strokeWidth={2.2} />
+                </span>
+              )}
               Geschäftsadresse
             </h3>
             <p>Sitz Ihres Unternehmens — Suche nutzen oder Pin auf der Karte setzen.</p>
@@ -2010,9 +3309,14 @@ export function BeraterCompany() {
           </div>
         </section>
 
-        <section className="broker-settings-section">
+        <section className="broker-settings-section" id="webseite">
           <header>
-            <h3>Webseite <span className="broker-optional">(freiwillig)</span></h3>
+            <h3>
+              <span className="broker-settings-section__icon" aria-hidden="true">
+                <Globe size={16} strokeWidth={2.2} />
+              </span>
+              Webseite <span className="broker-optional">(freiwillig)</span>
+            </h3>
             <p>Webseite Ihres Unternehmens — ohne https:// möglich.</p>
           </header>
           <div className="broker-form-grid">
@@ -2032,9 +3336,11 @@ export function BeraterCompany() {
           </div>
         </section>
 
-        <button type="submit" className="btn btn-primary broker-save" disabled={saving}>
-          {saving ? 'Wird gespeichert⬦' : 'Unternehmen speichern'}
-        </button>
+        <div className="broker-settings-actions">
+          <button type="submit" className="btn btn-primary" disabled={saving}>
+            {saving ? 'Wird gespeichert⬦' : 'Unternehmen speichern'}
+          </button>
+        </div>
       </form>
     </SettingsShell>
   );
@@ -2046,18 +3352,24 @@ export function BeraterSecurity() {
   return (
     <SettingsShell
       active="sicherheit"
-      eyebrow="Einstellungen"
       title={<>Sicher<em>heit</em></>}
       lede="Passwort ändern — mit aktuellem Passwort und starken Regeln."
     >
       <section className="broker-panel broker-settings broker-settings--wide">
-        <h2>Passwort</h2>
-        <p className="broker-muted-note" style={{ marginTop: 8 }}>
-          Mindestens 8 Zeichen, Groß- und Kleinbuchstaben, Zahl und Sonderzeichen.
-        </p>
-        <button type="button" className="btn btn-primary broker-save" onClick={() => setModalOpen(true)}>
-          Passwort ändern
-        </button>
+        <section className="broker-settings-section broker-settings-section--action">
+          <header>
+            <h3>
+              <span className="broker-settings-section__icon" aria-hidden="true">
+                <KeyRound size={16} strokeWidth={2.2} />
+              </span>
+              Passwort
+            </h3>
+            <p>Mindestens 8 Zeichen, Groß- und Kleinbuchstaben, Zahl und Sonderzeichen.</p>
+          </header>
+          <button type="button" className="btn btn-primary" onClick={() => setModalOpen(true)}>
+            Passwort ändern
+          </button>
+        </section>
       </section>
 
       <ChangePasswordModal open={modalOpen} onClose={() => setModalOpen(false)} />

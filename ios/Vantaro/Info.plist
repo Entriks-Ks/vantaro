@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>API_BASE_URL</key>
+	<string>https://vantaro.onrender.com</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>io.vantaro.app</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>vantaro</string>
+			</array>
+		</dict>
+	</array>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+		<key>NSExceptionDomains</key>
+		<dict>
+			<key>localhost</key>
+			<dict>
+				<key>NSExceptionAllowsInsecureHTTPLoads</key>
+				<true/>
+				<key>NSIncludesSubdomains</key>
+				<true/>
+			</dict>
+		</dict>
+	</dict>
+	<key>NSCalendarsUsageDescription</key>
+	<string>VANTARO speichert Wiedervorlagen in Ihrem Kalender.</string>
+	<key>NSCalendarsWriteOnlyAccessUsageDescription</key>
+	<string>VANTARO speichert Wiedervorlagen in Ihrem Kalender.</string>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>VANTARO speichert Wiedervorlagen in Ihrem Kalender.</string>
+</dict>
+</plist>

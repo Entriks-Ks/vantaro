@@ -3,6 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import routes from './routes/index.js';
 import { getClientOrigins } from './lib/clientOrigin.js';
+import { startFollowUpReminderJob } from './lib/followUpReminders.js';
 import { supabaseConfig } from './lib/supabase.js';
 
 const app = express();
@@ -45,7 +46,7 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
-app.use(express.json({ limit: '2mb' }));
+app.use(express.json({ limit: '4mb' }));
 
 app.use('/api', routes);
 
@@ -64,4 +65,5 @@ app.listen(PORT, () => {
   console.log(
     `Supabase: ${supabaseConfig.configured ? supabaseConfig.url : 'missing credentials'}`,
   );
+  startFollowUpReminderJob();
 });
