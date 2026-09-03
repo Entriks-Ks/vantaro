@@ -16,12 +16,14 @@ import ResetPassword from './pages/ResetPassword';
 import VerifyEmail from './pages/VerifyEmail';
 import Dashboard from './pages/Dashboard';
 import RequireAuth from './pages/RequireAuth';
-import { AuthProvider } from './hooks/useAuth';
+import { AuthProvider, useAuth } from './hooks/useAuth';
 import useSectionReveal from './hooks/useSectionReveal';
 import Preloader from './components/Preloader';
+import { documentTitle } from './pages/dashboard/helpers';
 
 function AppContent() {
   const location = useLocation();
+  const { isAdmin } = useAuth();
   const isImpressum = location.hash === '#impressum' || location.pathname === '/impressum';
   const isDatenschutz = location.hash === '#datenschutz' || location.pathname === '/datenschutz';
   const isLogin = location.pathname === '/login';
@@ -41,25 +43,7 @@ function AppContent() {
     document.body.classList.toggle('is-legal', isLegal);
     document.body.classList.toggle('auth-page', isAuth);
     document.body.classList.toggle('dashboard-page', isDashboard);
-    document.title = isImpressum
-      ? 'Impressum — VANTARO'
-      : isDatenschutz
-        ? 'Datenschutz — VANTARO'
-        : isLogin
-          ? 'Anmelden — VANTARO'
-          : isAuthCallback
-            ? 'Anmeldung — VANTARO'
-            : isRegister
-              ? 'Registrieren — VANTARO'
-              : isForgotPassword
-                ? 'Passwort zurücksetzen — VANTARO'
-                : isResetPassword
-                  ? 'Neues Passwort — VANTARO'
-                  : isVerifyEmail
-                    ? 'E-Mail bestätigen — VANTARO'
-                    : isDashboard
-                      ? 'Portal — VANTARO'
-                      : 'VANTARO — Qualifizierte Beratungschancen & Makler-Matching für Finanzdienstleister';
+    document.title = documentTitle(location.pathname, location.hash, isAdmin);
 
     if (isLegal || isAuth || isDashboard) {
       window.scrollTo(0, 0);
@@ -76,7 +60,7 @@ function AppContent() {
       document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, 120);
     return () => window.clearTimeout(timer);
-  }, [location.pathname, location.hash, isLegal, isAuth, isDashboard, isImpressum, isDatenschutz, isLogin, isAuthCallback, isRegister, isForgotPassword, isResetPassword, isVerifyEmail]);
+  }, [location.pathname, location.hash, isLegal, isAuth, isDashboard, isAdmin]);
 
   return (
     <>

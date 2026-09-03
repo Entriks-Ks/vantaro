@@ -7,7 +7,7 @@ create table if not exists public.lead_requests (
   requested_count integer not null check (requested_count > 0),
   lead_type text not null default 'PKV'
     check (lead_type in ('PKV', 'bAV', 'BU')),
-  status text not null default 'pending'
+  status text not null default 'active'
     check (status in ('pending', 'active', 'completed', 'rejected', 'cancelled')),
   replace_on_refund boolean not null default true,
   notes text,

@@ -23,3 +23,10 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Xcode
+ios/Vantaro.xcodeproj/xcuserdata/
+ios/Vantaro.xcodeproj/project.xcworkspace/xcuserdata/
+*.xcuserstate
+*.xccheckout
+DerivedData/

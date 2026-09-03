@@ -85,13 +85,37 @@ export function normalizeWebsite(value) {
   return /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
 }
 
-export function generateCustomerNumber(userId) {
-  const seed = String(userId || '')
-    .replace(/-/g, '')
-    .slice(0, 8)
-    .toUpperCase();
-  const suffix = seed || Date.now().toString(36).toUpperCase().slice(-8);
-  return `VAN-${suffix}`;
+const CUSTOMER_NUMBER_START = 100001;
+const CUSTOMER_NUMBER_PATTERN = /^VAN-\d{6,}$/;
+
+export function formatCustomerNumber(sequence) {
+  const value = Number(sequence);
+  const next = Number.isFinite(value) && value >= CUSTOMER_NUMBER_START
+    ? Math.floor(value)
+    : CUSTOMER_NUMBER_START;
+  return `VAN-${String(next).padStart(6, '0')}`;
+}
+
+export function parseCustomerSequence(value) {
+  const match = String(value || '').trim().toUpperCase().match(/^VAN-(\d{6,})$/);
+  return match ? Number(match[1]) : 0;
+}
+
+export function isCanonicalCustomerNumber(value) {
+  return CUSTOMER_NUMBER_PATTERN.test(String(value || '').trim().toUpperCase())
+    && parseCustomerSequence(value) >= CUSTOMER_NUMBER_START;
+}
+
+export function nextCustomerNumber(existingNumbers = []) {
+  const max = (existingNumbers || []).reduce((highest, value) => {
+    const sequence = parseCustomerSequence(value);
+    return sequence > highest ? sequence : highest;
+  }, CUSTOMER_NUMBER_START - 1);
+  return formatCustomerNumber(max + 1);
+}
+
+export function generateCustomerNumber(existingNumbers = []) {
+  return nextCustomerNumber(existingNumbers);
 }
 
 export function readProfileFields(metadata = {}, email = '') {
@@ -241,7 +265,10 @@ export function validateCompanyFields(payload) {
   return errors;
 }
 
-export function buildMetadataPatch(existing = {}, payload = {}, { userId, completeOnboarding = false } = {}) {
+export function buildMetadataPatch(existing = {}, payload = {}, {
+  completeOnboarding = false,
+  customerNumber: assignedCustomerNumber = '',
+} = {}) {
   const firstName = trim(payload.firstName ?? existing.first_name);
   const lastName = trim(payload.lastName ?? existing.last_name);
   const fullName = buildFullName(firstName, lastName, existing.full_name);
@@ -265,8 +292,8 @@ export function buildMetadataPatch(existing = {}, payload = {}, { userId, comple
     : trim(payload.billingCity ?? existing.billing_city);
 
   let customerNumber = trim(existing.customer_number);
-  if (completeOnboarding && !customerNumber) {
-    customerNumber = generateCustomerNumber(userId);
+  if (!isCanonicalCustomerNumber(customerNumber)) {
+    customerNumber = completeOnboarding ? trim(assignedCustomerNumber) : '';
   }
 
   const avatarUrl = payload.avatarUrl === undefined

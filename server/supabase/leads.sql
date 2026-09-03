@@ -24,6 +24,15 @@ create table if not exists public.leads (
   city text,
   street text,
   notes text,
+  broker_notes text,
+  contact_status text
+    check (
+      contact_status is null
+      or contact_status in ('neu', 'kontaktiert', 'termin', 'wiedervorlage', 'abgeschlossen')
+    ),
+  appointment_at timestamptz,
+  follow_up_at timestamptz,
+  follow_up_reminded_at timestamptz,
   status text not null default 'neu'
     check (status in ('neu', 'in_bearbeitung', 'zugewiesen', 'erledigt')),
   assigned_to uuid references auth.users (id) on delete set null,

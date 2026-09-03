@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import {
   GERMANY_BOUNDS,
   GERMANY_CENTER,
+  GOOGLE_MAP_ID,
+  coordsFrom,
   hasGoogleMapsKey,
   isInGermany,
   loadGoogleMaps,
@@ -58,6 +60,7 @@ export default function AddressMap({
             zoom: MIN_ZOOM,
             minZoom: MIN_ZOOM,
             maxZoom: MAX_ZOOM,
+            mapId: GOOGLE_MAP_ID,
             restriction: {
               latLngBounds: germanyBox,
               strictBounds: true,
@@ -74,8 +77,8 @@ export default function AddressMap({
           mapRef.current.addListener('click', (event) => {
             const clicked = event?.latLng;
             if (!clicked) return;
-            const next = { lat: clicked.lat(), lng: clicked.lng() };
-            if (!isInGermany(next.lat, next.lng)) return;
+            const next = coordsFrom(clicked);
+            if (!next || !isInGermany(next.lat, next.lng)) return;
             onMapClickRef.current?.(next);
           });
         }
@@ -85,7 +88,7 @@ export default function AddressMap({
         const hasPin = Number.isFinite(lat) && Number.isFinite(lng) && isInGermany(lat, lng);
         if (!hasPin) {
           if (markerRef.current) {
-            markerRef.current.setMap(null);
+            markerRef.current.map = null;
             markerRef.current = null;
           }
           mapRef.current.fitBounds(germanyBox, 24);
@@ -94,27 +97,41 @@ export default function AddressMap({
 
         const position = { lat, lng };
         if (!markerRef.current) {
-          markerRef.current = new maps.Marker({
+          const { AdvancedMarkerElement, PinElement } = maps.marker || {};
+          if (!AdvancedMarkerElement) {
+            throw new Error('AdvancedMarkerElement nicht verfügbar.');
+          }
+          markerRef.current = new AdvancedMarkerElement({
             map: mapRef.current,
             position,
-            draggable: true,
+            gmpDraggable: true,
             title: 'Geschäftsadresse',
           });
+          if (PinElement) {
+            try {
+              markerRef.current.replaceChildren(new PinElement({
+                background: '#56d3c4',
+                borderColor: '#1f8a7d',
+                glyphColor: '#0b1220',
+              }));
+            } catch {
+              /* keep default pin */
+            }
+          }
           markerRef.current.addListener('dragend', () => {
-            const pos = markerRef.current.getPosition();
-            if (!pos) return;
-            const next = { lat: pos.lat(), lng: pos.lng() };
+            const next = coordsFrom(markerRef.current?.position);
+            if (!next) return;
             if (!isInGermany(next.lat, next.lng)) {
               if (Number.isFinite(lat) && Number.isFinite(lng)) {
-                markerRef.current.setPosition({ lat, lng });
+                markerRef.current.position = { lat, lng };
               }
               return;
             }
             onMapClickRef.current?.(next);
           });
         } else {
-          markerRef.current.setPosition(position);
-          markerRef.current.setMap(mapRef.current);
+          markerRef.current.position = position;
+          markerRef.current.map = mapRef.current;
         }
 
         mapRef.current.panTo(position);

@@ -8,6 +8,7 @@ import {
 } from '../lib/passwordReset.js';
 import {
   buildMetadataPatch,
+  isCanonicalCustomerNumber,
   normalizePhone,
   readProfileFields,
   validateAccountFields,
@@ -16,7 +17,7 @@ import {
 } from '../lib/profile.js';
 import { DEFAULT_ROLE, isAdmin } from '../lib/roles.js';
 import { supabase, supabaseAuth } from '../lib/supabase.js';
-import { createUserSession, ensureUserRole, finalizeOAuthUser, findUserByEmail, isEmailVerified, isSupportedOAuthUser, revokeSession } from '../lib/users.js';
+import { allocateCustomerNumber, createUserSession, ensureUserRole, finalizeOAuthUser, findUserByEmail, isEmailVerified, isSupportedOAuthUser, revokeSession } from '../lib/users.js';
 import { issueVerificationCode, secondsUntilResend, verifyUserCode, verifyUserToken } from '../lib/verification.js';
 
 const router = Router();
@@ -354,10 +355,15 @@ router.put('/profile', requireAuth, async (req, res) => {
     }
   }
 
+  const markOnboardingComplete = adminUser || stammdatenReady || existing.onboarding_complete === true;
+  const needsCustomerNumber = !adminUser
+    && markOnboardingComplete
+    && !isCanonicalCustomerNumber(existing.customer_number);
+
   const updates = {
     user_metadata: buildMetadataPatch(existing, companyPayload, {
-      userId: req.authUser.id,
-      completeOnboarding: adminUser || stammdatenReady || existing.onboarding_complete === true,
+      completeOnboarding: markOnboardingComplete,
+      customerNumber: needsCustomerNumber ? await allocateCustomerNumber() : '',
     }),
   };
   if (password) updates.password = password;
