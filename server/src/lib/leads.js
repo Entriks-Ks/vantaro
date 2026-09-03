@@ -310,6 +310,8 @@ export function toPublicLead(row, assignee = null) {
     refundedAt: row.refunded_at || null,
     reportedAt: row.reported_at || null,
     source: row.source,
+    externalSource: row.external_source || null,
+    externalId: row.external_id || null,
     createdBy: row.created_by || null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -564,12 +566,38 @@ export async function getLeadById(id) {
   return data;
 }
 
-export async function createLead(input, { createdBy, source = 'manual' } = {}) {
+export async function findLeadByExternalId(externalSource, externalId) {
   if (!supabaseConfig.configured || !supabase) {
     throw Object.assign(new Error('Supabase ist nicht konfiguriert.'), { status: 503 });
   }
 
-  const parsed = parseLeadInput(input);
+  const source = emptyToNull(externalSource);
+  const id = emptyToNull(externalId);
+  if (!source || !id) return null;
+
+  const { data, error } = await supabase
+    .from('leads')
+    .select('*')
+    .eq('external_source', source)
+    .eq('external_id', id)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data;
+}
+
+export async function createLead(input, {
+  createdBy,
+  source = 'manual',
+  externalSource,
+  externalId,
+  lenient = false,
+} = {}) {
+  if (!supabaseConfig.configured || !supabase) {
+    throw Object.assign(new Error('Supabase ist nicht konfiguriert.'), { status: 503 });
+  }
+
+  const parsed = parseLeadInput(input, { lenient });
   if (parsed.errors.length) {
     const error = new Error(parsed.errors[0]);
     error.status = 400;
@@ -582,6 +610,13 @@ export async function createLead(input, { createdBy, source = 'manual' } = {}) {
     source: LEAD_SOURCES.includes(source) ? source : 'manual',
     created_by: createdBy || null,
   };
+
+  const extSource = emptyToNull(externalSource ?? input.externalSource ?? input.external_source);
+  const extId = emptyToNull(externalId ?? input.externalId ?? input.external_id);
+  if (extSource && extId) {
+    payload.external_source = extSource;
+    payload.external_id = extId;
+  }
 
   const { data, error } = await supabase.from('leads').insert(payload).select('*').single();
   if (error) throw error;
@@ -847,6 +882,12 @@ export function handleLeadError(res, error) {
     return tableMissingResponse(
       res,
       'Lead-Pakete fehlen. Bitte server/supabase/lead_scope.sql im Supabase SQL Editor ausführen.',
+    );
+  }
+  if (/external_source|external_id/i.test(String(error?.message || ''))) {
+    return tableMissingResponse(
+      res,
+      'Externe Lead-IDs fehlen. Bitte server/supabase/lead_external_id.sql im Supabase SQL Editor ausführen.',
     );
   }
   console.error('Leads error:', error.message);

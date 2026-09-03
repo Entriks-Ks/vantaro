@@ -23,3 +23,13 @@ services:
         sync: false
       - key: ADMIN_EMAILS
         sync: false
+      - key: TCDIAL_API_BASE_URL
+        sync: false
+      - key: TCDIAL_API_KEY
+        sync: false
+      - key: TCDIAL_WEBHOOK_PUBLIC_KEY
+        sync: false
+      - key: TCDIAL_WEBHOOK_URL
+        sync: false
+      - key: TCDIAL_CALL_STATUS_GROUPS
+        sync: false

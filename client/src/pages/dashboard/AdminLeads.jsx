@@ -48,6 +48,11 @@ const SOURCE_LABELS = {
   api: 'API',
 };
 
+function sourceLabel(lead) {
+  if (lead?.externalSource === 'tcdial') return 'TC-Dial';
+  return SOURCE_LABELS[lead?.source] || lead?.source || '—';
+}
+
 function leadPlace(lead) {
   return [lead?.zip, lead?.city].filter(Boolean).join(' ') || '';
 }
@@ -625,8 +630,14 @@ function LeadView({
               </div>
               <div>
                 <dt>Quelle</dt>
-                <dd>{SOURCE_LABELS[lead.source] || lead.source || '—'}</dd>
+                <dd>{sourceLabel(lead)}</dd>
               </div>
+              {lead.externalId ? (
+                <div>
+                  <dt>TC-Dial ID</dt>
+                  <dd>{lead.externalId}</dd>
+                </div>
+              ) : null}
               <div>
                 <dt>Angelegt</dt>
                 <dd>{formatDate(lead.createdAt)}</dd>
