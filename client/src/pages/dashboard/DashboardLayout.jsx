@@ -10,14 +10,12 @@ import {
   Inbox,
   Flag,
   Ban,
-  User,
-  Building2,
   Settings,
 } from 'lucide-react';
 import Brand from '../../components/Brand';
 import { useAuth } from '../../hooks/useAuth';
 import { roleLabel } from '../../lib/roles';
-import { accountSetupCta, firstName, greeting, initials } from './helpers';
+import { accountSetupCta, displayName, firstName, greeting, initials } from './helpers';
 
 export function DashSeg({ value, onChange, options }) {
   return (
@@ -40,10 +38,34 @@ export function DashSeg({ value, onChange, options }) {
 }
 
 const BERATER_LINKS = [
-  { to: '/dashboard', end: true, label: 'Übersicht', icon: LayoutDashboard },
-  { to: '/dashboard/leads', label: 'Meine Leads', icon: ListChecks },
-  { to: '/dashboard/zahlung', label: 'Zahlung', icon: Landmark },
+  { to: '/dashboard', match: 'home', label: 'Übersicht', icon: LayoutDashboard },
+  { to: '/dashboard/leads', match: 'leads', label: 'Meine Leads', icon: ListChecks },
+  { to: '/dashboard/zahlung', match: 'zahlung', label: 'Zahlung', icon: Landmark },
 ];
+
+function isBeraterNavActive(match, pathname) {
+  if (match === 'home') return pathname === '/dashboard' || pathname === '/dashboard/';
+  if (match === 'leads') return pathname.startsWith('/dashboard/leads');
+  if (match === 'zahlung') return pathname.startsWith('/dashboard/zahlung');
+  return false;
+}
+
+function NavProgress({ pathname }) {
+  const [active, setActive] = useState(false);
+
+  useEffect(() => {
+    setActive(true);
+    const timer = window.setTimeout(() => setActive(false), 520);
+    return () => window.clearTimeout(timer);
+  }, [pathname]);
+
+  return (
+    <div
+      className={`broker-nav-progress${active ? ' is-active' : ''}`}
+      aria-hidden={!active}
+    />
+  );
+}
 
 const ADMIN_NAV = [
   {
@@ -230,9 +252,10 @@ function AdminShell({ user, logout, children }) {
   );
 }
 
-function AccountMenu({ user, logout }) {
+function AccountMenu({ user, logout, settingsActive = false, settingsTo = '/dashboard/profil', setupCount = 0 }) {
   const [open, setOpen] = useState(false);
   const menuRef = useRef(null);
+  const setupLabel = setupCount === 1 ? '1 Angabe fehlt' : `${setupCount} Angaben fehlen`;
 
   useEffect(() => {
     if (!open) return undefined;
@@ -256,7 +279,7 @@ function AccountMenu({ user, logout }) {
     <div className={`broker-account${open ? ' is-open' : ''}`} ref={menuRef}>
       <button
         type="button"
-        className="broker-profile-chip"
+        className={`broker-profile-chip${settingsActive ? ' is-current' : ''}`}
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((value) => !value)}
@@ -264,7 +287,7 @@ function AccountMenu({ user, logout }) {
         <span className="broker-avatar">
           {user.avatarUrl ? <img src={user.avatarUrl} alt="" /> : initials(user)}
         </span>
-        <span className="broker-profile-name">{user.fullName || firstName(user)}</span>
+        <span className="broker-profile-name">{displayName(user)}</span>
         <svg className="broker-caret-icon" width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
           <path d="M2.5 4.5 6 8l3.5-3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
@@ -272,12 +295,15 @@ function AccountMenu({ user, logout }) {
       {open ? (
         <div className="broker-account-menu" role="menu">
           <Link
-            to="/dashboard/profil"
+            to={settingsTo}
             role="menuitem"
             onClick={() => setOpen(false)}
           >
             <Settings size={16} />
             Einstellungen
+            {setupCount > 0 ? (
+              <span className="broker-setup-count" aria-label={setupLabel}>{setupCount}</span>
+            ) : null}
           </Link>
           <button
             type="button"
@@ -299,38 +325,42 @@ function AccountMenu({ user, logout }) {
 function BeraterShell({ user, logout, children }) {
   const location = useLocation();
   const setupCta = accountSetupCta(user);
-  const showSetupCta = Boolean(setupCta && !location.pathname.startsWith(setupCta.to));
+  const settingsActive = location.pathname.startsWith('/dashboard/profil')
+    || location.pathname.startsWith('/dashboard/unternehmen')
+    || location.pathname.startsWith('/dashboard/sicherheit');
 
   return (
     <div className="broker">
-      <aside className="broker-nav">
+      <header className="broker-nav">
         <Brand to="/dashboard" />
         <div className="broker-nav-end">
-          <nav aria-label="Portal">
+          <nav className="broker-nav-links" aria-label="Portal">
             {BERATER_LINKS.map((link) => {
               const Icon = link.icon;
+              const active = isBeraterNavActive(link.match, location.pathname);
               return (
-                <NavLink
+                <Link
                   key={link.to}
                   to={link.to}
-                  end={link.end}
-                  className={({ isActive }) => (isActive ? 'is-active' : undefined)}
+                  className={active ? 'is-active' : undefined}
+                  aria-current={active ? 'page' : undefined}
                 >
-                  <Icon size={16} />
-                  {link.label}
-                </NavLink>
+                  <Icon size={16} strokeWidth={2.1} />
+                  <span>{link.label}</span>
+                </Link>
               );
             })}
           </nav>
-          {showSetupCta ? (
-            <Link className="broker-setup-cta" to={setupCta.to}>
-              {setupCta.to.includes('unternehmen') ? <Building2 size={15} /> : <User size={15} />}
-              {setupCta.label}
-            </Link>
-          ) : null}
-          <AccountMenu user={user} logout={logout} />
+          <AccountMenu
+            user={user}
+            logout={logout}
+            settingsActive={settingsActive}
+            settingsTo={setupCta?.to || '/dashboard/profil'}
+            setupCount={setupCta?.count || 0}
+          />
         </div>
-      </aside>
+        <NavProgress pathname={location.pathname} />
+      </header>
 
       <div className="broker-content">
         {children}

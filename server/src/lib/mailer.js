@@ -1,6 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { APPLE_ICON, EMAIL_GOOGLE_ICON, EMAIL_OUTLOOK_ICON } from './brandIcons.js';
+import { followUpCalendarLinks, SHOW_APPLE_CALENDAR } from './followUpCalendar.js';
 
 const FROM = process.env.EMAIL_FROM?.trim() || '';
 const HEADING_FONT = "'Space Grotesk', Arial, Helvetica, sans-serif";
@@ -24,6 +26,8 @@ function readPublicPng(name, contentId) {
 const logoAttachments = [
   readPublicPng('wordmark.png', 'vantaro-wordmark'),
 ].filter(Boolean);
+
+const EMAIL_APPLE_ICON = APPLE_ICON.replace('fill="currentColor"', 'fill="#101827"');
 
 export function hasCustomMailer() {
   return Boolean(process.env.RESEND_API_KEY?.trim() && FROM);
@@ -139,11 +143,12 @@ Wenn Sie kein Konto erstellt haben, ignorieren Sie diese E-Mail.
   return { text, html };
 }
 
-async function sendWithResend({ to, subject, text, html, attachments }) {
+async function sendWithResend({ to, subject, text, html, attachments, from }) {
   if (!process.env.RESEND_API_KEY?.trim()) {
     throw new Error('RESEND_API_KEY fehlt in server/.env.');
   }
-  if (!FROM) {
+  const sender = String(from || FROM).trim();
+  if (!sender) {
     throw new Error('EMAIL_FROM fehlt in server/.env. Nutzen Sie eine in Resend verifizierte Domain.');
   }
 
@@ -154,7 +159,7 @@ async function sendWithResend({ to, subject, text, html, attachments }) {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      from: FROM,
+      from: sender,
       to,
       subject,
       text,
@@ -281,4 +286,247 @@ export async function sendPasswordResetEmail({ to, fullName, resetUrl }) {
     attachments: logoAttachments,
   });
   return 'resend';
+}
+
+function leadsFrom() {
+  return process.env.EMAIL_FROM_LEADS?.trim() || FROM;
+}
+
+export function hasLeadsMailer() {
+  return Boolean(process.env.RESEND_API_KEY?.trim() && leadsFrom());
+}
+
+function formatFollowUpWhen(value) {
+  if (!value) return '';
+  return new Intl.DateTimeFormat('de-DE', {
+    weekday: 'long',
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'Europe/Berlin',
+  }).format(new Date(value));
+}
+
+function followUpReminderEmail({
+  beraterName,
+  leadName,
+  whenLabel,
+  phone,
+  leadUrl,
+  googleUrl,
+  outlookUrl,
+  appleUrl,
+  kind = 'due',
+}) {
+  const year = new Date().getFullYear();
+  const scheduled = kind === 'scheduled';
+  const safeBerater = escapeHtml(beraterName);
+  const safeLead = escapeHtml(leadName);
+  const safeWhen = escapeHtml(whenLabel);
+  const safePhone = escapeHtml(phone);
+  const safeUrl = escapeHtml(leadUrl);
+  const safeGoogle = escapeHtml(googleUrl);
+  const safeOutlook = escapeHtml(outlookUrl);
+  const safeApple = escapeHtml(appleUrl);
+  const greeting = safeBerater ? `Hallo ${safeBerater}` : 'Hallo';
+  const phoneLine = phone
+    ? `Telefon: ${phone}`
+    : 'Für diesen Lead ist keine Telefonnummer hinterlegt.';
+  const safePhoneLine = phone
+    ? `Telefon: ${safePhone}`
+    : 'Für diesen Lead ist keine Telefonnummer hinterlegt.';
+  const heading = scheduled ? 'Wiedervorlage gespeichert' : 'Wiedervorlage ist fällig';
+  const intro = scheduled
+    ? `${greeting}, Sie haben eine Wiedervorlage für <strong style="color:#101827;">${safeLead}</strong> gelegt. Speichern Sie die Erinnerung in Ihrem Kalender.`
+    : `${greeting}, für <strong style="color:#101827;">${safeLead}</strong> ist jetzt eine Wiedervorlage fällig.`;
+  const introText = scheduled
+    ? `${greeting}, Sie haben eine Wiedervorlage für ${leadName} gelegt. Speichern Sie die Erinnerung in Ihrem Kalender.`
+    : `${greeting},\n\nfür ${leadName} ist jetzt eine Wiedervorlage fällig.`;
+  const footerNote = scheduled
+    ? 'Sie können Datum und Uhrzeit jederzeit im Portal ändern.'
+    : 'Wenn Sie den Lead bereits bearbeitet haben, können Sie diese E-Mail ignorieren.';
+  const preview = scheduled
+    ? `Wiedervorlage gespeichert für ${safeLead} · ${safeWhen}.`
+    : `Wiedervorlage für ${safeLead} · ${safeWhen}.`;
+  const title = scheduled ? `Wiedervorlage gespeichert für ${safeLead}` : `Wiedervorlage für ${safeLead}`;
+  const calendarText = googleUrl || outlookUrl || (SHOW_APPLE_CALENDAR && appleUrl)
+    ? `
+
+Im Kalender speichern:
+${googleUrl ? `Google Kalender: ${googleUrl}` : ''}
+${outlookUrl ? `Outlook: ${outlookUrl}` : ''}
+${SHOW_APPLE_CALENDAR && appleUrl ? `Apple Kalender: ${appleUrl}` : ''}`
+    : '';
+
+  const calendarButton = (href, icon, label) => `
+                    <td style="padding:0 8px 8px 0;">
+                      <a href="${href}" style="display:inline-block;background:#ffffff;color:#101827;font-family:${BODY_FONT};font-size:13px;font-weight:500;text-decoration:none;border:1px solid #d8dee6;border-radius:10px;padding:11px 18px;line-height:20px;">
+                        ${icon}<span style="display:inline-block;vertical-align:middle;padding-left:8px;">${label}</span>
+                      </a>
+                    </td>`;
+
+  const calendarHtml = googleUrl || outlookUrl || (SHOW_APPLE_CALENDAR && appleUrl)
+    ? `
+            <tr>
+              <td align="left" style="padding:0 0 10px;font-family:${HEADING_FONT};font-size:14px;font-weight:600;color:#101827;">
+                Im Kalender speichern
+              </td>
+            </tr>
+            <tr>
+              <td align="left" style="padding:0 0 28px;">
+                <table role="presentation" cellpadding="0" cellspacing="0" align="left">
+                  <tr>
+                    ${googleUrl ? calendarButton(safeGoogle, EMAIL_GOOGLE_ICON, 'Google') : ''}
+                    ${outlookUrl ? calendarButton(safeOutlook, EMAIL_OUTLOOK_ICON, 'Outlook') : ''}
+                    ${SHOW_APPLE_CALENDAR && appleUrl ? calendarButton(safeApple, EMAIL_APPLE_ICON, 'Apple') : ''}
+                  </tr>
+                </table>
+              </td>
+            </tr>`
+    : '';
+
+  const text = `${introText}
+
+${whenLabel}
+${phoneLine}
+
+Öffnen Sie den Lead:
+${leadUrl}
+${calendarText}
+
+${footerNote}
+
+© ${year} VANTARO. Alle Rechte vorbehalten.`;
+
+  const html = `<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="color-scheme" content="light" />
+    <title>${title}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
+  </head>
+  <body style="margin:0;padding:0;background:#ffffff;color:#101827;">
+    <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">
+            ${preview}
+    </div>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff;">
+      <tr>
+        <td align="center" style="background:#070b14;padding:22px 24px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;">
+            <tr>
+              <td align="center">
+                <img src="cid:vantaro-wordmark" width="168" height="18" alt="VANTARO" style="display:block;margin:0 auto;width:168px;height:18px;border:0;" />
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+      <tr>
+        <td align="center" style="padding:36px 24px 40px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;">
+            <tr>
+              <td align="left" style="padding:0 0 12px;font-family:${HEADING_FONT};font-size:28px;font-weight:600;line-height:1.2;letter-spacing:-0.04em;color:#101827;">
+                ${heading}
+              </td>
+            </tr>
+            <tr>
+              <td align="left" style="padding:0 0 24px;font-family:${BODY_FONT};font-size:16px;line-height:1.6;color:#3d4b5c;">
+                ${intro}
+              </td>
+            </tr>
+            <tr>
+              <td align="left" style="padding:0 0 8px;font-family:${HEADING_FONT};font-size:18px;font-weight:600;line-height:1.4;color:#101827;">
+                ${safeWhen}
+              </td>
+            </tr>
+            <tr>
+              <td align="left" style="padding:0 0 28px;font-family:${BODY_FONT};font-size:16px;line-height:1.6;color:#3d4b5c;">
+                ${safePhoneLine}
+              </td>
+            </tr>
+            <tr>
+              <td align="left" style="padding:4px 0 20px;">
+                <a href="${safeUrl}" style="display:inline-block;background:#101827;color:#ffffff;font-family:${HEADING_FONT};font-size:15px;font-weight:700;letter-spacing:-0.02em;text-decoration:none;border-radius:10px;padding:14px 22px;">
+                  Lead öffnen
+                </a>
+              </td>
+            </tr>
+            ${calendarHtml}
+            <tr>
+              <td align="left" style="padding:0 0 36px;font-family:${BODY_FONT};font-size:14px;line-height:1.6;color:#5a6b7c;">
+                ${footerNote}
+              </td>
+            </tr>
+            <tr>
+              <td align="center" style="padding:24px 0 0;border-top:1px solid #e6e8eb;font-family:${BODY_FONT};font-size:12px;line-height:1.7;color:#8b9aaa;">
+                © ${year} VANTARO. Alle Rechte vorbehalten.
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`;
+
+  return { text, html };
+}
+
+async function sendFollowUpEmail({
+  to,
+  beraterName,
+  leadName,
+  followUpAt,
+  phone,
+  leadUrl,
+  leadId,
+  kind = 'due',
+}) {
+  const whenLabel = formatFollowUpWhen(followUpAt) || 'jetzt';
+  const subject = kind === 'scheduled'
+    ? `Wiedervorlage gespeichert · ${leadName} · ${whenLabel}`
+    : `Wiedervorlage · ${leadName} · ${whenLabel}`;
+  const calendar = leadId && followUpAt
+    ? followUpCalendarLinks({
+      leadId,
+      leadName,
+      followUpAt,
+      phone,
+      leadUrl,
+    })
+    : null;
+  const content = followUpReminderEmail({
+    beraterName,
+    leadName,
+    whenLabel,
+    phone,
+    leadUrl,
+    googleUrl: calendar?.googleUrl,
+    outlookUrl: calendar?.outlookUrl,
+    appleUrl: calendar?.appleUrl,
+    kind,
+  });
+  const attachments = logoAttachments;
+  await sendWithResend({
+    to,
+    from: leadsFrom(),
+    subject,
+    ...content,
+    attachments,
+  });
+  return 'resend';
+}
+
+export async function sendFollowUpReminderEmail(payload) {
+  return sendFollowUpEmail({ ...payload, kind: 'due' });
+}
+
+export async function sendFollowUpScheduledEmail(payload) {
+  return sendFollowUpEmail({ ...payload, kind: 'scheduled' });
 }

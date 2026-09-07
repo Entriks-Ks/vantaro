@@ -1,5 +1,5 @@
 import { supabase } from './supabase.js';
-import { hasCompletedOnboarding, readProfileFields } from './profile.js';
+import { hasCompletedOnboarding, isCanonicalCustomerNumber, readProfileFields } from './profile.js';
 import { getUserRole } from './roles.js';
 import { ensureUserRole, isEmailVerified } from './users.js';
 
@@ -19,7 +19,7 @@ export function publicUser(user) {
     avatarUrl: profile.avatarUrl,
     role: getUserRole(user),
     onboardingComplete: hasCompletedOnboarding(metadata),
-    customerNumber: profile.customerNumber,
+    customerNumber: isCanonicalCustomerNumber(profile.customerNumber) ? profile.customerNumber : '',
     profile: {
       company: profile.company,
       legalForm: profile.legalForm,

@@ -1,14 +1,14 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   GERMANY_BOUNDS,
   hasGoogleMapsKey,
   loadGoogleMaps,
-  parsePlaceAddress,
+  placeFromPrediction,
 } from '../lib/googleMaps';
 
 /**
- * Street input with Google Places Autocomplete (DE only).
- * Falls back to a normal input when no API key is set.
+ * Street input with PlaceAutocompleteElement (DE only).
+ * Falls back to a normal input when Maps is unavailable.
  */
 export default function AddressAutocomplete({
   value,
@@ -20,64 +20,108 @@ export default function AddressAutocomplete({
   placeholder = 'Adresse suchen oder eingeben',
   autoComplete = 'street-address',
 }) {
-  const inputRef = useRef(null);
-  const autocompleteRef = useRef(null);
+  const hostRef = useRef(null);
+  const widgetRef = useRef(null);
   const onPlaceSelectRef = useRef(onPlaceSelect);
+  const onChangeRef = useRef(onChange);
+  const valueRef = useRef(value);
+  const [widgetReady, setWidgetReady] = useState(false);
 
   useEffect(() => {
     onPlaceSelectRef.current = onPlaceSelect;
   }, [onPlaceSelect]);
 
   useEffect(() => {
-    if (!hasGoogleMapsKey() || disabled) return undefined;
+    onChangeRef.current = onChange;
+  }, [onChange]);
+
+  useEffect(() => {
+    valueRef.current = value;
+  }, [value]);
+
+  useEffect(() => {
+    if (!hasGoogleMapsKey()) return undefined;
 
     let cancelled = false;
 
     loadGoogleMaps()
       .then((maps) => {
-        if (cancelled || !inputRef.current || autocompleteRef.current) return;
+        if (cancelled || !hostRef.current || widgetRef.current) return;
+        if (!maps.places?.PlaceAutocompleteElement) {
+          throw new Error('PlaceAutocompleteElement nicht verfügbar.');
+        }
 
-        const autocomplete = new maps.places.Autocomplete(inputRef.current, {
-          fields: ['address_components', 'formatted_address', 'geometry', 'name'],
-          // geocode = streets + cities/PLZ (not only Hausnummern)
-          types: ['geocode'],
-          componentRestrictions: { country: 'de' },
-          bounds: new maps.LatLngBounds(
-            { lat: GERMANY_BOUNDS.south, lng: GERMANY_BOUNDS.west },
-            { lat: GERMANY_BOUNDS.north, lng: GERMANY_BOUNDS.east },
-          ),
+        const widget = new maps.places.PlaceAutocompleteElement({
+          includedRegionCodes: ['de'],
+          requestedLanguage: 'de',
+          requestedRegion: 'de',
+          locationBias: GERMANY_BOUNDS,
+          placeholder,
+          name,
+          value: valueRef.current || '',
+          noInputIcon: true,
         });
 
-        autocomplete.addListener('place_changed', () => {
-          const parsed = parsePlaceAddress(autocomplete.getPlace());
+        const onSelect = async (event) => {
+          const parsed = await placeFromPrediction(event.placePrediction);
           onPlaceSelectRef.current?.(parsed);
-        });
+        };
 
-        autocompleteRef.current = autocomplete;
+        const onInput = () => {
+          onChangeRef.current?.(widget.value || '');
+        };
+
+        const onError = () => {
+          widget.remove();
+          if (widgetRef.current === widget) widgetRef.current = null;
+          if (!cancelled) setWidgetReady(false);
+        };
+
+        widget.addEventListener('gmp-select', onSelect);
+        widget.addEventListener('input', onInput);
+        widget.addEventListener('gmp-error', onError);
+        hostRef.current.appendChild(widget);
+        widgetRef.current = widget;
+        setWidgetReady(true);
       })
       .catch(() => {
-        /* Keep plain input usable without Maps */
+        if (!cancelled) setWidgetReady(false);
       });
 
     return () => {
       cancelled = true;
-      if (autocompleteRef.current && window.google?.maps?.event) {
-        window.google.maps.event.clearInstanceListeners(autocompleteRef.current);
+      const widget = widgetRef.current;
+      if (widget) {
+        widget.remove();
+        widgetRef.current = null;
       }
-      autocompleteRef.current = null;
+      setWidgetReady(false);
     };
-  }, [disabled]);
+  }, [name, placeholder]);
+
+  useEffect(() => {
+    const widget = widgetRef.current;
+    if (!widget) return;
+    if ((widget.value || '') !== (value || '')) {
+      widget.value = value || '';
+    }
+    widget.disabled = disabled;
+  }, [disabled, value, widgetReady]);
 
   return (
-    <input
-      ref={inputRef}
-      name={name}
-      value={value}
-      onChange={(event) => onChange(event.target.value)}
-      autoComplete={autoComplete}
-      placeholder={placeholder}
-      disabled={disabled}
-      required={required}
-    />
+    <div className="broker-place-autocomplete">
+      <div ref={hostRef} className="broker-place-autocomplete__widget" />
+      {widgetReady ? null : (
+        <input
+          name={name}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          autoComplete={autoComplete}
+          placeholder={placeholder}
+          disabled={disabled}
+          required={required}
+        />
+      )}
+    </div>
   );
 }

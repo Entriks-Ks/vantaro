@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import useNavigate from '../hooks/useNavigate';
-import { accountSetupCta, isCompanyComplete, isPersonalComplete } from '../pages/dashboard/helpers';
+import { accountSetupCta, isAddressComplete, isFirmComplete, isPersonalComplete } from '../pages/dashboard/helpers';
 
 function skipKey(userId) {
   return `vantaro-stammdaten-skip:${userId}`;
@@ -27,28 +27,29 @@ export default function StammdatenModal() {
   const setupCta = !isAdmin ? accountSetupCta(user) : null;
   const open = Boolean(setupCta) && !skipped && !onSetupPage;
   const personalDone = isPersonalComplete(user);
-  const companyDone = isCompanyComplete(user);
+  const firmDone = isFirmComplete(user);
+  const addressDone = isAddressComplete(user);
   const checklist = [
     !personalDone && {
       id: 'profile',
       icon: User,
       title: 'Name & Telefon',
       text: 'Vorname, Nachname und Mobilnummer für Ihr Konto.',
-      to: '/dashboard/profil',
+      to: '/dashboard/profil#kontakt',
     },
-    !companyDone && {
+    !firmDone && {
       id: 'company',
       icon: Building2,
       title: 'Unternehmen',
       text: 'Firmenname und Rechtsform für Portal und Dokumente.',
-      to: '/dashboard/unternehmen',
+      to: '/dashboard/unternehmen#firma',
     },
-    !companyDone && {
+    !addressDone && {
       id: 'address',
       icon: MapPin,
       title: 'Geschäftsadresse',
       text: 'Adresse für Vertrag, Rechnungen und Verifizierung.',
-      to: '/dashboard/unternehmen',
+      to: '/dashboard/unternehmen#adresse',
     },
   ].filter(Boolean);
 

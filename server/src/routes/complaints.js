@@ -51,6 +51,7 @@ router.patch('/:id', requireRole(ROLES.ADMIN), async (req, res) => {
       status: req.body?.status,
       note: req.body?.note ?? req.body?.adminNote ?? req.body?.admin_note,
       replaceLeadId: req.body?.replaceLeadId ?? req.body?.replace_lead_id,
+      refundCents: req.body?.refundCents ?? req.body?.refund_cents,
       reviewerId: req.user.id,
     });
     if (!result) {

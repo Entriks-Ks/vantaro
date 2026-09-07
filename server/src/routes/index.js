@@ -8,6 +8,8 @@ import beraterRouter from './berater.js';
 import requestsRouter from './requests.js';
 import complaintsRouter from './complaints.js';
 import paymentsRouter from './payments.js';
+import jobsRouter from './jobs.js';
+import calendarRouter from './calendar.js';
 import tcdialWebhookRouter from './webhooks/tcdial.js';
 
 const router = Router();
@@ -21,6 +23,8 @@ router.use('/berater', beraterRouter);
 router.use('/requests', requestsRouter);
 router.use('/complaints', complaintsRouter);
 router.use('/payments', paymentsRouter);
+router.use('/jobs', jobsRouter);
+router.use('/calendar', calendarRouter);
 router.use('/webhooks/tcdial', tcdialWebhookRouter);
 
 export default router;

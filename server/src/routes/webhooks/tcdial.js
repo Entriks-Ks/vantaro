@@ -1,23 +1,23 @@
 import { Router } from 'express';
-import { requireAuth, requireRole } from '../lib/auth.js';
-import { ROLES } from '../lib/roles.js';
-import { getTcDialConfig } from '../lib/tcdial/config.js';
+import { requireAuth, requireRole } from '../../lib/auth.js';
+import { ROLES } from '../../lib/roles.js';
+import { getTcDialConfig } from '../../lib/tcdial/config.js';
 import {
   listTcDialWebhookChannels,
   subscribeAgentSetDisposition,
   unsubscribeAgentSetDisposition,
-} from '../lib/tcdial/client.js';
+} from '../../lib/tcdial/client.js';
 import {
   columnMissingExternalId,
   ingestTcDialDisposition,
   summarizeIngest,
-} from '../lib/tcdial/ingest.js';
+} from '../../lib/tcdial/ingest.js';
 import {
   rememberWebhookId,
   verifyTcDialWebhook,
   wasWebhookProcessed,
-} from '../lib/tcdial/verify.js';
-import { handleLeadError, tableMissingResponse } from '../lib/leads.js';
+} from '../../lib/tcdial/verify.js';
+import { handleLeadError, tableMissingResponse } from '../../lib/leads.js';
 
 const router = Router();
 const adminOnly = [requireAuth, requireRole(ROLES.ADMIN)];

@@ -1,6 +1,6 @@
 import { supabase } from './supabase.js';
 import { toDirectoryUser } from './users.js';
-import { getLeadById, isUuid, tableMissing, toPublicLead } from './leads.js';
+import { CONTACT_STATUSES, getLeadById, isUuid, tableMissing, toPublicLead } from './leads.js';
 import {
   refreshRequestAfterRefund,
   requestTableMissing,
@@ -8,9 +8,21 @@ import {
   statsForRequests,
   toPublicRequest,
 } from './leadRequests.js';
+import { leadPurchaseCents } from './packages.js';
 
-export const COMPLAINT_REASONS = ['invalid', 'duplicate', 'contact', 'requirements', 'cancelled', 'other'];
-export const COMPLAINT_STATUSES = ['pending', 'approved', 'declined'];
+export const COMPLAINT_REASONS = [
+  'invalid_phone',
+  'wrong_person',
+  'duplicate',
+  'wrong_info',
+  'missing_fields',
+  'exclusivity',
+  'tech_error',
+];
+export const COMPLAINT_STATUSES = ['pending', 'approved', 'partial', 'declined', 'info_needed'];
+const COMPLAINT_COMMENT_MIN = 20;
+const PROOF_MAX_CHARS = 1_800_000;
+const PROOF_DATA_RE = /^data:(image\/(jpeg|jpg|png|webp|gif)|application\/pdf);base64,/i;
 
 function fail(message, status = 400) {
   const error = new Error(message);
@@ -20,8 +32,43 @@ function fail(message, status = 400) {
 
 export function normalizeComplaintStatus(value) {
   if (value === 'rejected') return 'declined';
-  if (value === 'refunded') return 'approved';
+  if (value === 'refunded' || value === 'full') return 'approved';
+  if (value === 'teilweise') return 'partial';
+  if (value === 'infos_noetig' || value === 'info') return 'info_needed';
   return value || '';
+}
+
+function parseProof(name, data) {
+  const proofName = String(name || '').trim().slice(0, 180);
+  const proofData = String(data || '').trim();
+  if (!proofName && !proofData) return { proofName: null, proofData: null };
+  if (!proofData) return { proofName: proofName || null, proofData: null };
+  if (proofData.length > PROOF_MAX_CHARS) {
+    throw fail('Der Nachweis ist zu groß. Maximal etwa 1,2 MB.');
+  }
+  if (!PROOF_DATA_RE.test(proofData)) {
+    throw fail('Nachweis bitte als PDF oder Bild (JPG, PNG, WebP) hochladen.');
+  }
+  return { proofName: proofName || 'nachweis', proofData };
+}
+
+function complaintSnapshot(lead, { contactStatus, notes } = {}) {
+  const contact = CONTACT_STATUSES.includes(contactStatus) ? contactStatus : null;
+  return {
+    leadId: lead.id,
+    assignedAt: lead.assigned_at || null,
+    priceCents: leadPurchaseCents(toPublicLead(lead)),
+    fullName: `${lead.first_name || ''} ${lead.last_name || ''}`.trim(),
+    phone: lead.phone || null,
+    email: lead.email || null,
+    employmentStatus: lead.employment_status || null,
+    insuranceStatus: lead.insurance_status || [],
+    coverageCircle: lead.coverage_circle || [],
+    mainConcerns: lead.main_concerns || [],
+    notes: lead.notes || null,
+    brokerNotes: String(notes || lead.broker_notes || '').trim() || null,
+    contactStatus: contact,
+  };
 }
 
 export function toPublicComplaint(row, extras = {}) {
@@ -34,6 +81,11 @@ export function toPublicComplaint(row, extras = {}) {
     reason: row.reason,
     comment: row.comment || null,
     adminNote: row.admin_note || null,
+    proofName: row.proof_name || null,
+    proofData: row.proof_data || null,
+    contactStatus: row.contact_status || row.snapshot?.contactStatus || null,
+    refundCents: row.refund_cents == null ? null : Number(row.refund_cents),
+    snapshot: row.snapshot || null,
     status: normalizeComplaintStatus(row.status),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -51,37 +103,87 @@ async function loadUser(id) {
   return data?.user ? toDirectoryUser(data.user) : null;
 }
 
-export async function reportLead(leadId, beraterId, { reason, comment } = {}) {
+export async function reportLead(leadId, beraterId, {
+  reason,
+  comment,
+  proofName,
+  proofData,
+  contactStatus,
+  notes,
+} = {}) {
   if (!isUuid(leadId)) throw fail('Lead ist ungültig.');
   if (!COMPLAINT_REASONS.includes(reason)) throw fail('Bitte einen gültigen Grund wählen.');
+  const note = String(comment || '').trim();
+  if (note.length < COMPLAINT_COMMENT_MIN) {
+    throw fail(`Bitte die Begründung mit mindestens ${COMPLAINT_COMMENT_MIN} Zeichen beschreiben.`);
+  }
+  const proof = parseProof(proofName, proofData);
+  const contact = CONTACT_STATUSES.includes(contactStatus) ? contactStatus : null;
 
   const lead = await getLeadById(leadId);
   if (!lead) throw fail('Lead wurde nicht gefunden.', 404);
   if (lead.assigned_to !== beraterId) throw fail('Sie können nur eigene Leads melden.', 403);
   if (lead.refunded_at) throw fail('Dieser Lead wurde bereits erstattet.');
 
-  const { data: open, error: openError } = await supabase
+  const { data: existingRows, error: existingError } = await supabase
     .from('lead_complaints')
-    .select('id')
-    .eq('lead_id', leadId)
-    .eq('status', 'pending')
-    .limit(1);
-  if (openError) throw openError;
-  if (open?.length) throw fail('Für diesen Lead liegt bereits eine Reklamation vor.');
-
-  const { data, error } = await supabase
-    .from('lead_complaints')
-    .insert({
-      lead_id: leadId,
-      request_id: lead.request_id || null,
-      berater_id: beraterId,
-      reason,
-      comment: String(comment || '').trim() || null,
-      status: 'pending',
-    })
     .select('*')
-    .single();
-  if (error) throw error;
+    .eq('lead_id', leadId)
+    .order('created_at', { ascending: false })
+    .limit(5);
+  if (existingError) throw existingError;
+
+  const open = (existingRows || []).find((row) => normalizeComplaintStatus(row.status) === 'pending');
+  if (open) throw fail('Für diesen Lead liegt bereits eine Reklamation vor.');
+
+  const amendable = (existingRows || []).find((row) => (
+    normalizeComplaintStatus(row.status) === 'info_needed'
+  ));
+
+  const snapshot = complaintSnapshot(lead, { contactStatus: contact, notes });
+  const payload = {
+    reason,
+    comment: amendable
+      ? `${amendable.comment || ''}\n\n--- Ergänzung ---\n${note}`.trim()
+      : note,
+    proof_name: proof.proofName || amendable?.proof_name || null,
+    proof_data: proof.proofData || amendable?.proof_data || null,
+    contact_status: contact,
+    snapshot,
+    status: 'pending',
+    admin_note: amendable ? amendable.admin_note : null,
+    reviewed_at: null,
+    reviewed_by: null,
+  };
+
+  let data;
+  let error;
+  if (amendable) {
+    ({ data, error } = await supabase
+      .from('lead_complaints')
+      .update(payload)
+      .eq('id', amendable.id)
+      .select('*')
+      .single());
+  } else {
+    ({ data, error } = await supabase
+      .from('lead_complaints')
+      .insert({
+        lead_id: leadId,
+        request_id: lead.request_id || null,
+        berater_id: beraterId,
+        ...payload,
+      })
+      .select('*')
+      .single());
+  }
+  if (error) {
+    const message = String(error.message || '');
+    if (message.includes('lead_complaints_reason_check') || message.includes('lead_complaints_status_check') || message.includes('violates check constraint') || message.includes('proof_') || message.includes('snapshot') || message.includes('contact_status')) {
+      throw fail('Reklamationen sind nicht aktuell. Bitte server/supabase/lead_workflow.sql im Supabase SQL Editor ausführen.');
+    }
+    throw error;
+  }
 
   await supabase
     .from('leads')
@@ -197,9 +299,12 @@ export async function reviewComplaint(id, {
   note,
   replaceLeadId,
   reviewerId,
+  refundCents,
 } = {}) {
   const next = normalizeComplaintStatus(status);
-  if (!['approved', 'declined'].includes(next)) throw fail('Status ist ungültig.');
+  if (!['approved', 'partial', 'declined', 'info_needed'].includes(next)) {
+    throw fail('Status ist ungültig.');
+  }
 
   const { data: current, error: loadError } = await supabase
     .from('lead_complaints')
@@ -210,23 +315,32 @@ export async function reviewComplaint(id, {
   if (!current) return null;
 
   const currentStatus = normalizeComplaintStatus(current.status);
-  if (currentStatus !== 'pending') {
+  if (!['pending', 'info_needed'].includes(currentStatus)) {
     throw fail('Diese Reklamation wurde bereits entschieden.');
   }
 
   const now = new Date().toISOString();
+  const adminNote = String(note || '').trim();
+  const lead = await getLeadById(current.lead_id);
+  const fullCents = leadPurchaseCents(toPublicLead(lead) || {});
+  const requestedRefund = refundCents == null || refundCents === '' ? null : Math.round(Number(refundCents));
 
-  if (next === 'declined') {
-    const adminNote = String(note || '').trim();
-    if (!adminNote) throw fail('Bitte begründen Sie die Ablehnung. Der Berater sieht diese Notiz.');
+  if (next === 'declined' || next === 'info_needed') {
+    if (!adminNote) {
+      throw fail(next === 'info_needed'
+        ? 'Bitte schreiben Sie, welche Informationen noch fehlen. Der Berater sieht diese Notiz.'
+        : 'Bitte begründen Sie die Ablehnung. Der Berater sieht diese Notiz.');
+    }
 
     const { data, error } = await supabase
       .from('lead_complaints')
       .update({
-        status: 'declined',
+        status: next,
         admin_note: adminNote,
         reviewed_at: now,
         reviewed_by: reviewerId || null,
+        refunded_at: null,
+        refund_cents: null,
       })
       .eq('id', id)
       .select('*')
@@ -235,13 +349,19 @@ export async function reviewComplaint(id, {
     return { complaint: toPublicComplaint(data) };
   }
 
+  const creditCents = next === 'partial'
+    ? (Number.isFinite(requestedRefund) && requestedRefund > 0 ? Math.min(requestedRefund, fullCents) : Math.round(fullCents / 2))
+    : fullCents;
+
   const { data: complaintRow, error } = await supabase
     .from('lead_complaints')
     .update({
-      status: 'approved',
+      status: next,
       refunded_at: now,
+      refund_cents: creditCents,
       reviewed_at: now,
       reviewed_by: reviewerId || null,
+      admin_note: adminNote || null,
     })
     .eq('id', id)
     .select('*')
@@ -377,6 +497,11 @@ export function complaintTableMissing(error) {
     || requestTableMissing(error)
     || /lead_complaints/i.test(message)
     || /admin_note/i.test(message)
+    || /proof_name/i.test(message)
+    || /proof_data/i.test(message)
+    || /contact_status/i.test(message)
+    || /refund_cents/i.test(message)
+    || /snapshot/i.test(message)
     || /replacement_lead_id/i.test(message);
 }
 

@@ -26,7 +26,8 @@ alter table public.lead_requests
 
 alter table public.leads
   add column if not exists refunded_at timestamptz,
-  add column if not exists reported_at timestamptz;
+  add column if not exists reported_at timestamptz,
+  add column if not exists broker_notes text;
 
 create table if not exists public.lead_complaints (
   id uuid primary key default gen_random_uuid(),
@@ -34,11 +35,24 @@ create table if not exists public.lead_complaints (
   request_id uuid references public.lead_requests (id) on delete set null,
   berater_id uuid not null references auth.users (id) on delete cascade,
   reason text not null
-    check (reason in ('invalid', 'duplicate', 'contact', 'requirements', 'cancelled', 'other')),
+    check (reason in (
+      'invalid_phone',
+      'wrong_person',
+      'duplicate',
+      'wrong_info',
+      'missing_fields',
+      'exclusivity',
+      'tech_error',
+      'invalid',
+      'contact',
+      'requirements',
+      'cancelled',
+      'other'
+    )),
   comment text,
   admin_note text,
   status text not null default 'pending'
-    check (status in ('pending', 'approved', 'declined')),
+    check (status in ('pending', 'approved', 'partial', 'declined', 'info_needed')),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   reviewed_at timestamptz,
@@ -61,13 +75,39 @@ alter table public.lead_complaints enable row level security;
 revoke all on public.lead_complaints from anon, authenticated;
 grant all on public.lead_complaints to service_role;
 
--- Simplify refund: one Admin decision (approve or decline). Safe to re-run.
+alter table public.lead_complaints drop constraint if exists lead_complaints_reason_check;
+alter table public.lead_complaints
+  add constraint lead_complaints_reason_check
+  check (reason in (
+    'invalid_phone',
+    'wrong_person',
+    'duplicate',
+    'wrong_info',
+    'missing_fields',
+    'exclusivity',
+    'tech_error',
+    'invalid',
+    'contact',
+    'requirements',
+    'cancelled',
+    'other'
+  ));
+
+-- Review outcomes + snapshot/proof. Safe to re-run.
 alter table public.lead_complaints add column if not exists admin_note text;
+alter table public.lead_complaints add column if not exists proof_name text;
+alter table public.lead_complaints add column if not exists proof_data text;
+alter table public.lead_complaints add column if not exists contact_status text;
+alter table public.lead_complaints add column if not exists refund_cents integer;
+alter table public.lead_complaints add column if not exists snapshot jsonb;
+
 alter table public.lead_complaints drop constraint if exists lead_complaints_status_check;
 update public.lead_complaints set status = 'declined' where status in ('rejected', 'declined');
 update public.lead_complaints set status = 'approved' where status in ('refunded', 'approved');
+update public.lead_complaints set status = 'partial' where status in ('teilweise', 'partial');
+update public.lead_complaints set status = 'info_needed' where status in ('infos_noetig', 'info_needed');
 alter table public.lead_complaints
   add constraint lead_complaints_status_check
-  check (status in ('pending', 'approved', 'declined'));
+  check (status in ('pending', 'approved', 'partial', 'declined', 'info_needed'));
 
 notify pgrst, 'reload schema';

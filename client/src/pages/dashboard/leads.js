@@ -1,8 +1,10 @@
+import { leadPurchaseCents } from './packages';
+
 export const PRODUCT_FILTERS = [
-  { id: 'all', label: 'Alle Produkte' },
-  { id: 'PKV', label: 'Private Krankenversicherung' },
-  { id: 'bAV', label: 'Betriebliche Altersvorsorge' },
-  { id: 'BU', label: 'Berufsunfähigkeit' },
+  { id: 'all', label: 'Alle' },
+  { id: 'PKV', label: 'PKV' },
+  { id: 'bAV', label: 'bAV' },
+  { id: 'BU', label: 'BU' },
 ];
 
 export const LEAD_STATUSES = [
@@ -36,17 +38,31 @@ export function defaultPipelineStatus(apiStatus) {
 }
 
 export function pipelineStatusOf(lead, statuses = {}) {
+  const fromLead = lead?.contactStatus;
+  if (fromLead && STATUS_IDS.has(fromLead)) return fromLead;
   const stored = statuses[String(lead?.id || '')];
   if (stored && STATUS_IDS.has(stored)) return stored;
   return defaultPipelineStatus(lead?.status);
 }
 
+export function contactUpdatePayload(statusId, { followUpAt = null, appointmentAt = null } = {}) {
+  return {
+    contactStatus: statusId,
+    followUpAt: statusId === 'wiedervorlage' ? followUpAt || null : null,
+    appointmentAt: statusId === 'termin' ? appointmentAt || null : null,
+  };
+}
+
 export function leadProductCode(lead) {
+  const explicit = String(lead?.leadType || lead?.productType || '').trim();
+  if (explicit === 'PKV' || explicit === 'bAV' || explicit === 'BU') return explicit;
+
   const insurance = Array.isArray(lead?.insuranceStatus) ? lead.insuranceStatus : [];
   const haystack = [
     ...(Array.isArray(lead?.mainConcerns) ? lead.mainConcerns : []),
     lead?.notes,
     lead?.currentInsurer,
+    lead?.product,
   ].join(' ').toLowerCase();
 
   if (/\bbav\b|betriebliche alters/.test(haystack)) return 'bAV';
@@ -65,7 +81,11 @@ export function leadQualityLabel(lead) {
 }
 
 export function leadPriceCents(lead) {
-  if (lead?.priceCents != null && lead.priceCents !== '') return Number(lead.priceCents) || 0;
-  if (lead?.monthlyPremium == null || lead.monthlyPremium === '') return 0;
-  return Math.round(Number(lead.monthlyPremium) * 100) || 0;
+  return leadPurchaseCents(lead);
+}
+
+export function shortLeadId(id) {
+  const raw = String(id || '').replace(/-/g, '');
+  if (!raw) return '—';
+  return raw.slice(0, 8).toUpperCase();
 }

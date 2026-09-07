@@ -1,5 +1,11 @@
 import { supabase, supabaseAuth, supabaseConfig } from './supabase.js';
-import { buildFullName, splitFullName } from './profile.js';
+import {
+  buildFullName,
+  hasCompletedOnboarding,
+  isCanonicalCustomerNumber,
+  nextCustomerNumber,
+  splitFullName,
+} from './profile.js';
 import { ROLES, getUserRole } from './roles.js';
 
 export async function findUserByEmail(email) {
@@ -179,25 +185,86 @@ export async function createUserSession(user) {
   return result.data;
 }
 
-export async function ensureUserRole(user) {
-  if (!user?.id) return user;
+async function listCustomerNumbers() {
+  const numbers = [];
 
-  const role = getUserRole(user);
-  if (user.app_metadata?.role === role) return user;
+  for (let page = 1; page <= 10; page += 1) {
+    const { data, error } = await supabase.auth.admin.listUsers({ page, perPage: 200 });
+    if (error) {
+      console.error('listCustomerNumbers failed:', error.message);
+      break;
+    }
 
+    for (const user of data.users || []) {
+      const value = user.user_metadata?.customer_number;
+      if (value) numbers.push(value);
+    }
+
+    if ((data.users || []).length < 200) break;
+  }
+
+  return numbers;
+}
+
+let customerNumberQueue = Promise.resolve();
+const reservedCustomerNumbers = new Set();
+
+export async function allocateCustomerNumber() {
+  const run = customerNumberQueue.then(async () => {
+    const numbers = [...await listCustomerNumbers(), ...reservedCustomerNumbers];
+    const next = nextCustomerNumber(numbers);
+    reservedCustomerNumbers.add(next);
+    return next;
+  });
+  customerNumberQueue = run.catch(() => {});
+  return run;
+}
+
+export async function ensureCustomerNumber(user) {
+  if (!user?.id || getUserRole(user) !== ROLES.BERATER) return user;
+
+  const metadata = user.user_metadata || {};
+  if (isCanonicalCustomerNumber(metadata.customer_number)) return user;
+  if (!hasCompletedOnboarding(metadata)) return user;
+
+  const customerNumber = await allocateCustomerNumber();
   const { data, error } = await supabase.auth.admin.updateUserById(user.id, {
-    app_metadata: {
-      ...(user.app_metadata || {}),
-      role,
+    user_metadata: {
+      ...metadata,
+      customer_number: customerNumber,
     },
   });
 
   if (error) {
-    console.error('ensureUserRole failed:', error.message);
+    console.error('ensureCustomerNumber failed:', error.message);
     return user;
   }
 
   return data.user || user;
+}
+
+export async function ensureUserRole(user) {
+  if (!user?.id) return user;
+
+  const role = getUserRole(user);
+  let nextUser = user;
+
+  if (user.app_metadata?.role !== role) {
+    const { data, error } = await supabase.auth.admin.updateUserById(user.id, {
+      app_metadata: {
+        ...(user.app_metadata || {}),
+        role,
+      },
+    });
+
+    if (error) {
+      console.error('ensureUserRole failed:', error.message);
+    } else {
+      nextUser = data.user || user;
+    }
+  }
+
+  return ensureCustomerNumber(nextUser);
 }
 
 export function toDirectoryUser(user) {
