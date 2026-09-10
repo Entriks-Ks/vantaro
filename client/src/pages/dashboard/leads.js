@@ -24,7 +24,10 @@ const STATUS_IDS = new Set(LEAD_STATUSES.map((status) => status.id));
 
 export function formatDistance(km) {
   if (km == null || km === '') return '';
-  return `${String(km).replace('.', ',')} km`;
+  const value = Number(km);
+  if (!Number.isFinite(value)) return '';
+  const rounded = value < 10 ? value.toFixed(1) : String(Math.round(value));
+  return `${rounded.replace('.', ',')} km`;
 }
 
 export function statusLabel(statusId) {

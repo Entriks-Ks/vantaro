@@ -93,8 +93,62 @@ export function toPublicComplaint(row, extras = {}) {
     reviewedBy: row.reviewed_by || null,
     refundedAt: row.refunded_at || null,
     replacementLeadId: row.replacement_lead_id || null,
+    adminSeenAt: row.admin_seen_at || null,
     ...extras,
   };
+}
+
+export function complaintSeenColumnMissing(error) {
+  const message = String(error?.message || error?.code || '');
+  return /column .*admin_seen_at/i.test(message)
+    || /admin_seen_at/i.test(message);
+}
+
+/** Mark all pending Reklamationen as seen (sidebar badge). */
+export async function markPendingComplaintsSeen() {
+  if (!supabase) return { marked: 0 };
+  const now = new Date().toISOString();
+  const { data, error } = await supabase
+    .from('lead_complaints')
+    .update({ admin_seen_at: now })
+    .eq('status', 'pending')
+    .is('admin_seen_at', null)
+    .select('id');
+  if (error) {
+    if (complaintSeenColumnMissing(error)) return { marked: 0 };
+    throw error;
+  }
+  return { marked: (data || []).length };
+}
+
+export async function leadHasOpenComplaint(leadId) {
+  if (!isUuid(leadId)) return false;
+  const { data, error } = await supabase
+    .from('lead_complaints')
+    .select('id')
+    .eq('lead_id', leadId)
+    .in('status', ['pending', 'info_needed'])
+    .limit(1);
+  if (error) {
+    if (complaintTableMissing(error)) return false;
+    throw error;
+  }
+  return Boolean(data?.length);
+}
+
+export async function openComplaintLeadIds(leadIds = []) {
+  const ids = [...new Set((leadIds || []).filter((id) => isUuid(id)))];
+  if (!ids.length) return new Set();
+  const { data, error } = await supabase
+    .from('lead_complaints')
+    .select('lead_id')
+    .in('lead_id', ids)
+    .in('status', ['pending', 'info_needed']);
+  if (error) {
+    if (complaintTableMissing(error)) return new Set();
+    throw error;
+  }
+  return new Set((data || []).map((row) => row.lead_id).filter(Boolean));
 }
 
 async function loadUser(id) {
@@ -154,6 +208,8 @@ export async function reportLead(leadId, beraterId, {
     admin_note: amendable ? amendable.admin_note : null,
     reviewed_at: null,
     reviewed_by: null,
+    // Re-open should light the sidebar badge again.
+    admin_seen_at: null,
   };
 
   let data;
@@ -176,6 +232,31 @@ export async function reportLead(leadId, beraterId, {
       })
       .select('*')
       .single());
+  }
+  if (error) {
+    const message = String(error.message || '');
+    if (complaintSeenColumnMissing(error) && Object.prototype.hasOwnProperty.call(payload, 'admin_seen_at')) {
+      delete payload.admin_seen_at;
+      if (amendable) {
+        ({ data, error } = await supabase
+          .from('lead_complaints')
+          .update(payload)
+          .eq('id', amendable.id)
+          .select('*')
+          .single());
+      } else {
+        ({ data, error } = await supabase
+          .from('lead_complaints')
+          .insert({
+            lead_id: leadId,
+            request_id: lead.request_id || null,
+            berater_id: beraterId,
+            ...payload,
+          })
+          .select('*')
+          .single());
+      }
+    }
   }
   if (error) {
     const message = String(error.message || '');
@@ -278,14 +359,14 @@ async function moveLeadToRejected(leadId) {
   const lead = await getLeadById(leadId);
   if (!lead) throw fail('Lead wurde nicht gefunden.', 404);
   const now = new Date().toISOString();
-  const nextStatus = lead.status === 'zugewiesen' ? 'in_bearbeitung' : (lead.status || 'neu');
+  // Park as refunded/invalid — not in free pool until admin restores.
+  // Status stays unchanged here; restore sets Wieder verfügbar (in_bearbeitung).
   const { data, error } = await supabase
     .from('leads')
     .update({
       assigned_to: null,
       assigned_at: lead.assigned_at || null,
       refunded_at: now,
-      status: nextStatus,
     })
     .eq('id', leadId)
     .select('*')
@@ -502,6 +583,7 @@ export function complaintTableMissing(error) {
     || /contact_status/i.test(message)
     || /refund_cents/i.test(message)
     || /snapshot/i.test(message)
-    || /replacement_lead_id/i.test(message);
+    || /replacement_lead_id/i.test(message)
+    || complaintSeenColumnMissing(error);
 }
 

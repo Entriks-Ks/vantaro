@@ -15,6 +15,12 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const ZIP_RE = /^\d{5}$/;
 
+/** Assigned and not refunded via Reklamation — immutable until complaint parking. */
+export function isLeadDeliveryLocked(row) {
+  if (!row) return false;
+  return Boolean(row.assigned_to || row.assignedTo) && !(row.refunded_at || row.refundedAt);
+}
+
 function trim(value) {
   if (value == null) return '';
   return String(value).trim();
@@ -641,6 +647,14 @@ export async function findLeadByExternalId(externalSource, externalId) {
   return data;
 }
 
+function schedulePoolAutoFill(reason) {
+  import('./leadRequests.js')
+    .then(({ autoFillOpenAutoRequests }) => autoFillOpenAutoRequests())
+    .catch((err) => {
+      console.warn(`Auto-fill after ${reason} skipped:`, err?.message || err);
+    });
+}
+
 export async function createLead(input, {
   createdBy,
   source = 'manual',
@@ -662,6 +676,8 @@ export async function createLead(input, {
 
   const payload = {
     ...parsed.row,
+    // CSV / TC-Dial / manual create always enter the pool as new
+    status: 'neu',
     source: LEAD_SOURCES.includes(source) ? source : 'manual',
     created_by: createdBy || null,
   };
@@ -675,7 +691,9 @@ export async function createLead(input, {
 
   const { data, error } = await supabase.from('leads').insert(payload).select('*').single();
   if (error) throw error;
-  return withAssignee(data);
+  const lead = await withAssignee(data);
+  schedulePoolAutoFill('createLead');
+  return lead;
 }
 
 export async function importLeads(rows, { createdBy } = {}) {
@@ -697,6 +715,7 @@ export async function importLeads(rows, { createdBy } = {}) {
     }
     created.push({
       ...parsed.row,
+      status: 'neu',
       source: 'csv',
       created_by: createdBy || null,
     });
@@ -713,15 +732,27 @@ export async function importLeads(rows, { createdBy } = {}) {
   const { data, error } = await supabase.from('leads').insert(created).select('*');
   if (error) throw error;
 
+  const leads = await withAssignees(data || []);
+  if (leads.length) schedulePoolAutoFill('importLeads');
   return {
-    created: await withAssignees(data || []),
+    created: leads,
     errors,
   };
 }
 
-export async function updateLead(id, input) {
+export async function updateLead(id, input, { bypassDeliveryLock = false } = {}) {
   if (!supabaseConfig.configured || !supabase) {
     throw Object.assign(new Error('Supabase ist nicht konfiguriert.'), { status: 503 });
+  }
+
+  const current = await getLeadById(id);
+  if (!current) return null;
+  if (!bypassDeliveryLock && isLeadDeliveryLocked(current)) {
+    const error = new Error(
+      'Dieser Lead ist bereits zugestellt und kann nicht bearbeitet werden. Änderungen sind erst nach einer Reklamation wieder möglich.',
+    );
+    error.status = 400;
+    throw error;
   }
 
   const parsed = parseLeadInput(input, { partial: true });
@@ -733,17 +764,13 @@ export async function updateLead(id, input) {
   }
 
   if (!Object.keys(parsed.row).length) {
-    const current = await getLeadById(id);
-    return current ? withAssignee(current) : null;
+    return withAssignee(current);
   }
 
-  if (parsed.row.status === 'zugewiesen') {
-    const current = await getLeadById(id);
-    if (current && !current.assigned_to) {
-      const error = new Error('Bitte zuerst einen Berater zuweisen.');
-      error.status = 400;
-      throw error;
-    }
+  if (parsed.row.status === 'zugewiesen' && !current.assigned_to) {
+    const error = new Error('Bitte zuerst einen Berater zuweisen.');
+    error.status = 400;
+    throw error;
   }
 
   const { data, error } = await supabase
@@ -764,14 +791,47 @@ export async function assignLead(id, beraterId, { requestId } = {}) {
 
   const current = await getLeadById(id);
   if (!current) return null;
+
+  if (isLeadDeliveryLocked(current)) {
+    const sameBerater = beraterId && beraterId === current.assigned_to;
+    const sameRequest = !requestId || requestId === current.request_id;
+    if (sameBerater && sameRequest) {
+      return withAssignee(current);
+    }
+    const error = new Error(
+      beraterId
+        ? 'Dieser Lead ist bereits zugestellt und kann nicht neu zugewiesen werden. Rückgabe nur über eine Reklamation.'
+        : 'Zugestellte Leads können nicht manuell zurückgenommen werden. Rückgabe nur über eine Reklamation.',
+    );
+    error.status = 400;
+    throw error;
+  }
+
   if (beraterId && current.refunded_at) {
     const error = new Error('Erstattete Leads können nicht erneut zugewiesen werden.');
     error.status = 400;
     throw error;
   }
 
+  try {
+    const { leadHasOpenComplaint } = await import('./complaints.js');
+    if (await leadHasOpenComplaint(id)) {
+      const error = new Error(
+        beraterId
+          ? 'Dieser Lead hat eine offene Reklamation und kann nicht zugewiesen werden.'
+          : 'Dieser Lead hat eine offene Reklamation und kann nicht zurückgenommen werden.',
+      );
+      error.status = 400;
+      throw error;
+    }
+  } catch (err) {
+    if (err?.status === 400) throw err;
+    const { complaintTableMissing } = await import('./complaints.js');
+    if (!complaintTableMissing(err)) throw err;
+  }
+
   if (!beraterId) {
-    const nextStatus = current.status === 'zugewiesen' ? 'in_bearbeitung' : current.status;
+    const nextStatus = current.status === 'zugewiesen' ? 'neu' : current.status;
     const { data, error } = await supabase
       .from('leads')
       .update({
@@ -784,7 +844,9 @@ export async function assignLead(id, beraterId, { requestId } = {}) {
       .select('*')
       .single();
     if (error) throw error;
-    return withAssignee(data);
+    const lead = await withAssignee(data);
+    schedulePoolAutoFill('unassignLead');
+    return lead;
   }
 
   if (!isUuid(beraterId)) {
@@ -876,18 +938,31 @@ export async function restoreRejectedLead(id) {
       request_id: null,
       refunded_at: null,
       reported_at: null,
-      status: 'neu',
+      // Returned to pool after Reklamation + admin check
+      status: 'in_bearbeitung',
     })
     .eq('id', id)
     .select('*')
     .single();
   if (error) throw error;
-  return withAssignee(data);
+  const lead = await withAssignee(data);
+  schedulePoolAutoFill('restoreRejectedLead');
+  return lead;
 }
 
 export async function deleteLead(id) {
   if (!supabaseConfig.configured || !supabase) {
     throw Object.assign(new Error('Supabase ist nicht konfiguriert.'), { status: 503 });
+  }
+
+  const current = await getLeadById(id);
+  if (!current) return false;
+  if (isLeadDeliveryLocked(current)) {
+    const error = new Error(
+      'Zugestellte Leads können nicht gelöscht werden. Rückgabe nur über eine Reklamation.',
+    );
+    error.status = 400;
+    throw error;
   }
 
   const { data, error } = await supabase.from('leads').delete().eq('id', id).select('id').maybeSingle();

@@ -26,6 +26,7 @@ export function isInGermany(lat, lng) {
 }
 
 let loadPromise = null;
+let geocodeLoadPromise = null;
 let authFailed = false;
 
 export function hasGoogleMapsKey() {
@@ -156,6 +157,37 @@ export function loadGoogleMaps() {
   return loadPromise;
 }
 
+/** Load only the Geocoder — do not pull Places/Marker into the page. */
+export function loadGoogleGeocoding() {
+  if (!API_KEY) {
+    return Promise.reject(new Error('Google-Maps-Schlüssel fehlt.'));
+  }
+  if (authFailed) {
+    return Promise.reject(new Error('Google Maps API-Schlüssel abgelehnt'));
+  }
+  if (window.google?.maps?.Geocoder) {
+    return Promise.resolve(window.google.maps);
+  }
+  if (geocodeLoadPromise) return geocodeLoadPromise;
+
+  ignoreMapsWebVitalsCrash();
+  ensureMapsBootstrap();
+
+  geocodeLoadPromise = window.google.maps.importLibrary('geocoding')
+    .then(() => window.google.maps)
+    .catch(async () => {
+      // Older bundles expose Geocoder via the maps library.
+      await window.google.maps.importLibrary('maps');
+      return window.google.maps;
+    })
+    .catch((error) => {
+      geocodeLoadPromise = null;
+      throw error;
+    });
+
+  return geocodeLoadPromise;
+}
+
 function addressPart(components, type, useShort = false) {
   const part = (components || []).find((entry) => (entry.types || []).includes(type));
   if (!part) return '';
@@ -212,7 +244,7 @@ export async function geocodeAddress(query) {
   const text = String(query || '').trim();
   if (!text || !hasGoogleMapsKey()) return null;
 
-  const maps = await loadGoogleMaps();
+  const maps = await loadGoogleGeocoding();
   const geocoder = new maps.Geocoder();
 
   return new Promise((resolve, reject) => {
@@ -237,7 +269,7 @@ export async function geocodeAddress(query) {
 export async function reverseGeocode(lat, lng) {
   if (!Number.isFinite(lat) || !Number.isFinite(lng) || !hasGoogleMapsKey()) return null;
 
-  const maps = await loadGoogleMaps();
+  const maps = await loadGoogleGeocoding();
   const geocoder = new maps.Geocoder();
 
   return new Promise((resolve, reject) => {
@@ -264,4 +296,144 @@ export async function reverseGeocode(lat, lng) {
       },
     );
   });
+}
+
+const geocodeCache = new Map();
+
+/** Build a Germany-scoped address query from street/zip/city parts. */
+export function germanyAddressQuery(parts) {
+  const street = String(parts?.street || '').trim();
+  const zip = String(parts?.zip || '').trim();
+  const city = String(parts?.city || '').trim();
+  const locality = [zip, city].filter(Boolean).join(' ');
+  const line = [street, locality].filter(Boolean).join(', ');
+  return line ? `${line}, Deutschland` : '';
+}
+
+/** Great-circle distance in km between two { lat, lng } points. */
+export function haversineKm(a, b) {
+  if (!a || !b) return null;
+  const lat1 = Number(a.lat);
+  const lng1 = Number(a.lng);
+  const lat2 = Number(b.lat);
+  const lng2 = Number(b.lng);
+  if (![lat1, lng1, lat2, lng2].every(Number.isFinite)) return null;
+
+  const toRad = (deg) => (deg * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const sinLat = Math.sin(dLat / 2);
+  const sinLng = Math.sin(dLng / 2);
+  const h = sinLat * sinLat
+    + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * sinLng * sinLng;
+  return 6371 * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+}
+
+export function roundDistanceKm(km) {
+  if (km == null || !Number.isFinite(km)) return null;
+  if (km < 10) return Math.round(km * 10) / 10;
+  return Math.round(km);
+}
+
+/** Geocode with in-memory cache (dedupes in-flight requests). */
+export async function cachedGeocodeAddress(query) {
+  const key = String(query || '').trim().toLowerCase();
+  if (!key || !hasGoogleMapsKey()) return null;
+  if (geocodeCache.has(key)) return geocodeCache.get(key);
+
+  const pending = geocodeAddress(query)
+    .catch(() => null)
+    .then((coords) => {
+      geocodeCache.set(key, Promise.resolve(coords));
+      return coords;
+    });
+  geocodeCache.set(key, pending);
+  return pending;
+}
+
+async function mapPool(items, concurrency, mapper) {
+  const results = new Array(items.length);
+  let index = 0;
+
+  async function worker() {
+    while (index < items.length) {
+      const current = index;
+      index += 1;
+      results[current] = await mapper(items[current], current);
+    }
+  }
+
+  const workers = Array.from({ length: Math.min(concurrency, items.length) }, () => worker());
+  await Promise.all(workers);
+  return results;
+}
+
+function zipProximityRank(lead, origin) {
+  const cityLead = String(lead?.city || '').trim().toLowerCase();
+  const cityOrigin = String(origin?.city || '').trim().toLowerCase();
+  const zipLead = String(lead?.zip || '').replace(/\D/g, '');
+  const zipOrigin = String(origin?.zip || '').replace(/\D/g, '');
+  const sameCity = cityLead && cityOrigin && cityLead === cityOrigin ? 0 : 1;
+  const samePrefix = zipLead.slice(0, 2) && zipLead.slice(0, 2) === zipOrigin.slice(0, 2) ? 0 : 1;
+  const leadNum = Number(zipLead.slice(0, 5));
+  const originNum = Number(zipOrigin.slice(0, 5));
+  const delta = Number.isFinite(leadNum) && Number.isFinite(originNum)
+    ? Math.abs(leadNum - originNum)
+    : 99999;
+  return sameCity * 1_000_000 + samePrefix * 100_000 + delta;
+}
+
+/**
+ * Sort leads by distance to an origin address (street/zip/city).
+ * Uses Google Geocoding when available; otherwise PLZ/city proximity.
+ */
+export async function sortLeadsByProximity(leads, originAddress) {
+  const list = Array.isArray(leads) ? [...leads] : [];
+  const originQuery = germanyAddressQuery(originAddress);
+  const originLabel = [originAddress?.street, [originAddress?.zip, originAddress?.city].filter(Boolean).join(' ')]
+    .filter(Boolean)
+    .join(', ');
+
+  if (!list.length || !originQuery) {
+    return { leads: list, sorted: false, mode: null, originLabel, origin: null };
+  }
+
+  if (hasGoogleMapsKey()) {
+    try {
+      const origin = await cachedGeocodeAddress(originQuery);
+      if (origin) {
+        const enriched = await mapPool(list, 4, async (lead) => {
+          const leadQuery = germanyAddressQuery(lead);
+          const coords = leadQuery ? await cachedGeocodeAddress(leadQuery) : null;
+          return {
+            ...lead,
+            distanceKm: coords ? roundDistanceKm(haversineKm(origin, coords)) : null,
+          };
+        });
+        enriched.sort((a, b) => {
+          if (a.distanceKm == null && b.distanceKm == null) return 0;
+          if (a.distanceKm == null) return 1;
+          if (b.distanceKm == null) return -1;
+          return a.distanceKm - b.distanceKm;
+        });
+        return { leads: enriched, sorted: true, mode: 'geo', originLabel, origin };
+      }
+    } catch {
+      /* fall through to ZIP proximity */
+    }
+  }
+
+  const ranked = list.map((lead) => ({
+    ...lead,
+    distanceKm: null,
+    _zipRank: zipProximityRank(lead, originAddress),
+  }));
+  ranked.sort((a, b) => a._zipRank - b._zipRank);
+  return {
+    leads: ranked.map(({ _zipRank, ...lead }) => lead),
+    sorted: true,
+    mode: 'zip',
+    originLabel,
+    origin: null,
+  };
 }

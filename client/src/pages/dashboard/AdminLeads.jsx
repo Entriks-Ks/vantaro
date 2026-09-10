@@ -21,6 +21,7 @@ import {
   formatLeadDate,
   formatPremium,
   importLeads,
+  isLeadDeliveryLocked,
   leadToForm,
   listLabels,
   parseLeadCsv,
@@ -361,7 +362,7 @@ function CopyableValue({ value, label }) {
   );
 }
 
-function LeadActionsMenu({ onEdit, onDelete, disabled }) {
+function LeadActionsMenu({ onEdit, onDelete, disabled, locked }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef(null);
 
@@ -380,6 +381,8 @@ function LeadActionsMenu({ onEdit, onDelete, disabled }) {
       document.removeEventListener('keydown', onKeyDown);
     };
   }, [open]);
+
+  if (locked) return null;
 
   return (
     <div className={`dash-lead-menu${open ? ' is-open' : ''}`} ref={rootRef}>
@@ -463,6 +466,7 @@ function LeadView({
     : employmentLabel(lead.employmentStatus);
   const assigneeName = lead.assignedToName || lead.assignedToEmail || '';
   const currentRequestId = lead.requestId || '';
+  const locked = isLeadDeliveryLocked(lead);
   const assignDirty = selectedRequestId !== currentRequestId;
   const selectedTarget = assignTargets.find((entry) => entry.requestId === selectedRequestId) || null;
   const currentTarget = assignTargets.find((entry) => entry.requestId === currentRequestId) || null;
@@ -477,7 +481,7 @@ function LeadView({
   const hasContactActions = Boolean(lead.phone || lead.email);
 
   return (
-    <div className="dash-lead-view">
+    <div className={`dash-lead-view${locked ? ' is-locked' : ''}`}>
       <section className="dash-panel dash-lead-hero">
         <div className="dash-lead-identity">
           <span className="dash-lead-avatar" aria-hidden="true">{leadInitials(lead)}</span>
@@ -493,12 +497,22 @@ function LeadView({
                 <UserRound size={13} aria-hidden="true" />
                 {assigneeName || 'Nicht zugewiesen'}
               </span>
+              {locked ? (
+                <span className="dash-badge dash-badge--muted">Nur Ansicht</span>
+              ) : null}
             </div>
           </div>
         </div>
 
-        <LeadActionsMenu onEdit={onEdit} onDelete={onDelete} disabled={saving} />
+        <LeadActionsMenu onEdit={onEdit} onDelete={onDelete} disabled={saving} locked={locked} />
       </section>
+
+      {locked ? (
+        <div className="dash-alert dash-alert--ok dash-lead-lock-note">
+          Dieser Lead ist zugestellt und gesperrt. Details können angesehen werden — bearbeiten oder neu zuweisen
+          ist erst nach einer Reklamation wieder möglich.
+        </div>
+      ) : null}
 
       <div className="dash-lead-layout">
         <div className="dash-lead-main">
@@ -578,42 +592,51 @@ function LeadView({
                 <span>Aktuell</span>
                 <strong>{currentLabel}</strong>
               </div>
-              <label className="dash-lead-assign-field">
-                Anforderung wählen
-                <select
-                  value={selectedRequestId}
-                  onChange={(event) => setSelectedRequestId(event.target.value)}
-                >
-                  <option value="">Nicht zugewiesen</option>
-                  {assignTargets.length ? (
-                    assignTargets.map((entry) => (
-                      <option key={entry.requestId} value={entry.requestId}>
-                        {assignOptionLabel(entry)}
-                      </option>
-                    ))
-                  ) : (
-                    <option value="" disabled>Keine aktiven Anforderungen</option>
-                  )}
-                </select>
-              </label>
-              {selectedTarget ? (
+              {locked ? (
                 <p className="dash-panel-note">
-                  {selectedTarget.remaining != null ? `${selectedTarget.remaining} offen · ` : ''}
-                  {selectedTarget.scopeLabel || 'Paket'}
+                  Anforderung kann nicht geändert werden. Der Lead bleibt unverändert, bis er über eine
+                  Reklamation zurückkommt.
                 </p>
-              ) : !assignTargets.length ? (
-                <p className="dash-panel-note">
-                  Nur aktive Anforderungen können Leads erhalten.
-                </p>
-              ) : null}
-              <button
-                type="button"
-                className="dash-btn dash-lead-assign-submit"
-                onClick={onAssign}
-                disabled={saving || !assignDirty}
-              >
-                {saving ? 'Speichern…' : assignLabel}
-              </button>
+              ) : (
+                <>
+                  <label className="dash-lead-assign-field">
+                    Anforderung wählen
+                    <select
+                      value={selectedRequestId}
+                      onChange={(event) => setSelectedRequestId(event.target.value)}
+                    >
+                      <option value="">Nicht zugewiesen</option>
+                      {assignTargets.length ? (
+                        assignTargets.map((entry) => (
+                          <option key={entry.requestId} value={entry.requestId}>
+                            {assignOptionLabel(entry)}
+                          </option>
+                        ))
+                      ) : (
+                        <option value="" disabled>Keine aktiven Anforderungen</option>
+                      )}
+                    </select>
+                  </label>
+                  {selectedTarget ? (
+                    <p className="dash-panel-note">
+                      {selectedTarget.remaining != null ? `${selectedTarget.remaining} offen · ` : ''}
+                      {selectedTarget.scopeLabel || 'Paket'}
+                    </p>
+                  ) : !assignTargets.length ? (
+                    <p className="dash-panel-note">
+                      Nur aktive Anforderungen können Leads erhalten.
+                    </p>
+                  ) : null}
+                  <button
+                    type="button"
+                    className="dash-btn dash-lead-assign-submit"
+                    onClick={onAssign}
+                    disabled={saving || !assignDirty}
+                  >
+                    {saving ? 'Speichern…' : assignLabel}
+                  </button>
+                </>
+              )}
             </div>
           </section>
 
@@ -1020,7 +1043,9 @@ export function AdminLeads() {
                 load({ status: next });
               }}
               options={[
-                ...STATUS_OPTIONS.map((option) => ({ id: option.id, label: option.label })),
+                ...STATUS_OPTIONS
+                  .filter((option) => option.id !== 'erledigt')
+                  .map((option) => ({ id: option.id, label: option.label })),
                 { id: 'all', label: 'Alle' },
               ]}
             />
@@ -1267,6 +1292,10 @@ export function AdminLeadEditor() {
   }, [id, isNew]);
 
   function startEdit() {
+    if (isLeadDeliveryLocked(lead)) {
+      setError('Zugestellte Leads können nicht bearbeitet werden.');
+      return;
+    }
     setNotice('');
     setError('');
     setForm(leadToForm(lead));
@@ -1282,6 +1311,11 @@ export function AdminLeadEditor() {
 
   async function onSave(event) {
     event.preventDefault();
+    if (!isNew && isLeadDeliveryLocked(lead)) {
+      setError('Zugestellte Leads können nicht bearbeitet werden.');
+      setEditing(false);
+      return;
+    }
     setSaving(true);
     setError('');
     setNotice('');
@@ -1306,6 +1340,10 @@ export function AdminLeadEditor() {
   }
 
   async function onAssign() {
+    if (isLeadDeliveryLocked(lead)) {
+      setError('Zugestellte Leads können nicht neu zugewiesen werden. Rückgabe nur über eine Reklamation.');
+      return;
+    }
     setSaving(true);
     setError('');
     setNotice('');
@@ -1326,6 +1364,10 @@ export function AdminLeadEditor() {
   }
 
   async function onDelete() {
+    if (isLeadDeliveryLocked(lead)) {
+      setError('Zugestellte Leads können nicht gelöscht werden.');
+      return;
+    }
     if (!window.confirm('Diesen Lead wirklich löschen?')) return;
     setSaving(true);
     setError('');
@@ -1338,9 +1380,12 @@ export function AdminLeadEditor() {
     }
   }
 
+  const deliveryLocked = !isNew && isLeadDeliveryLocked(lead);
   const subtitle = isNew
     ? 'Qualifizierten Kontakt manuell anlegen.'
-    : (editing ? 'Daten anpassen und speichern.' : 'Kontakt prüfen und an einen Berater übergeben.');
+    : (editing ? 'Daten anpassen und speichern.' : deliveryLocked
+      ? 'Zugestellt — nur Ansicht, bis eine Reklamation vorliegt.'
+      : 'Kontakt prüfen und an einen Berater übergeben.');
 
   return (
     <div className="dash-stack">
@@ -1358,7 +1403,7 @@ export function AdminLeadEditor() {
 
       {loading ? (
         <div className="dash-empty"><p>Laden…</p></div>
-      ) : !isNew && lead && !editing ? (
+      ) : !isNew && lead && (!editing || deliveryLocked) ? (
         <LeadView
           lead={lead}
           assignTargets={assignTargets}

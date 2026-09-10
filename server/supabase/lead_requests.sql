@@ -1,5 +1,5 @@
 -- VANTARO lead requests (Berater-Aufträge)
--- Run this in the Supabase SQL editor AFTER leads.sql, for each project.
+-- Run this in the Supabase SQL editor BEFORE leads.sql, for each project.
 
 create table if not exists public.lead_requests (
   id uuid primary key default gen_random_uuid(),
@@ -12,6 +12,7 @@ create table if not exists public.lead_requests (
     check (status in ('pending', 'active', 'completed', 'rejected', 'cancelled')),
   replace_on_refund boolean not null default true,
   notes text,
+  admin_seen_at timestamptz,
   rejected_at timestamptz,
   cancelled_at timestamptz,
   created_by uuid references auth.users (id) on delete set null,

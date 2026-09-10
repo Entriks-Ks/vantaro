@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import Brand from '../../components/Brand';
 import { useAuth } from '../../hooks/useAuth';
+import { useDashboard } from '../../hooks/useDashboard';
 import { roleLabel } from '../../lib/roles';
 import { accountSetupCta, displayName, firstName, greeting, initials } from './helpers';
 
@@ -109,6 +110,9 @@ function adminPageCopy(pathname, user) {
   if (pathname.startsWith('/dashboard/berater')) {
     return { kicker: 'Bestand', title: 'Berater', subtitle: 'Konten und Stammdaten der Berater.' };
   }
+  if (/^\/dashboard\/anfordern\/[^/]+/.test(pathname) || /^\/dashboard\/anfragen\/[^/]+/.test(pathname)) {
+    return { kicker: 'Workflow', title: 'Anforderung', subtitle: 'Fortschritt prüfen, Leads senden und den Auftrag steuern.' };
+  }
   if (pathname.startsWith('/dashboard/anfordern') || pathname.startsWith('/dashboard/anfragen')) {
     return { kicker: 'Workflow', title: 'Anforderungen', subtitle: 'Anforderungen prüfen, Leads senden und den Versand steuern.' };
   }
@@ -119,7 +123,7 @@ function adminPageCopy(pathname, user) {
     return {
       kicker: 'Workflow',
       title: 'Ungültige Leads',
-      subtitle: 'Erstattete Leads mit Ersatz — Reklamationsgrund und Details nachprüfen.',
+      subtitle: 'Erstattete Leads nach Reklamation — prüfen und bei Bedarf als Wieder verfügbar zurück in den Pool legen.',
     };
   }
   if (pathname.startsWith('/dashboard/leads/new')) {
@@ -152,6 +156,9 @@ function AdminShell({ user, logout, children }) {
   const [collapsed, setCollapsed] = useState(readAdminSidebarCollapsed);
   const location = useLocation();
   const copy = adminPageCopy(location.pathname, user);
+  const { admin } = useDashboard();
+  const pendingRequests = Number(admin?.workflow?.pendingRequests) || 0;
+  const pendingComplaints = Number(admin?.workflow?.unseenComplaints ?? admin?.workflow?.pendingComplaints) || 0;
 
   useEffect(() => {
     try {
@@ -160,6 +167,12 @@ function AdminShell({ user, logout, children }) {
       /* ignore quota / private mode */
     }
   }, [collapsed]);
+
+  function navBadge(to) {
+    if (to === '/dashboard/anfordern') return pendingRequests;
+    if (to === '/dashboard/reklamationen') return pendingComplaints;
+    return 0;
+  }
 
   return (
     <div className={`dash${collapsed ? ' is-collapsed' : ''}`}>
@@ -194,16 +207,26 @@ function AdminShell({ user, logout, children }) {
               <p className="dash-nav-label">{group.label}</p>
               {group.links.map((link) => {
                 const Icon = link.icon;
+                const badge = navBadge(link.to);
                 return (
                   <NavLink
                     key={link.to}
                     to={link.to}
                     end={link.end}
-                    title={link.label}
-                    className={({ isActive }) => (isActive ? 'is-active' : undefined)}
+                    title={badge > 0 ? `${link.label} (${badge})` : link.label}
+                    className={({ isActive }) => {
+                      const active = isActive ? 'is-active' : '';
+                      const hasBadge = badge > 0 ? ' has-badge' : '';
+                      return `${active}${hasBadge}`.trim() || undefined;
+                    }}
                   >
                     <Icon size={16} />
-                    <span>{link.label}</span>
+                    <span className="dash-nav-text">{link.label}</span>
+                    {badge > 0 ? (
+                      <em className="dash-nav-count" aria-label={`${badge} offen`}>
+                        {badge > 99 ? '99+' : badge}
+                      </em>
+                    ) : null}
                   </NavLink>
                 );
               })}

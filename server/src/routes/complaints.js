@@ -5,6 +5,7 @@ import {
   complaintTableMissing,
   listComplaints,
   listComplaintsForBerater,
+  markPendingComplaintsSeen,
   reviewComplaint,
   sendComplaintReplacement,
 } from '../lib/complaints.js';
@@ -17,7 +18,7 @@ function handleError(res, error) {
   if (complaintTableMissing(error)) {
     return tableMissingResponse(
       res,
-      'Reklamationen fehlen. Bitte server/supabase/lead_workflow.sql im Supabase SQL Editor ausführen.',
+      'Reklamationen fehlen. Bitte server/supabase/lead_workflow.sql und lead_complaint_admin_seen.sql im Supabase SQL Editor ausführen.',
     );
   }
   return handleLeadError(res, error);
@@ -37,6 +38,15 @@ router.get('/mine', async (req, res) => {
   try {
     const complaints = await listComplaintsForBerater(req.user.id);
     res.json({ complaints });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+router.post('/seen', requireRole(ROLES.ADMIN), async (req, res) => {
+  try {
+    const result = await markPendingComplaintsSeen();
+    res.json(result);
   } catch (error) {
     handleError(res, error);
   }

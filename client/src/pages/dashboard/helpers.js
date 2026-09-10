@@ -163,6 +163,9 @@ export function dashboardDocumentTitle(pathname, isAdmin = false) {
   if (path.startsWith('/dashboard/sicherheit')) return 'Sicherheit — VANTARO';
   if (path.startsWith('/dashboard/nutzer')) return 'Nutzer — VANTARO';
   if (path.startsWith('/dashboard/berater')) return 'Berater — VANTARO';
+  if (/^\/dashboard\/anfordern\/[^/]+/.test(path) || /^\/dashboard\/anfragen\/[^/]+/.test(path)) {
+    return 'Anforderung — VANTARO';
+  }
   if (path.startsWith('/dashboard/anfordern') || path.startsWith('/dashboard/anfragen')) {
     return 'Anforderungen — VANTARO';
   }

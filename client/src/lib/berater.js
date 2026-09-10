@@ -15,8 +15,21 @@ export const REQUEST_STATUS_OPTIONS = [
   { id: 'pending', label: 'Aktiv' },
 ];
 
+export const FULFILLMENT_MODE_OPTIONS = [
+  { id: 'manual', label: 'Manuell' },
+  { id: 'auto', label: 'Automatisch' },
+];
+
 export function requestStatusLabel(id) {
   return REQUEST_STATUS_OPTIONS.find((option) => option.id === id)?.label || id || 'Kein Auftrag';
+}
+
+export function fulfillmentModeLabel(id) {
+  return FULFILLMENT_MODE_OPTIONS.find((option) => option.id === id)?.label || 'Manuell';
+}
+
+export function isAutoFulfillment(request) {
+  return String(request?.fulfillmentMode || 'manual') === 'auto';
 }
 
 export function requestStatusTone(id) {
@@ -103,11 +116,29 @@ export async function updateBeraterRequest(requestId, payload) {
   return parseResponse(response);
 }
 
+export async function markRequestSeen(requestId) {
+  const response = await fetch(apiUrl(`/api/requests/${requestId}/seen`), {
+    method: 'POST',
+    headers: authHeaders(true),
+    body: JSON.stringify({}),
+  });
+  return parseResponse(response);
+}
+
 export async function sendBeraterLeads(requestId, leadIds) {
   const response = await fetch(apiUrl(`/api/berater/requests/${requestId}/send`), {
     method: 'POST',
     headers: authHeaders(true),
     body: JSON.stringify({ leadIds }),
+  });
+  return parseResponse(response);
+}
+
+export async function autoFillBeraterRequest(requestId) {
+  const response = await fetch(apiUrl(`/api/berater/requests/${requestId}/auto-fill`), {
+    method: 'POST',
+    headers: authHeaders(true),
+    body: JSON.stringify({}),
   });
   return parseResponse(response);
 }

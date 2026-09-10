@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   AlertTriangle,
@@ -7,7 +7,12 @@ import {
   EyeOff,
   Flag,
   Inbox,
+  KeyRound,
   ListChecks,
+  Mail,
+  Phone,
+  Save,
+  User,
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useBroker } from '../../hooks/useBroker';
@@ -53,16 +58,150 @@ function FocusCard({ label, value, hint, to, icon: Icon }) {
   );
 }
 
-function EmptyPanel({ title, text, action, to }) {
+function n(value) {
+  const num = Number(value);
+  return Number.isFinite(num) ? num : 0;
+}
+
+function DonutChart({ segments, centerValue, centerLabel }) {
+  const size = 148;
+  const stroke = 16;
+  const radius = (size - stroke) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const total = segments.reduce((sum, entry) => sum + n(entry.value), 0) || 1;
+  let offset = 0;
+
   return (
-    <section className="dash-panel">
+    <div className="dash-donut" role="img" aria-label={centerLabel}>
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+        <circle
+          className="dash-donut-track"
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill="none"
+          strokeWidth={stroke}
+        />
+        {segments.map((entry) => {
+          const value = n(entry.value);
+          const length = total > 0 ? (value / total) * circumference : 0;
+          const slice = (
+            <circle
+              key={entry.id}
+              cx={size / 2}
+              cy={size / 2}
+              r={radius}
+              fill="none"
+              stroke={entry.color}
+              strokeWidth={stroke}
+              strokeDasharray={`${length} ${circumference - length}`}
+              strokeDashoffset={-offset}
+              strokeLinecap="butt"
+              transform={`rotate(-90 ${size / 2} ${size / 2})`}
+            />
+          );
+          offset += length;
+          return slice;
+        })}
+      </svg>
+      <div className="dash-donut-center">
+        <strong>{centerValue}</strong>
+        <span>{centerLabel}</span>
+      </div>
+    </div>
+  );
+}
+
+function ChartLegend({ items }) {
+  return (
+    <ul className="dash-chart-legend">
+      {items.map((item) => {
+        const row = (
+          <>
+            <i style={{ background: item.color }} aria-hidden="true" />
+            <span>{item.label}</span>
+            <em>{item.display ?? item.value}</em>
+          </>
+        );
+        return (
+          <li key={item.id}>
+            {item.to ? <Link to={item.to}>{row}</Link> : row}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+function HBarChart({ rows, loading }) {
+  const max = Math.max(...rows.map((row) => n(row.value)), 1);
+  return (
+    <div className="dash-hbar">
+      {rows.map((row) => {
+        const value = n(row.value);
+        const width = loading ? 0 : Math.max((value / max) * 100, value > 0 ? 6 : 0);
+        const inner = (
+          <>
+            <div className="dash-hbar-meta">
+              <span>{row.label}</span>
+              <em>{loading ? '—' : value}</em>
+            </div>
+            <div className="dash-hbar-track" aria-hidden="true">
+              <span style={{ width: `${width}%`, background: row.color }} />
+            </div>
+          </>
+        );
+        return row.to ? (
+          <Link key={row.id} className="dash-hbar-row is-link" to={row.to}>
+            {inner}
+          </Link>
+        ) : (
+          <div key={row.id} className="dash-hbar-row">
+            {inner}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function StackBoard({ title, lede, segments, total, loading, action, to }) {
+  const sum = segments.reduce((acc, entry) => acc + n(entry.value), 0) || 1;
+  return (
+    <section className="dash-panel dash-board-card">
       <div className="dash-panel-head">
-        <strong>{title}</strong>
-        {to && <Link to={to}>{action}</Link>}
+        <div>
+          <strong>{title}</strong>
+          {lede ? <p className="dash-panel-lede">{lede}</p> : null}
+        </div>
+        {to ? <Link to={to}>{action}</Link> : null}
       </div>
-      <div className="dash-empty">
-        <p>{text}</p>
+      <div className="dash-stack-board" aria-hidden={loading}>
+        <div className="dash-stack-track">
+          {segments.map((entry) => {
+            const value = n(entry.value);
+            const pct = loading || value <= 0 ? 0 : Math.max((value / sum) * 100, 3);
+            return (
+              <span
+                key={entry.id}
+                className="dash-stack-seg"
+                style={{ width: `${pct}%`, background: entry.color }}
+                title={`${entry.label}: ${value}`}
+              />
+            );
+          })}
+        </div>
+        <div className="dash-stack-total">
+          <strong>{loading ? '—' : total}</strong>
+          <span>gesamt</span>
+        </div>
       </div>
+      <ChartLegend
+        items={segments.map((entry) => ({
+          ...entry,
+          display: loading ? '—' : entry.value,
+        }))}
+      />
     </section>
   );
 }
@@ -111,6 +250,32 @@ export function AdminOverview() {
   const workflow = admin?.workflow || {};
   const dash = loading ? '—' : undefined;
 
+  const requestSegments = useMemo(() => ([
+    { id: 'active', label: 'Aktiv', value: n(workflow.activeRequests), color: '#37cdc0', to: '/dashboard/anfordern' },
+    { id: 'paused', label: 'Pausiert', value: n(workflow.pausedRequests), color: '#f0b45a', to: '/dashboard/anfordern' },
+    { id: 'done', label: 'Erfüllt', value: n(workflow.completedRequests), color: '#7aa2ff', to: '/dashboard/anfordern' },
+  ]), [workflow.activeRequests, workflow.pausedRequests, workflow.completedRequests]);
+
+  const requestTotal = requestSegments.reduce((sum, entry) => sum + entry.value, 0);
+
+  const leadRows = useMemo(() => ([
+    { id: 'queue', label: 'Neu in Warteschlange', value: n(admin?.qualityQueue), color: '#56d3c4', to: '/dashboard/leads' },
+    { id: 'pool', label: 'Ohne Berater', value: n(admin?.unmatched), color: '#7aa2ff', to: '/dashboard/leads' },
+    { id: 'sent', label: 'Zugestellt', value: n(workflow.deliveredLeads), color: '#9ad67a', to: '/dashboard/leads' },
+    { id: 'invalid', label: 'Ungültig', value: n(workflow.refundedLeads), color: '#ff755a', to: '/dashboard/leads/ungueltig' },
+  ]), [admin?.qualityQueue, admin?.unmatched, workflow.deliveredLeads, workflow.refundedLeads]);
+
+  const complaintRows = useMemo(() => ([
+    { id: 'pending', label: 'In Prüfung', value: n(workflow.pendingComplaints), color: '#ff755a', to: '/dashboard/reklamationen' },
+    { id: 'approved', label: 'Genehmigt', value: n(workflow.approvedComplaints), color: '#37cdc0', to: '/dashboard/reklamationen' },
+    { id: 'declined', label: 'Abgelehnt', value: n(workflow.declinedComplaints), color: '#8ea0b8', to: '/dashboard/reklamationen' },
+  ]), [workflow.pendingComplaints, workflow.approvedComplaints, workflow.declinedComplaints]);
+
+  const accountSegments = useMemo(() => ([
+    { id: 'berater', label: 'Berater', value: n(counts.berater), color: '#56d3c4', to: '/dashboard/berater' },
+    { id: 'admin', label: 'Admin', value: n(counts.admin), color: '#7aa2ff', to: '/dashboard/nutzer' },
+  ]), [counts.berater, counts.admin]);
+
   return (
     <div className="dash-stack">
       {error ? <div className="dash-alert">{error}</div> : null}
@@ -120,8 +285,8 @@ export function AdminOverview() {
         <div className="dash-focus-grid">
           <FocusCard
             label="Anforderungen"
-            value={dash ?? (workflow.activeRequests || 0)}
-            hint="aktiv, Leads zu senden"
+            value={dash ?? (workflow.pendingRequests || 0)}
+            hint="ungesehen, prüfen"
             to="/dashboard/anfordern"
             icon={Inbox}
           />
@@ -150,12 +315,73 @@ export function AdminOverview() {
       </section>
 
       <section>
+        <h3 className="dash-section-label">Lagebild</h3>
+        <div className="dash-board-grid">
+          <section className="dash-panel dash-board-card">
+            <div className="dash-panel-head">
+              <div>
+                <strong>Auftragsstatus</strong>
+                <p className="dash-panel-lede">Verteilung aktiver Anforderungen</p>
+              </div>
+              <Link to="/dashboard/anfordern">Alle</Link>
+            </div>
+            <div className="dash-donut-layout">
+              <DonutChart
+                segments={requestSegments}
+                centerValue={loading ? '—' : requestTotal}
+                centerLabel="Aufträge"
+              />
+              <ChartLegend
+                items={requestSegments.map((entry) => ({
+                  ...entry,
+                  display: loading ? '—' : entry.value,
+                }))}
+              />
+            </div>
+          </section>
+
+          <section className="dash-panel dash-board-card">
+            <div className="dash-panel-head">
+              <div>
+                <strong>Lead-Bestand</strong>
+                <p className="dash-panel-lede">Pool, Zustellung und Erstattung</p>
+              </div>
+              <Link to="/dashboard/leads">Öffnen</Link>
+            </div>
+            <HBarChart rows={leadRows} loading={loading} />
+          </section>
+
+          <section className="dash-panel dash-board-card">
+            <div className="dash-panel-head">
+              <div>
+                <strong>Reklamationen</strong>
+                <p className="dash-panel-lede">Status der offenen Fälle</p>
+              </div>
+              <Link to="/dashboard/reklamationen">Prüfen</Link>
+            </div>
+            <HBarChart rows={complaintRows} loading={loading} />
+          </section>
+        </div>
+      </section>
+
+      <section>
         <h3 className="dash-section-label">Bestand</h3>
-        <div className="dash-metrics">
-          <Metric label="Berater" value={dash ?? counts.berater} hint="Konten" to="/dashboard/berater" />
-          <Metric label="Aktive Aufträge" value={dash ?? (workflow.activeRequests || 0)} hint="empfangsberechtigt" to="/dashboard/anfordern" />
-          <Metric label="Zugestellt" value={dash ?? (workflow.deliveredLeads || 0)} hint="Leads gesendet" to="/dashboard/leads" />
-          <Metric label="Ungültig" value={dash ?? (workflow.refundedLeads || 0)} hint="ersetzt nach Erstattung" to="/dashboard/leads/ungueltig" />
+        <div className="dash-board-split">
+          <StackBoard
+            title="Konten"
+            lede={loading ? 'Zusammensetzung im Portal' : `${counts.unverified || 0} unbestätigt · ${counts.total || 0} gesamt`}
+            segments={accountSegments}
+            total={n(counts.total) || accountSegments.reduce((sum, entry) => sum + entry.value, 0)}
+            loading={loading}
+            action="Nutzer"
+            to="/dashboard/nutzer"
+          />
+          <div className="dash-metrics dash-metrics--board">
+            <Metric label="Berater" value={dash ?? counts.berater} hint="Konten" to="/dashboard/berater" />
+            <Metric label="Aktive Aufträge" value={dash ?? (workflow.activeRequests || 0)} hint="empfangsberechtigt" to="/dashboard/anfordern" />
+            <Metric label="Zugestellt" value={dash ?? (workflow.deliveredLeads || 0)} hint="Leads gesendet" to="/dashboard/leads" />
+            <Metric label="Ungültig" value={dash ?? (workflow.refundedLeads || 0)} hint="ersetzt nach Erstattung" to="/dashboard/leads/ungueltig" />
+          </div>
         </div>
       </section>
 
@@ -174,7 +400,7 @@ export function AdminOverview() {
                 <Link
                   key={entry.id}
                   className="dash-lead-row"
-                  to={entry.beraterId ? `/dashboard/berater/${entry.beraterId}` : '/dashboard/anfordern'}
+                  to={`/dashboard/anfordern/${entry.id}`}
                 >
                   <span className="dash-avatar dash-avatar--sm" aria-hidden="true">
                     {initials(entry.berater || {})}
@@ -511,138 +737,191 @@ export function AdminProfile() {
     }
   };
 
-  return (
-    <div className="dash-stack">
-      <form className="dash-panel" onSubmit={saveProfile}>
-        <div className="dash-panel-head">
-          <div>
-            <strong>Admin-Konto</strong>
-            <p className="dash-panel-lede">Persönliche Angaben für den einzigen Admin — unabhängig von Berater-Stammdaten.</p>
-          </div>
-          <span className="dash-badge dash-badge--muted">{roleLabel(user?.role)}</span>
-        </div>
+  const previewName = [form.firstName, form.lastName].map((part) => part.trim()).filter(Boolean).join(' ')
+    || user?.email
+    || 'Admin';
+  const previewInitials = initials({
+    firstName: form.firstName,
+    lastName: form.lastName,
+    email: user?.email,
+  });
 
+  return (
+    <div className="dash-stack dash-stack--profile">
+      <header className="dash-profile-pagehead">
+        <div>
+          <span className="dash-profile-pagehead__kicker">Konto</span>
+          <h2>Admin-Profil</h2>
+          <p>Persönliche Angaben für den Admin — unabhängig von Berater-Stammdaten.</p>
+        </div>
+        <span className="dash-badge dash-badge--muted">{roleLabel(user?.role)}</span>
+      </header>
+
+      <form className="dash-panel dash-panel--profile" onSubmit={saveProfile}>
         {error ? <div className="dash-alert">{error}</div> : null}
 
-        <div className="dash-profile-id">
-          <span className="dash-avatar dash-avatar--lg" aria-hidden="true">
-            {form.avatarUrl
-              ? <img src={form.avatarUrl} alt="" />
-              : initials({ firstName: form.firstName, lastName: form.lastName, email: user?.email })}
-          </span>
-          <div className="dash-profile-id-copy">
-            <label className="dash-file">
-              <input type="file" accept="image/*" onChange={handleAvatar} disabled={saving} />
-              <span className="dash-btn dash-btn--ghost">Bild wählen</span>
-            </label>
-            <small>
-              {avatarName || (form.avatarUrl ? 'Aktuelles Bild behalten' : 'Kein Bild hinterlegt')}
-            </small>
-            {form.avatarUrl ? (
-              <button
-                type="button"
-                className="dash-text-btn"
-                disabled={saving}
-                onClick={() => {
-                  setForm((prev) => ({ ...prev, avatarUrl: '' }));
-                  setAvatarName('');
-                }}
-              >
-                Bild entfernen
-              </button>
-            ) : null}
+        <section className="dash-profile-hero" aria-label="Kontoübersicht">
+          <div className="dash-profile-hero__visual">
+            <span className="dash-avatar dash-avatar--hero" aria-hidden="true">
+              {form.avatarUrl ? <img src={form.avatarUrl} alt="" /> : previewInitials}
+            </span>
+            <div className="dash-profile-hero__upload">
+              <label className="dash-upload-card">
+                <input type="file" accept="image/*" onChange={handleAvatar} disabled={saving} />
+                <span className="dash-upload-card__title">Profilbild</span>
+                <span className="dash-upload-card__meta">
+                  {avatarName || (form.avatarUrl ? 'Aktuelles Bild behalten' : 'PNG oder JPG · optional')}
+                </span>
+                <span className="dash-upload-card__cta">Bild wählen</span>
+              </label>
+              {form.avatarUrl ? (
+                <button
+                  type="button"
+                  className="dash-text-btn"
+                  disabled={saving}
+                  onClick={() => {
+                    setForm((prev) => ({ ...prev, avatarUrl: '' }));
+                    setAvatarName('');
+                  }}
+                >
+                  Bild entfernen
+                </button>
+              ) : null}
+            </div>
           </div>
-        </div>
 
-        <div className="dash-form">
-          <label>
-            Vorname
-            <input
-              name="firstName"
-              value={form.firstName}
-              onChange={handleChange}
-              autoComplete="given-name"
-              disabled={saving}
-              required
-            />
-          </label>
-          <label>
-            Nachname
-            <input
-              name="lastName"
-              value={form.lastName}
-              onChange={handleChange}
-              autoComplete="family-name"
-              disabled={saving}
-              required
-            />
-          </label>
-          <label className="is-full">
-            E-Mail-Adresse
-            <input type="email" value={user?.email || ''} autoComplete="email" disabled />
-          </label>
-          <label className="is-full">
-            Telefon <span className="dash-optional">freiwillig</span>
-            <input
-              name="phone"
-              type="tel"
-              value={form.phone}
-              onChange={handleChange}
-              autoComplete="tel"
-              disabled={saving}
-            />
-          </label>
-        </div>
+          <div className="dash-profile-hero__copy">
+            <span className="dash-profile-hero__kicker">Angemeldet als</span>
+            <strong className="dash-profile-hero__name">{previewName}</strong>
+            <p className="dash-profile-hero__email">
+              <Mail size={15} strokeWidth={2.2} aria-hidden="true" />
+              <span>{user?.email || '—'}</span>
+            </p>
+            <dl className="dash-profile-hero__facts">
+              <div>
+                <dt>Rolle</dt>
+                <dd>{roleLabel(user?.role)}</dd>
+              </div>
+              <div>
+                <dt>Telefon</dt>
+                <dd>{form.phone?.trim() || 'Noch nicht hinterlegt'}</dd>
+              </div>
+            </dl>
+          </div>
+        </section>
 
-        <div className="dash-form-actions">
+        <section className="dash-profile-section">
+          <header>
+            <h3>
+              <span className="dash-profile-section__icon" aria-hidden="true">
+                <User size={16} strokeWidth={2.2} />
+              </span>
+              Persönliche Angaben
+            </h3>
+            <p>Name und optional Telefon für Ihr Admin-Konto.</p>
+          </header>
+          <div className="dash-form">
+            <label>
+              Vorname
+              <input
+                name="firstName"
+                value={form.firstName}
+                onChange={handleChange}
+                autoComplete="given-name"
+                disabled={saving}
+                required
+              />
+            </label>
+            <label>
+              Nachname
+              <input
+                name="lastName"
+                value={form.lastName}
+                onChange={handleChange}
+                autoComplete="family-name"
+                disabled={saving}
+                required
+              />
+            </label>
+            <label className="is-full">
+              E-Mail-Adresse
+              <input type="email" value={user?.email || ''} autoComplete="email" disabled />
+            </label>
+            <label className="is-full">
+              Telefon <span className="dash-optional">freiwillig</span>
+              <span className="dash-profile-phone">
+                <Phone size={15} strokeWidth={2.2} aria-hidden="true" />
+                <input
+                  name="phone"
+                  type="tel"
+                  value={form.phone}
+                  onChange={handleChange}
+                  autoComplete="tel"
+                  disabled={saving}
+                />
+              </span>
+            </label>
+          </div>
+        </section>
+
+        <div className="dash-form-actions dash-form-actions--bar">
+          <p className="dash-form-actions__hint">Änderungen gelten sofort nach dem Speichern.</p>
           <button type="submit" className="dash-btn" disabled={saving}>
+            <Save size={15} strokeWidth={2.2} aria-hidden="true" />
             {saving ? 'Speichern…' : 'Profil speichern'}
           </button>
         </div>
       </form>
 
-      <form className="dash-panel" onSubmit={savePassword}>
-        <div className="dash-panel-head">
-          <div>
-            <strong>Passwort</strong>
-            <p className="dash-panel-lede">Mindestens 8 Zeichen, Groß- und Kleinbuchstaben, Zahl und Sonderzeichen.</p>
+      <form className="dash-panel dash-panel--profile" onSubmit={savePassword}>
+        <section className="dash-profile-section dash-profile-section--flush">
+          <header>
+            <h3>
+              <span className="dash-profile-section__icon" aria-hidden="true">
+                <KeyRound size={16} strokeWidth={2.2} />
+              </span>
+              Passwort
+            </h3>
+            <p>Mindestens 8 Zeichen, Groß- und Kleinbuchstaben, Zahl und Sonderzeichen.</p>
+          </header>
+
+          {passwordError ? <div className="dash-alert">{passwordError}</div> : null}
+
+          <div className="dash-form">
+            <PasswordField
+              label="Aktuelles Passwort"
+              value={currentPassword}
+              onChange={setCurrentPassword}
+              show={showCurrent}
+              onToggle={() => setShowCurrent((value) => !value)}
+              autoComplete="current-password"
+              disabled={savingPassword}
+            />
+            <PasswordField
+              label="Neues Passwort"
+              value={password}
+              onChange={setPassword}
+              show={showNew}
+              onToggle={() => setShowNew((value) => !value)}
+              autoComplete="new-password"
+              disabled={savingPassword}
+            />
+            <PasswordField
+              label="Passwort bestätigen"
+              value={confirmPassword}
+              onChange={setConfirmPassword}
+              show={showConfirm}
+              onToggle={() => setShowConfirm((value) => !value)}
+              autoComplete="new-password"
+              disabled={savingPassword}
+            />
           </div>
-        </div>
+        </section>
 
-        {passwordError ? <div className="dash-alert">{passwordError}</div> : null}
-
-        <div className="dash-form">
-          <PasswordField
-            label="Aktuelles Passwort"
-            value={currentPassword}
-            onChange={setCurrentPassword}
-            show={showCurrent}
-            onToggle={() => setShowCurrent((value) => !value)}
-            autoComplete="current-password"
-            disabled={savingPassword}
-          />
-          <PasswordField
-            label="Neues Passwort"
-            value={password}
-            onChange={setPassword}
-            show={showNew}
-            onToggle={() => setShowNew((value) => !value)}
-            autoComplete="new-password"
-            disabled={savingPassword}
-          />
-          <PasswordField
-            label="Passwort bestätigen"
-            value={confirmPassword}
-            onChange={setConfirmPassword}
-            show={showConfirm}
-            onToggle={() => setShowConfirm((value) => !value)}
-            autoComplete="new-password"
-            disabled={savingPassword}
-          />
-        </div>
-
-        <div className="dash-form-actions">
+        <div className="dash-form-actions dash-form-actions--bar">
+          <p className="dash-form-actions__hint">Nach der Änderung bleiben Sie angemeldet.</p>
           <button type="submit" className="dash-btn" disabled={savingPassword}>
+            <KeyRound size={15} strokeWidth={2.2} aria-hidden="true" />
             {savingPassword ? 'Wird gespeichert…' : 'Passwort ändern'}
           </button>
         </div>

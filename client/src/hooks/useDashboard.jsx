@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { fetchDashboard } from '../lib/auth';
 import { useAuth } from './useAuth';
 
@@ -11,11 +11,28 @@ const EMPTY_STATS = {
   creditCents: 0,
 };
 
+const ADMIN_POLL_MS = 30000;
+
 export function DashboardProvider({ children }) {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
+
+  const refresh = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true);
+    try {
+      const payload = await fetchDashboard();
+      setData(payload);
+      setError('');
+      return payload;
+    } catch (err) {
+      setError(err.message);
+      throw err;
+    } finally {
+      if (!silent) setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -36,6 +53,14 @@ export function DashboardProvider({ children }) {
     };
   }, [user?.id]);
 
+  useEffect(() => {
+    if (!isAdmin || !user?.id) return undefined;
+    const timer = window.setInterval(() => {
+      refresh({ silent: true }).catch(() => {});
+    }, ADMIN_POLL_MS);
+    return () => window.clearInterval(timer);
+  }, [isAdmin, user?.id, refresh]);
+
   const value = useMemo(
     () => ({
       loading,
@@ -43,8 +68,9 @@ export function DashboardProvider({ children }) {
       stats: data?.stats || EMPTY_STATS,
       admin: data?.admin || null,
       user: data?.user || user,
+      refresh,
     }),
-    [loading, error, data, user],
+    [loading, error, data, user, refresh],
   );
 
   return <DashboardContext.Provider value={value}>{children}</DashboardContext.Provider>;

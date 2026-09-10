@@ -6,6 +6,7 @@ import {
   createLeadRequest,
   listAllRequests,
   listRequestsForBerater,
+  markRequestSeen,
   pickWorkingRequest,
   requestTableMissing,
   updateLeadRequest,
@@ -20,7 +21,7 @@ function handleError(res, error) {
   if (requestTableMissing(error)) {
     return tableMissingResponse(
       res,
-      'Lead-Anforderungen fehlen. Bitte server/supabase/lead_workflow.sql und lead_request_code.sql im Supabase SQL Editor ausführen.',
+      'Lead-Anforderungen fehlen. Bitte server/supabase/lead_workflow.sql, lead_request_code.sql und lead_request_admin_seen.sql im Supabase SQL Editor ausführen.',
     );
   }
   return handleLeadError(res, error);
@@ -71,14 +72,30 @@ router.patch('/:id', requireRole(ROLES.ADMIN), async (req, res) => {
     if (!isUuid(req.params.id)) {
       return res.status(400).json({ error: 'Anforderung wurde nicht gefunden.' });
     }
-    const request = await updateLeadRequest(req.params.id, {
+    const result = await updateLeadRequest(req.params.id, {
       requestedCount: req.body?.requestedCount ?? req.body?.requested_count,
       notes: req.body?.notes,
       status: req.body?.status,
       leadType: req.body?.leadType ?? req.body?.lead_type,
       scope: req.body?.scope,
       replaceOnRefund: req.body?.replaceOnRefund ?? req.body?.replace_on_refund,
+      fulfillmentMode: req.body?.fulfillmentMode ?? req.body?.fulfillment_mode,
     });
+    if (!result?.request) {
+      return res.status(404).json({ error: 'Anforderung wurde nicht gefunden.' });
+    }
+    res.json({ request: result.request, autoFill: result.autoFill || null });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+router.post('/:id/seen', requireRole(ROLES.ADMIN), async (req, res) => {
+  try {
+    if (!isUuid(req.params.id)) {
+      return res.status(400).json({ error: 'Anforderung wurde nicht gefunden.' });
+    }
+    const request = await markRequestSeen(req.params.id);
     if (!request) {
       return res.status(404).json({ error: 'Anforderung wurde nicht gefunden.' });
     }

@@ -523,6 +523,160 @@ async function sendFollowUpEmail({
   return 'resend';
 }
 
+function adminLeadRequestEmail({
+  beraterName,
+  beraterEmail,
+  company,
+  requestCode,
+  leadType,
+  scopeLabel,
+  requestedCount,
+  reviewUrl,
+}) {
+  const year = new Date().getFullYear();
+  const safeBerater = escapeHtml(beraterName);
+  const safeEmail = escapeHtml(beraterEmail);
+  const safeCompany = escapeHtml(company);
+  const safeCode = escapeHtml(requestCode);
+  const safeType = escapeHtml(leadType);
+  const safeScope = escapeHtml(scopeLabel);
+  const safeCount = escapeHtml(String(requestedCount));
+  const safeUrl = escapeHtml(reviewUrl);
+  const greeting = 'Hallo';
+  const companyLine = company ? `Firma: ${company}` : '';
+  const codeLine = requestCode ? `Code: ${requestCode}` : '';
+
+  const text = `${greeting},
+
+eine neue Lead-Anforderung ist eingegangen.
+
+Berater: ${beraterName || '—'}
+${beraterEmail ? `E-Mail: ${beraterEmail}` : ''}
+${companyLine}
+${codeLine}
+Paket: ${scopeLabel} · ${leadType}
+Anzahl: ${requestedCount} Leads
+
+Anforderung öffnen:
+${reviewUrl}
+
+© ${year} VANTARO. Alle Rechte vorbehalten.`;
+
+  const html = `<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="color-scheme" content="light" />
+    <title>Neue Lead-Anforderung</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
+  </head>
+  <body style="margin:0;padding:0;background:#ffffff;color:#101827;">
+    <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">
+      ${safeBerater} · ${safeCount} ${safeType}-Leads · ${safeScope}
+    </div>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff;">
+      <tr>
+        <td align="center" style="background:#070b14;padding:22px 24px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;">
+            <tr>
+              <td align="center">
+                <img src="cid:vantaro-wordmark" width="168" height="18" alt="VANTARO" style="display:block;margin:0 auto;width:168px;height:18px;border:0;" />
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+      <tr>
+        <td align="center" style="padding:36px 24px 40px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;">
+            <tr>
+              <td align="left" style="padding:0 0 12px;font-family:${HEADING_FONT};font-size:28px;font-weight:600;line-height:1.2;letter-spacing:-0.04em;color:#101827;">
+                Neue Anforderung
+              </td>
+            </tr>
+            <tr>
+              <td align="left" style="padding:0 0 24px;font-family:${BODY_FONT};font-size:16px;line-height:1.55;color:#3a4658;">
+                ${greeting}, eine neue Lead-Anforderung von <strong style="color:#101827;">${safeBerater || 'einem Berater'}</strong> ist eingegangen.
+              </td>
+            </tr>
+            <tr>
+              <td align="left" style="padding:0 0 24px;">
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e6ebf2;border-radius:12px;background:#f8fafc;">
+                  <tr>
+                    <td style="padding:16px 18px;font-family:${BODY_FONT};font-size:14px;line-height:1.55;color:#3a4658;">
+                      <div style="margin:0 0 8px;"><strong style="color:#101827;">Berater:</strong> ${safeBerater || '—'}</div>
+                      ${beraterEmail ? `<div style="margin:0 0 8px;"><strong style="color:#101827;">E-Mail:</strong> ${safeEmail}</div>` : ''}
+                      ${company ? `<div style="margin:0 0 8px;"><strong style="color:#101827;">Firma:</strong> ${safeCompany}</div>` : ''}
+                      ${requestCode ? `<div style="margin:0 0 8px;"><strong style="color:#101827;">Code:</strong> ${safeCode}</div>` : ''}
+                      <div style="margin:0 0 8px;"><strong style="color:#101827;">Paket:</strong> ${safeScope} · ${safeType}</div>
+                      <div style="margin:0;"><strong style="color:#101827;">Anzahl:</strong> ${safeCount} Leads</div>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+            <tr>
+              <td align="left" style="padding:0 0 28px;">
+                <a href="${safeUrl}" style="display:inline-block;padding:12px 18px;border-radius:10px;background:#ff755a;color:#ffffff;font-family:${BODY_FONT};font-size:14px;font-weight:600;text-decoration:none;">
+                  Anforderung öffnen
+                </a>
+              </td>
+            </tr>
+            <tr>
+              <td align="left" style="font-family:${BODY_FONT};font-size:12px;line-height:1.5;color:#6b849c;">
+                © ${year} VANTARO. Alle Rechte vorbehalten.
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`;
+
+  return { text, html };
+}
+
+export async function sendAdminLeadRequestEmail({
+  to,
+  beraterName,
+  beraterEmail,
+  company,
+  requestCode,
+  leadType,
+  scopeLabel,
+  requestedCount,
+  reviewUrl,
+}) {
+  const subjectParts = [
+    'Neue Anforderung',
+    beraterName || null,
+    requestedCount ? `${requestedCount} ${leadType || 'Leads'}` : null,
+  ].filter(Boolean);
+  const subject = subjectParts.join(' · ');
+  const content = adminLeadRequestEmail({
+    beraterName,
+    beraterEmail,
+    company,
+    requestCode,
+    leadType,
+    scopeLabel,
+    requestedCount,
+    reviewUrl,
+  });
+  await sendWithResend({
+    to,
+    from: leadsFrom(),
+    subject,
+    ...content,
+    attachments: logoAttachments,
+  });
+  return 'resend';
+}
+
 export async function sendFollowUpReminderEmail(payload) {
   return sendFollowUpEmail({ ...payload, kind: 'due' });
 }

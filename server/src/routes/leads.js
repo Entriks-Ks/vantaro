@@ -192,7 +192,7 @@ router.patch('/:id', requireAuth, async (req, res) => {
       || Object.prototype.hasOwnProperty.call(req.body || {}, 'appointment_at')) {
       payload.appointmentAt = req.body.appointmentAt ?? req.body.appointment_at;
     }
-    const lead = await updateLead(req.params.id, payload);
+    const lead = await updateLead(req.params.id, payload, { bypassDeliveryLock: true });
     if (!lead) {
       return res.status(404).json({ error: 'Lead wurde nicht gefunden.' });
     }

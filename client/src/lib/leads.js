@@ -31,9 +31,15 @@ export const CONCERN_OPTIONS = [
 
 export const STATUS_OPTIONS = [
   { id: 'neu', label: 'Neu' },
+  { id: 'in_bearbeitung', label: 'Wieder verfügbar' },
   { id: 'zugewiesen', label: 'Zugewiesen' },
   { id: 'erledigt', label: 'Erledigt' },
 ];
+
+/** Assigned to a berater and not returned via Reklamation — view-only for admins. */
+export function isLeadDeliveryLocked(lead) {
+  return Boolean(lead?.assignedTo) && !lead?.refundedAt;
+}
 
 export const CSV_COLUMNS = [
   { header: 'Vorname', key: 'firstName' },
@@ -60,10 +66,7 @@ const LABEL_MAPS = {
   insurance: Object.fromEntries(INSURANCE_OPTIONS.map((item) => [item.id, item.label])),
   coverage: Object.fromEntries(COVERAGE_OPTIONS.map((item) => [item.id, item.label])),
   concern: Object.fromEntries(CONCERN_OPTIONS.map((item) => [item.id, item.label])),
-  status: {
-    ...Object.fromEntries(STATUS_OPTIONS.map((item) => [item.id, item.label])),
-    in_bearbeitung: 'In Bearbeitung',
-  },
+  status: Object.fromEntries(STATUS_OPTIONS.map((item) => [item.id, item.label])),
 };
 
 function optionLabel(map, id) {

@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes, useParams } from 'react-router-dom';
 import StammdatenModal from '../components/StammdatenModal';
 import { useAuth } from '../hooks/useAuth';
 import { BrokerProvider } from '../hooks/useBroker';
@@ -22,8 +22,14 @@ import {
 import { AdminLeadEditor, AdminLeads } from './dashboard/AdminLeads';
 import { AdminBeraterDetail, AdminBeraterList } from './dashboard/AdminBerater';
 import { AdminRequests } from './dashboard/AdminRequests';
+import { AdminRequestDetail } from './dashboard/AdminRequestDetail';
 import { AdminComplaints } from './dashboard/AdminComplaints';
 import { AdminRejectedLeads } from './dashboard/AdminRejectedLeads';
+
+function RedirectAnfordernDetail() {
+  const { id } = useParams();
+  return <Navigate to={`/dashboard/anfordern/${id}`} replace />;
+}
 
 export default function Dashboard() {
   const { isAdmin } = useAuth();
@@ -40,7 +46,9 @@ export default function Dashboard() {
                 <Route path="berater" element={<AdminBeraterList />} />
                 <Route path="berater/:id" element={<AdminBeraterDetail />} />
                 <Route path="anfordern" element={<AdminRequests />} />
+                <Route path="anfordern/:id" element={<AdminRequestDetail />} />
                 <Route path="anfragen" element={<Navigate to="/dashboard/anfordern" replace />} />
+                <Route path="anfragen/:id" element={<RedirectAnfordernDetail />} />
                 <Route path="reklamationen" element={<AdminComplaints />} />
                 <Route path="leads" element={<AdminLeads />} />
                 <Route path="leads/new" element={<AdminLeadEditor />} />

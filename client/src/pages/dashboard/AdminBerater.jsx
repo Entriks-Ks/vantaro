@@ -549,7 +549,7 @@ function RequestsPanel({ requests, totals }) {
                   </div>
                   <Link
                     className="dash-bv-link"
-                    to={`/dashboard/anfordern?request=${entry.id}`}
+                    to={`/dashboard/anfordern/${entry.id}`}
                   >
                     Anfrage ansehen
                   </Link>

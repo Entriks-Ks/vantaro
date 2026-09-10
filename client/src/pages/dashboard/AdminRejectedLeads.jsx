@@ -25,9 +25,9 @@ function beraterName(complaint) {
   return complaint?.berater?.fullName || complaint?.berater?.email || '—';
 }
 
-function isExchangedInvalidLead(complaint) {
-  return complaint?.status === 'approved'
-    && Boolean(complaint.replacementLeadId || complaint.replacementLead)
+function isParkedInvalidLead(complaint) {
+  // Refunded after admin decision — stays here until restored to the pool
+  return (complaint?.status === 'approved' || complaint?.status === 'partial')
     && Boolean(complaint.lead?.refundedAt);
 }
 
@@ -39,7 +39,7 @@ function RestoreConfirmModal({ lead, saving, onConfirm, onCancel }) {
         <h3 id="restore-confirm-title">Lead wieder aktivieren?</h3>
         <p>
           Möchten Sie <strong>{lead?.fullName || 'diesen Lead'}</strong> wieder in den freien Pool legen?
-          Der Lead erscheint dann erneut in der Lead-Liste und kann anderen Beratern zugewiesen werden.
+          Der Lead erscheint dann als <strong>Wieder verfügbar</strong> und kann erneut zugewiesen werden.
         </p>
         <div className="dash-confirm-actions">
           <button type="button" className="dash-btn dash-btn--ghost" onClick={onCancel} disabled={Boolean(saving)}>
@@ -86,7 +86,11 @@ function InvalidLeadDrawer({ complaint, saving, onRestoreRequest, onClose, from 
         <div className="dash-drawer-body">
           <div className="dash-drawer-chips">
             <span className="dash-badge dash-badge--danger">Ungültig</span>
-            <span className="dash-badge dash-badge--ok">Ersatz gesendet</span>
+            {complaint.replacementLeadId || complaint.replacementLead ? (
+              <span className="dash-badge dash-badge--ok">Ersatz gesendet</span>
+            ) : (
+              <span className="dash-badge dash-badge--warn">Ersatz offen</span>
+            )}
             {lead?.scope ? (
               <span className="dash-badge dash-badge--muted">{leadScopeLabel(lead.scope)}</span>
             ) : null}
@@ -178,8 +182,14 @@ export function AdminRejectedLeads() {
   const [confirmLeadId, setConfirmLeadId] = useState('');
 
   async function load() {
-    const payload = await fetchComplaints('approved');
-    setComplaints((payload.complaints || []).filter(isExchangedInvalidLead));
+    const approved = await fetchComplaints('approved');
+    const partial = await fetchComplaints('partial');
+    const merged = [...(approved.complaints || []), ...(partial.complaints || [])];
+    const byId = new Map();
+    for (const entry of merged) {
+      if (entry?.id) byId.set(entry.id, entry);
+    }
+    setComplaints([...byId.values()].filter(isParkedInvalidLead));
   }
 
   useEffect(() => {
@@ -237,7 +247,7 @@ export function AdminRejectedLeads() {
       await load();
       setConfirmLeadId('');
       setSelectedId('');
-      setNotice('Lead ist wieder aktiv und im freien Pool.');
+      setNotice('Lead ist wieder im freien Pool als Wieder verfügbar.');
     } catch (err) {
       setError(err.message);
     } finally {
@@ -285,11 +295,15 @@ export function AdminRejectedLeads() {
                     </span>
                   </div>
                   <div className="dash-request-meta">
-                    <time dateTime={complaint.refundedAt || lead?.refundedAt}>
-                      {formatDate(complaint.refundedAt || lead?.refundedAt)}
-                    </time>
-                    <span className="dash-badge dash-badge--danger">Ungültig</span>
-                    <span className="dash-badge dash-badge--ok">Ersetzt</span>
+                    <div className="dash-request-meta__info">
+                      <span className="dash-badge dash-badge--danger">Ungültig</span>
+                      <time dateTime={complaint.refundedAt || lead?.refundedAt}>
+                        {formatDate(complaint.refundedAt || lead?.refundedAt)}
+                      </time>
+                    </div>
+                    <div className="dash-request-meta__controls">
+                      <span className="dash-badge dash-badge--ok">Ersetzt</span>
+                    </div>
                   </div>
                 </article>
               );

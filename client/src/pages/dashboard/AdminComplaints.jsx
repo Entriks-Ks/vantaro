@@ -6,9 +6,11 @@ import {
   complaintStatusLabel,
   complaintStatusTone,
   fetchComplaints,
+  markComplaintsSeen,
   reviewComplaint,
 } from '../../lib/complaints';
 import { fetchLeads, formatLeadAddress, listLabels } from '../../lib/leads';
+import { useDashboard } from '../../hooks/useDashboard';
 import { DashSeg } from './DashboardLayout';
 import { ComplaintReplacementStatus, isReplacementPending } from './ComplaintReplacementStatus';
 import { formatDate, formatDateTime, initials } from './helpers';
@@ -279,6 +281,7 @@ function ComplaintDrawer({
 export function AdminComplaints() {
   const location = useLocation();
   const from = `${location.pathname}${location.search}`;
+  const { refresh: refreshDashboard } = useDashboard();
   const [complaints, setComplaints] = useState([]);
   const [pool, setPool] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -303,6 +306,15 @@ export function AdminComplaints() {
     let active = true;
     setLoading(true);
     load()
+      .then(async () => {
+        if (!active) return;
+        try {
+          await markComplaintsSeen();
+          await refreshDashboard({ silent: true });
+        } catch {
+          /* next poll corrects badge */
+        }
+      })
       .catch((err) => {
         if (active) setError(err.message);
       })
@@ -312,7 +324,7 @@ export function AdminComplaints() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [refreshDashboard]);
 
   useEffect(() => {
     if (!selectedId) return undefined;
@@ -349,6 +361,7 @@ export function AdminComplaints() {
     try {
       const result = await reviewComplaint(id, payload);
       await load();
+      refreshDashboard({ silent: true }).catch(() => {});
       setDeclineNote('');
       setReplaceId('');
       setSelectedId('');
@@ -442,15 +455,21 @@ export function AdminComplaints() {
                     <span className="dash-lead-row-tags">{complaintReasonLabel(entry.reason)}</span>
                   </div>
                   <div className="dash-request-meta">
-                    <time dateTime={entry.createdAt}>{formatDate(entry.createdAt)}</time>
-                    <span className={`dash-badge dash-badge--${complaintStatusTone(entry.status)}`}>
-                      {complaintStatusLabel(entry.status)}
-                    </span>
-                    {entry.status === 'approved' && isReplacementPending(entry) ? (
-                      <span className="dash-badge dash-badge--warn">Ersatz offen</span>
-                    ) : null}
-                    {entry.status === 'approved' && entry.replacementLead ? (
-                      <span className="dash-badge dash-badge--ok">Ersatz gesendet</span>
+                    <div className="dash-request-meta__info">
+                      <span className={`dash-badge dash-badge--${complaintStatusTone(entry.status)}`}>
+                        {complaintStatusLabel(entry.status)}
+                      </span>
+                      <time dateTime={entry.createdAt}>{formatDate(entry.createdAt)}</time>
+                    </div>
+                    {entry.status === 'approved' && (isReplacementPending(entry) || entry.replacementLead) ? (
+                      <div className="dash-request-meta__controls">
+                        {isReplacementPending(entry) ? (
+                          <span className="dash-badge dash-badge--warn">Ersatz offen</span>
+                        ) : null}
+                        {entry.replacementLead ? (
+                          <span className="dash-badge dash-badge--ok">Ersatz gesendet</span>
+                        ) : null}
+                      </div>
                     ) : null}
                   </div>
                 </article>

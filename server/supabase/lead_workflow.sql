@@ -100,6 +100,7 @@ alter table public.lead_complaints add column if not exists proof_data text;
 alter table public.lead_complaints add column if not exists contact_status text;
 alter table public.lead_complaints add column if not exists refund_cents integer;
 alter table public.lead_complaints add column if not exists snapshot jsonb;
+alter table public.lead_complaints add column if not exists admin_seen_at timestamptz;
 
 alter table public.lead_complaints drop constraint if exists lead_complaints_status_check;
 update public.lead_complaints set status = 'declined' where status in ('rejected', 'declined');

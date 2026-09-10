@@ -1067,6 +1067,14 @@ export function BeraterHome() {
 
   const recent = pipelineLeads.slice(0, 3);
   const inProgress = stats.kontaktiert + stats.termin + stats.wiedervorlage;
+  const pipelineTotal = Math.max(stats.total, 1);
+  const pipelineColors = {
+    neu: '#56d3c4',
+    kontaktiert: '#7aa2ff',
+    termin: '#f0b45a',
+    wiedervorlage: '#c4a0ff',
+    abgeschlossen: '#9ad67a',
+  };
 
   return (
     <div className="broker-page">
@@ -1122,6 +1130,53 @@ export function BeraterHome() {
           </span>
         </article>
       </div>
+
+      <section className="broker-panel broker-home-pipeline">
+        <div className="broker-panel-header">
+          <div>
+            <h2>Pipeline</h2>
+            <p>Verteilung Ihrer Leads nach Bearbeitungsstand</p>
+          </div>
+          <Link to="/dashboard/leads" className="broker-text-btn">Board öffnen</Link>
+        </div>
+
+        <div className="broker-pipeline-stack" aria-hidden={loading}>
+          {LEAD_STATUSES.map((status) => {
+            const value = stats[status.id] || 0;
+            const pct = loading || value <= 0 ? 0 : Math.max((value / pipelineTotal) * 100, 4);
+            return (
+              <span
+                key={status.id}
+                className="broker-pipeline-seg"
+                style={{ width: `${pct}%`, background: pipelineColors[status.id] }}
+                title={`${status.label}: ${value}`}
+              />
+            );
+          })}
+        </div>
+
+        <div className="broker-pipeline-board">
+          {LEAD_STATUSES.map((status) => {
+            const value = stats[status.id] || 0;
+            const pct = loading || stats.total <= 0 ? 0 : Math.round((value / stats.total) * 100);
+            return (
+              <Link
+                key={status.id}
+                className="broker-pipeline-col"
+                to="/dashboard/leads"
+              >
+                <span className="broker-pipeline-dot" style={{ background: pipelineColors[status.id] }} aria-hidden="true" />
+                <strong>{loading ? '—' : value}</strong>
+                <span>{status.label}</span>
+                <small>{loading ? '—' : `${pct}%`}</small>
+                <span className="broker-pipeline-bar" aria-hidden="true">
+                  <i style={{ height: `${loading ? 0 : Math.max(pct, value > 0 ? 8 : 0)}%`, background: pipelineColors[status.id] }} />
+                </span>
+              </Link>
+            );
+          })}
+        </div>
+      </section>
 
       <div className="broker-home-actions">
         <Link className="btn btn-primary" to="/dashboard/leads">
@@ -2500,9 +2555,9 @@ function ProfileNav({ active }) {
 function SettingsShell({ active, title, lede, children }) {
   return (
     <div className="broker-page broker-page--settings">
-      <div className="broker-heading">
+      <div className="broker-heading broker-heading--settings">
         <div>
-          <div className="eyebrow">Einstellungen</div>
+          <div className="eyebrow">Konto & Einstellungen</div>
           <h1>{title}</h1>
           <p className="lede">{lede}</p>
         </div>
@@ -2820,6 +2875,14 @@ export function BeraterProfile() {
     setAvatarName('');
   }, [user]);
 
+  const previewName = [form.firstName, form.lastName].map((part) => part.trim()).filter(Boolean).join(' ')
+    || displayName(user);
+  const previewInitials = initials({
+    firstName: form.firstName,
+    lastName: form.lastName,
+    email: user?.email,
+  });
+
   const handleChange = (event) => {
     const { name, value } = event.target;
     setForm((prev) => ({ ...prev, [name]: value }));
@@ -2870,31 +2933,18 @@ export function BeraterProfile() {
     <SettingsShell
       active="profil"
       title={<>Pro<em>fil</em></>}
-      lede="Bild, Name und Telefon — so erscheint Ihr Konto im Portal."
+      lede="So erscheinen Sie im Portal — Bild, Name und Erreichbarkeit."
     >
-      <form className="broker-panel broker-settings broker-settings--wide" onSubmit={save}>
+      <form className="broker-panel broker-settings broker-settings--wide broker-settings--profile" onSubmit={save}>
         {error && <div className="broker-alert">{error}</div>}
 
-        <section className="broker-settings-section" id="foto">
-          <header>
-            <h3>
-              <span className="broker-settings-section__icon" aria-hidden="true">
-                <User size={16} strokeWidth={2.2} />
-              </span>
-              Profilbild
-            </h3>
-            <p>Freiwillig — ein Foto macht Ihr Konto persönlicher.</p>
-          </header>
-          <div className="broker-avatar-edit">
-            <div className="broker-avatar broker-avatar--xl" aria-hidden="true">
-              {form.avatarUrl ? (
-                <img src={form.avatarUrl} alt="" />
-              ) : (
-                initials({ firstName: form.firstName, lastName: form.lastName, email: user?.email })
-              )}
+        <section className="broker-profile-hero" id="foto" aria-label="Kontoübersicht">
+          <div className="broker-profile-hero__visual">
+            <div className="broker-avatar broker-avatar--hero" aria-hidden="true">
+              {form.avatarUrl ? <img src={form.avatarUrl} alt="" /> : previewInitials}
             </div>
-            <div>
-              <label className="broker-file-btn" htmlFor="profile-avatar">
+            <div className="broker-profile-hero__upload">
+              <label className="broker-upload-card" htmlFor="profile-avatar">
                 <input
                   id="profile-avatar"
                   type="file"
@@ -2902,8 +2952,11 @@ export function BeraterProfile() {
                   onChange={handleAvatar}
                   disabled={saving}
                 />
-                <span>Bild auswählen</span>
-                <small>{avatarName || (form.avatarUrl ? 'Aktuelles Bild behalten' : 'PNG oder JPG')}</small>
+                <span className="broker-upload-card__title">Profilbild</span>
+                <span className="broker-upload-card__meta">
+                  {avatarName || (form.avatarUrl ? 'Aktuelles Bild behalten' : 'PNG oder JPG · optional')}
+                </span>
+                <span className="broker-upload-card__cta">Bild auswählen</span>
               </label>
               {form.avatarUrl ? (
                 <button
@@ -2920,17 +2973,42 @@ export function BeraterProfile() {
               ) : null}
             </div>
           </div>
+
+          <div className="broker-profile-hero__copy">
+            <span className="broker-profile-hero__kicker">Ihr Konto</span>
+            <strong className="broker-profile-hero__name">{previewName}</strong>
+            <p className="broker-profile-hero__email">
+              <Mail size={15} strokeWidth={2.2} aria-hidden="true" />
+              <span>{user?.email || '—'}</span>
+            </p>
+            <dl className="broker-profile-hero__facts">
+              {user?.customerNumber ? (
+                <div>
+                  <dt>Kundennummer</dt>
+                  <dd>{user.customerNumber}</dd>
+                </div>
+              ) : null}
+              <div>
+                <dt>Telefon</dt>
+                <dd>{form.phone?.trim() || 'Noch nicht hinterlegt'}</dd>
+              </div>
+              <div>
+                <dt>Status</dt>
+                <dd>{user?.onboardingComplete ? 'Einrichtung abgeschlossen' : 'Einrichtung offen'}</dd>
+              </div>
+            </dl>
+          </div>
         </section>
 
         <section className="broker-settings-section" id="kontakt">
           <header>
             <h3>
               <span className="broker-settings-section__icon" aria-hidden="true">
-                <Phone size={16} strokeWidth={2.2} />
+                <User size={16} strokeWidth={2.2} />
               </span>
-              Name & Telefon
+              Persönliche Angaben
             </h3>
-            <p>Für Vertrag, Rückfragen und die Anzeige in Ihrem Konto.</p>
+            <p>Name und Telefon für Vertrag, Rückfragen und die Anzeige in Ihrem Konto.</p>
           </header>
           <div className="broker-form-grid">
             <label>
@@ -2973,9 +3051,11 @@ export function BeraterProfile() {
           </div>
         </section>
 
-        <div className="broker-settings-actions">
+        <div className="broker-settings-actions broker-settings-actions--bar">
+          <p className="broker-settings-actions__hint">Änderungen gelten sofort nach dem Speichern in Ihrem Konto.</p>
           <button type="submit" className="btn btn-primary" disabled={saving}>
-            {saving ? 'Wird gespeichert⬦' : 'Profil speichern'}
+            <Save size={16} strokeWidth={2.2} aria-hidden="true" />
+            {saving ? 'Wird gespeichert…' : 'Profil speichern'}
           </button>
         </div>
       </form>

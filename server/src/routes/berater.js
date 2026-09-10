@@ -7,6 +7,7 @@ import {
   listBeraterPipelines,
   recallLeadFromRequest,
   requestTableMissing,
+  autoFillRequest,
   sendLeadsToRequest,
   updateLeadRequest,
 } from '../lib/leadRequests.js';
@@ -26,7 +27,7 @@ function handleError(res, error) {
   if (requestTableMissing(error)) {
     return tableMissingResponse(
       res,
-      'Berater-Aufträge fehlen. Bitte server/supabase/lead_requests.sql, lead_workflow.sql und lead_request_code.sql im Supabase SQL Editor ausführen.',
+      'Berater-Aufträge fehlen. Bitte server/supabase/lead_requests.sql, lead_workflow.sql, lead_request_code.sql und lead_request_fulfillment_mode.sql im Supabase SQL Editor ausführen.',
     );
   }
   return handleLeadError(res, error);
@@ -46,18 +47,19 @@ router.patch('/requests/:requestId', async (req, res) => {
     if (!isUuid(req.params.requestId)) {
       return res.status(400).json({ error: 'Auftrag wurde nicht gefunden.' });
     }
-    const request = await updateLeadRequest(req.params.requestId, {
+    const result = await updateLeadRequest(req.params.requestId, {
       requestedCount: req.body?.requestedCount ?? req.body?.requested_count,
       notes: req.body?.notes,
       status: req.body?.status,
       leadType: req.body?.leadType ?? req.body?.lead_type,
       scope: req.body?.scope,
       replaceOnRefund: req.body?.replaceOnRefund ?? req.body?.replace_on_refund,
+      fulfillmentMode: req.body?.fulfillmentMode ?? req.body?.fulfillment_mode,
     });
-    if (!request) {
+    if (!result?.request) {
       return res.status(404).json({ error: 'Auftrag wurde nicht gefunden.' });
     }
-    res.json({ request });
+    res.json({ request: result.request, autoFill: result.autoFill || null });
   } catch (error) {
     handleError(res, error);
   }
@@ -72,6 +74,21 @@ router.post('/requests/:requestId/send', async (req, res) => {
       req.params.requestId,
       req.body?.leadIds || req.body?.lead_ids || [],
     );
+    if (!result) {
+      return res.status(404).json({ error: 'Auftrag wurde nicht gefunden.' });
+    }
+    res.json(result);
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+router.post('/requests/:requestId/auto-fill', async (req, res) => {
+  try {
+    if (!isUuid(req.params.requestId)) {
+      return res.status(400).json({ error: 'Auftrag wurde nicht gefunden.' });
+    }
+    const result = await autoFillRequest(req.params.requestId);
     if (!result) {
       return res.status(404).json({ error: 'Auftrag wurde nicht gefunden.' });
     }
@@ -134,6 +151,7 @@ router.post('/:id/requests', async (req, res) => {
       scope: req.body?.scope,
       notes: req.body?.notes,
       createdBy: req.user.id,
+      notifyAdmins: false,
     });
     res.status(201).json({ request });
   } catch (error) {

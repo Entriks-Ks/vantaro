@@ -56,6 +56,7 @@ router.get('/', requireAuth, async (req, res) => {
           completedRequests: 0,
           deliveredLeads: 0,
           pendingComplaints: 0,
+          unseenComplaints: 0,
           approvedComplaints: 0,
           declinedComplaints: 0,
           refundedLeads: 0,
