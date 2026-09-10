@@ -20,7 +20,7 @@ export default function Datenschutz() {
         Geschäftsführer: René Schirner
         <br />
         E-Mail:{' '}
-        <a href="mailto:rene.schirner@entriks.com">rene.schirner@entriks.com</a>
+        <a href="mailto:info@vantaro.io">info@vantaro.io</a>
         <br />
         Weitere Angaben:{' '}
         <a href="#impressum">Impressum</a>
@@ -46,7 +46,7 @@ export default function Datenschutz() {
         Das Formular auf dieser Website überträgt in der aktuellen Demo keine
         Daten an einen Server. Eine verbindliche Anfrage senden Sie bitte per
         E-Mail an{' '}
-        <a href="mailto:rene.schirner@entriks.com">rene.schirner@entriks.com</a>.
+        <a href="mailto:info@vantaro.io">info@vantaro.io</a>.
       </p>
 
       <h2>4. Cookies und Einwilligung</h2>
@@ -188,7 +188,7 @@ export default function Datenschutz() {
       </ul>
       <p>
         Zur Ausübung Ihrer Rechte schreiben Sie an{' '}
-        <a href="mailto:rene.schirner@entriks.com">rene.schirner@entriks.com</a>.
+        <a href="mailto:info@vantaro.io">info@vantaro.io</a>.
       </p>
 
       <h2>9. Beschwerderecht</h2>

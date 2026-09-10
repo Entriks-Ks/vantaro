@@ -38,6 +38,10 @@ export function normalizePhone(value, defaultCountry = DEFAULT_PHONE_COUNTRY) {
   if (!raw) return '';
 
   const digits = raw.replace(/\D/g, '');
+
+  // ITU-T E.164 max is 15 digits; reject anything longer immediately.
+  if (digits.length > 15) return '';
+
   let candidate = raw;
   let countryHint = defaultCountry;
 

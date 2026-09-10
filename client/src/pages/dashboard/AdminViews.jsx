@@ -21,6 +21,7 @@ import { leadTypeLabel, requestStatusLabel, requestStatusTone } from '../../lib/
 import { fetchAllPayments, formatCardExpiry, formatCardMask } from '../../lib/payments';
 import { leadScopeLabel } from '../../lib/scopes';
 import { fileToAvatarDataUrl, validatePassword } from '../../lib/profile';
+import PhoneField, { isValidMobile } from '../../components/PhoneField';
 import { roleLabel } from '../../lib/roles';
 import { LeadListItem } from './AdminLeads';
 import { formatDate, formatDateTime, formatEuroExact, initials } from './helpers';
@@ -644,6 +645,7 @@ export function AdminProfile() {
   const [avatarName, setAvatarName] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [phoneError, setPhoneError] = useState('');
 
   const [currentPassword, setCurrentPassword] = useState('');
   const [password, setPassword] = useState('');
@@ -682,6 +684,7 @@ export function AdminProfile() {
   const saveProfile = async (event) => {
     event.preventDefault();
     setError('');
+    setPhoneError('');
     if (!form.firstName.trim() || form.firstName.trim().length < 2) {
       setError('Bitte geben Sie Ihren Vornamen an.');
       return;
@@ -690,12 +693,16 @@ export function AdminProfile() {
       setError('Bitte geben Sie Ihren Nachnamen an.');
       return;
     }
+    if (form.phone && !isValidMobile(form.phone)) {
+      setPhoneError('Bitte geben Sie eine gültige Telefonnummer an.');
+      return;
+    }
     setSaving(true);
     try {
       await updateProfile({
         firstName: form.firstName.trim(),
         lastName: form.lastName.trim(),
-        phone: form.phone.trim(),
+        phone: form.phone,
         avatarUrl: form.avatarUrl,
       });
       setAvatarName('');
@@ -849,17 +856,17 @@ export function AdminProfile() {
             </label>
             <label className="is-full">
               Telefon <span className="dash-optional">freiwillig</span>
-              <span className="dash-profile-phone">
-                <Phone size={15} strokeWidth={2.2} aria-hidden="true" />
-                <input
-                  name="phone"
-                  type="tel"
-                  value={form.phone}
-                  onChange={handleChange}
-                  autoComplete="tel"
-                  disabled={saving}
-                />
-              </span>
+              <PhoneField
+                id="admin-profile-phone"
+                value={form.phone}
+                onChange={(phone) => {
+                  setPhoneError('');
+                  setForm((prev) => ({ ...prev, phone }));
+                }}
+                disabled={saving}
+                className="vantaro-phone-input--light"
+                error={phoneError}
+              />
             </label>
           </div>
         </section>

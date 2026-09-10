@@ -28,8 +28,7 @@ function normalizePhone(raw) {
   const parsed = parsePhoneNumberFromString(candidate, 'DE');
   if (parsed?.isValid()) return parsed.format('E.164');
 
-  const digits = candidate.replace(/[^\d+]/g, '');
-  return digits || text;
+  return null;
 }
 
 function buildStreet(address = {}) {

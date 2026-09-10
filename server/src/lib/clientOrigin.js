@@ -1,7 +1,7 @@
 const DEFAULT_FRONTEND = 'https://www.vantaro.io';
 
 const BUILTIN_ORIGINS = [
-  'http://localhost:5176',
+  'http://localhost:5173',
   'http://localhost:3000',
   'https://vantaro.io',
   'https://www.vantaro.io',

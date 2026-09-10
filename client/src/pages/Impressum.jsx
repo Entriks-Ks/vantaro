@@ -17,7 +17,7 @@ export default function Impressum() {
       </p>
       <p>
         E-Mail:{' '}
-        <a href="mailto:rene.schirner@entriks.com">rene.schirner@entriks.com</a>
+        <a href="mailto:info@vantaro.io">info@vantaro.io</a>
         <br />
         Internet:{' '}
         <a href="https://vantaro.io/">https://vantaro.io</a>
@@ -31,7 +31,7 @@ export default function Impressum() {
       <p>
         Für Fragen zum Angebot, zu Pilotprojekten und zu dieser Website schreiben
         Sie an{' '}
-        <a href="mailto:rene.schirner@entriks.com">rene.schirner@entriks.com</a>{' '}
+        <a href="mailto:info@vantaro.io">info@vantaro.io</a>{' '}
         oder nutzen Sie das Formular unter{' '}
         <a href="#kontakt">Kontakt</a>.
       </p>

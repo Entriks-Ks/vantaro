@@ -12,6 +12,8 @@ import {
   BeraterProfile,
   BeraterCompany,
   BeraterSecurity,
+  BeraterCalendar,
+  BeraterSupport,
 } from './dashboard/BeraterViews';
 import {
   AdminOverview,
@@ -66,12 +68,15 @@ export default function Dashboard() {
               <>
                 <Route path="leads" element={<BeraterLeads />} />
                 <Route path="leads/:leadId" element={<BeraterLeadDetail />} />
-                <Route path="zahlung" element={<BeraterPayments />} />
-                <Route path="pakete" element={<Navigate to="/dashboard/zahlung" replace />} />
+                <Route path="kalender" element={<BeraterCalendar />} />
+                <Route path="paket" element={<BeraterPayments />} />
+                <Route path="zahlung" element={<Navigate to="/dashboard/paket" replace />} />
                 <Route path="profil" element={<BeraterProfile />} />
+                <Route path="support" element={<BeraterSupport />} />
+                <Route path="pakete" element={<Navigate to="/dashboard/paket" replace />} />
                 <Route path="unternehmen" element={<BeraterCompany />} />
                 <Route path="sicherheit" element={<BeraterSecurity />} />
-                <Route path="guthaben" element={<Navigate to="/dashboard/zahlung" replace />} />
+                <Route path="guthaben" element={<Navigate to="/dashboard/paket" replace />} />
                 <Route path="chancen" element={<Navigate to="/dashboard/leads" replace />} />
                 <Route path="aufgaben" element={<Navigate to="/dashboard" replace />} />
               </>
