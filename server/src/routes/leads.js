@@ -2,7 +2,6 @@ import { Router } from 'express';
 import { requireAuth, requireRole } from '../lib/auth.js';
 import { ROLES } from '../lib/roles.js';
 import {
-  assignLead,
   createLead,
   deleteLead,
   getLeadById,
@@ -212,27 +211,6 @@ router.patch('/:id', requireAuth, async (req, res) => {
         'Reklamationen fehlen. Bitte server/supabase/lead_workflow.sql im Supabase SQL Editor ausführen.',
       );
     }
-    handleLeadError(res, error);
-  }
-});
-
-router.patch('/:id/assign', ...adminOnly, async (req, res) => {
-  try {
-    if (!isUuid(req.params.id)) {
-      return res.status(400).json({ error: 'Lead wurde nicht gefunden.' });
-    }
-    const assignedTo = req.body?.assignedTo ?? req.body?.assigned_to ?? null;
-    const requestId = req.body?.requestId ?? req.body?.request_id;
-    const lead = await assignLead(
-      req.params.id,
-      assignedTo || null,
-      requestId === undefined ? {} : { requestId: requestId || null },
-    );
-    if (!lead) {
-      return res.status(404).json({ error: 'Lead wurde nicht gefunden.' });
-    }
-    res.json({ lead: hideBrokerNotes(lead) });
-  } catch (error) {
     handleLeadError(res, error);
   }
 });

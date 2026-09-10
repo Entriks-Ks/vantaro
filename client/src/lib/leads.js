@@ -273,18 +273,6 @@ export async function updateLead(id, payload) {
   return parseResponse(response);
 }
 
-export async function assignLead(id, assignedTo, { requestId } = {}) {
-  const response = await fetch(apiUrl(`/api/leads/${id}/assign`), {
-    method: 'PATCH',
-    headers: authHeaders(true),
-    body: JSON.stringify({
-      assignedTo,
-      requestId: requestId === undefined ? undefined : requestId,
-    }),
-  });
-  return parseResponse(response);
-}
-
 export async function restoreRejectedLead(id) {
   const response = await fetch(apiUrl(`/api/leads/${id}/restore`), {
     method: 'POST',

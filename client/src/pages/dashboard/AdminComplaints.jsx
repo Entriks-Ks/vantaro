@@ -1,19 +1,22 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { ChevronDown, X } from 'lucide-react';
+import { ChevronDown, FileText, X } from 'lucide-react';
 import {
   complaintReasonLabel,
   complaintStatusLabel,
   complaintStatusTone,
+  contactStatusLabel,
   fetchComplaints,
   markComplaintsSeen,
   reviewComplaint,
 } from '../../lib/complaints';
-import { fetchLeads, formatLeadAddress, listLabels } from '../../lib/leads';
+import { employmentLabel, fetchLeads, formatLeadAddress, listLabels } from '../../lib/leads';
+import { DEFAULT_LEAD_SCOPE, leadScopeLabel } from '../../lib/scopes';
 import { useDashboard } from '../../hooks/useDashboard';
+import { leadPurchaseCents } from './packages';
 import { DashSeg } from './DashboardLayout';
 import { ComplaintReplacementStatus, isReplacementPending } from './ComplaintReplacementStatus';
-import { formatDate, formatDateTime, initials } from './helpers';
+import { formatDate, formatDateTime, formatEuroExact, initials } from './helpers';
 
 function beraterName(complaint) {
   return complaint.berater?.fullName || complaint.berater?.email || 'Unbekannt';
@@ -43,6 +46,45 @@ function phoneHref(phone) {
   return cleaned ? `tel:${cleaned}` : '';
 }
 
+function complaintFullCents(complaint) {
+  const fromSnapshot = Number(complaint?.snapshot?.priceCents);
+  if (Number.isFinite(fromSnapshot) && fromSnapshot > 0) return Math.round(fromSnapshot);
+  return leadPurchaseCents(complaint?.lead || {});
+}
+
+function eurosToCents(value) {
+  const normalized = String(value || '').trim().replace(/\s/g, '').replace(',', '.');
+  if (!normalized) return null;
+  const euros = Number(normalized);
+  if (!Number.isFinite(euros) || euros <= 0) return null;
+  return Math.round(euros * 100);
+}
+
+function centsToEuroInput(cents) {
+  const amount = Number(cents) || 0;
+  return (amount / 100).toFixed(2).replace('.', ',');
+}
+
+function isProofImage(dataUrl) {
+  return /^data:image\//i.test(String(dataUrl || ''));
+}
+
+function isProofPdf(dataUrl) {
+  return /^data:application\/pdf/i.test(String(dataUrl || ''));
+}
+
+function complaintScope(complaint) {
+  return complaint?.request?.scope || complaint?.lead?.scope || '';
+}
+
+function snapshotEmployment(snapshot) {
+  if (!snapshot) return '';
+  if (snapshot.employmentStatus === 'sonstiges' && snapshot.employmentOther) {
+    return snapshot.employmentOther;
+  }
+  return employmentLabel(snapshot.employmentStatus);
+}
+
 function DrawerSection({ title, summary, defaultOpen = false, children }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
@@ -59,33 +101,131 @@ function DrawerSection({ title, summary, defaultOpen = false, children }) {
   );
 }
 
+function ComplaintEvidence({ complaint }) {
+  const snapshot = complaint.snapshot;
+  const contact = complaint.contactStatus || snapshot?.contactStatus;
+  const proofName = complaint.proofName || 'Nachweis';
+  const proofData = complaint.proofData;
+  const brokerNotes = String(snapshot?.brokerNotes || '').trim();
+  const stockNotes = String(snapshot?.notes || '').trim();
+  const insurance = listLabels(snapshot?.insuranceStatus, 'insurance');
+  const concerns = listLabels(snapshot?.mainConcerns, 'concern');
+  const coverage = listLabels(snapshot?.coverageCircle, 'coverage');
+  const talk = [
+    snapshot?.phone,
+    snapshot?.email,
+    snapshotEmployment(snapshot),
+    insurance !== '—' ? insurance : '',
+  ].filter(Boolean).join(' · ') || 'Keine Gesprächsdaten hinterlegt';
+
+  const hasSnapshot = Boolean(snapshot);
+  const hasProof = Boolean(proofData || proofName);
+
+  if (!hasSnapshot && !hasProof && !contact && !complaint.comment) return null;
+
+  return (
+    <div className="dash-complaint-evidence">
+      <div className="dash-drawer-fields dash-drawer-fields--stack">
+        <Field label="Kontaktstatus">{contactStatusLabel(contact)}</Field>
+        <Field label="Kaufpreis">{formatEuroExact(complaintFullCents(complaint))}</Field>
+        {snapshot?.assignedAt ? (
+          <Field label="Übergabe">{formatDateTime(snapshot.assignedAt)}</Field>
+        ) : null}
+      </div>
+
+      {hasSnapshot ? (
+        <div className="dash-complaint-snapshot">
+          <p className="dash-complaint-snapshot__label">Snapshot bei Einreichung</p>
+          <p className="dash-complaint-snapshot__talk">{talk}</p>
+          {concerns && concerns !== '—' ? (
+            <p className="dash-complaint-snapshot__meta"><span>Anliegen</span>{concerns}</p>
+          ) : null}
+          {coverage && coverage !== '—' ? (
+            <p className="dash-complaint-snapshot__meta"><span>Absicherung</span>{coverage}</p>
+          ) : null}
+          <p className="dash-complaint-snapshot__notes">
+            <span>Notizen</span>
+            {brokerNotes || stockNotes || 'Keine Notizen'}
+            {brokerNotes && stockNotes && brokerNotes !== stockNotes ? (
+              <small>Bestand: {stockNotes}</small>
+            ) : null}
+          </p>
+        </div>
+      ) : null}
+
+      {proofData ? (
+        <div className="dash-complaint-proof">
+          <p className="dash-complaint-proof__label">Nachweis vom Berater</p>
+          {isProofImage(proofData) ? (
+            <a
+              className="dash-complaint-proof__image"
+              href={proofData}
+              target="_blank"
+              rel="noreferrer"
+              title={proofName}
+            >
+              <img src={proofData} alt={proofName} />
+            </a>
+          ) : null}
+          <a
+            className="dash-btn dash-btn--ghost dash-btn--compact"
+            href={proofData}
+            download={proofName}
+            target="_blank"
+            rel="noreferrer"
+          >
+            <FileText size={14} aria-hidden="true" />
+            {isProofPdf(proofData) ? `PDF öffnen · ${proofName}` : proofName}
+          </a>
+        </div>
+      ) : complaint.proofName ? (
+        <p className="dash-panel-note">Nachweis genannt: {complaint.proofName} (Datei nicht verfügbar)</p>
+      ) : null}
+    </div>
+  );
+}
+
 function ComplaintDrawer({
   complaint,
   pool,
   saving,
-  declineNote,
+  adminNote,
   replaceId,
-  onDeclineNote,
+  partialEuro,
+  onAdminNote,
   onReplaceId,
+  onPartialEuro,
   onRun,
   onClose,
   from,
 }) {
   const lead = complaint.lead;
-  const pending = complaint.status === 'pending';
-  const canReplace = Boolean(complaint.requestId) && pool.length > 0
+  const decidable = complaint.status === 'pending' || complaint.status === 'info_needed';
+  const requiredScope = complaintScope(complaint) || DEFAULT_LEAD_SCOPE;
+  const scopedPool = useMemo(() => {
+    return pool.filter((item) => (item.scope || DEFAULT_LEAD_SCOPE) === requiredScope);
+  }, [pool, requiredScope]);
+  const canReplace = Boolean(complaint.requestId) && scopedPool.length > 0
     && (complaint.request?.status === 'active' || complaint.request?.status === 'completed' || !complaint.request);
-  const replacements = pool.slice(0, 5);
+  const replacements = scopedPool.slice(0, 5);
   const address = lead ? formatLeadAddress(lead) : '';
   const leadSummary = (address && address !== '—' ? address : null)
     || lead?.email
     || lead?.phone
     || 'Kontaktdaten';
   const selectedReplace = replacements.find((item) => item.id === replaceId)
-    || (replaceId ? pool.find((item) => item.id === replaceId) : null);
-  const replaceSummary = selectedReplace?.fullName || (canReplace ? `Optional · ${Math.min(5, pool.length)} von ${pool.length}` : 'Kein freier Lead');
+    || (replaceId ? scopedPool.find((item) => item.id === replaceId) : null);
+  const replaceSummary = selectedReplace?.fullName
+    || (canReplace ? `Optional · ${Math.min(5, scopedPool.length)} von ${scopedPool.length}` : 'Kein freier Lead');
   const beraterPath = complaint.beraterId ? `/dashboard/berater/${complaint.beraterId}` : '';
   const beraterTel = beraterTelHref(beraterPhone(complaint));
+  const fullCents = complaintFullCents(complaint);
+  const noteRequired = !adminNote.trim();
+  const partialCents = eurosToCents(partialEuro);
+  const evidenceSummary = [
+    contactStatusLabel(complaint.contactStatus || complaint.snapshot?.contactStatus),
+    complaint.proofData || complaint.proofName ? 'Nachweis' : '',
+  ].filter((value) => value && value !== '—').join(' · ') || 'Eingereichte Angaben';
 
   return (
     <div className="dash-drawer-root">
@@ -118,6 +258,14 @@ function ComplaintDrawer({
             <span className={`dash-badge dash-badge--${complaintStatusTone(complaint.status)}`}>
               {complaintStatusLabel(complaint.status)}
             </span>
+            {complaint.refundCents != null ? (
+              <span className="dash-badge dash-badge--ok">
+                Gutschrift {formatEuroExact(complaint.refundCents)}
+              </span>
+            ) : null}
+            {requiredScope ? (
+              <span className="dash-badge dash-badge--muted">{leadScopeLabel(requiredScope)}</span>
+            ) : null}
           </div>
 
           <p className="dash-complaint-reason">{complaintReasonLabel(complaint.reason)}</p>
@@ -139,7 +287,11 @@ function ComplaintDrawer({
           <ComplaintReplacementStatus complaint={complaint} from={from} />
 
           <div className="dash-drawer-accordions" key={complaint.id}>
-            <DrawerSection title="Lead" summary={leadSummary} defaultOpen>
+            <DrawerSection title="Eingereichte Angaben" summary={evidenceSummary} defaultOpen>
+              <ComplaintEvidence complaint={complaint} />
+            </DrawerSection>
+
+            <DrawerSection title="Lead" summary={leadSummary}>
               <div className="dash-drawer-fields dash-drawer-fields--stack">
                 <Field label="Adresse">{address}</Field>
                 <Field label="E-Mail">
@@ -152,12 +304,13 @@ function ComplaintDrawer({
               </div>
             </DrawerSection>
 
-            {pending ? (
+            {decidable ? (
               <DrawerSection title="Ersatzlead" summary={replaceSummary}>
                 {canReplace ? (
                   <div className="dash-replace-block">
                     <p className="dash-panel-note">
-                      Maximal 5 freie Leads hier. Anderen Ersatz über den Berater wählen.
+                      Scope {leadScopeLabel(requiredScope)} · max. 5 freie Leads hier.
+                      Anderen Ersatz über Leads wählen.
                     </p>
                     <div className="dash-pick-list dash-pick-list--drawer">
                       {replacements.map((item) => (
@@ -188,29 +341,46 @@ function ComplaintDrawer({
                   </div>
                 ) : (
                   <p className="dash-panel-note">
-                    Kein freier Lead im Pool. Ersatz können Sie nach der Erstattung über den Berater senden.
+                    Kein freier Lead mit Scope {leadScopeLabel(requiredScope)}.
+                    Ersatz können Sie nach der Erstattung über Leads senden.
                   </p>
                 )}
               </DrawerSection>
             ) : null}
           </div>
 
-          {pending ? (
-            <label className="dash-decline-note">
-              Notiz zum Ablehnen
-              <textarea
-                rows={2}
-                value={declineNote}
-                onChange={(event) => onDeclineNote(event.target.value)}
-                placeholder="Nur nötig, wenn Sie ablehnen."
-                disabled={Boolean(saving)}
-              />
-            </label>
+          {decidable ? (
+            <div className="dash-complaint-decide">
+              <label className="dash-decline-note">
+                Notiz an den Berater
+                <textarea
+                  rows={2}
+                  value={adminNote}
+                  onChange={(event) => onAdminNote(event.target.value)}
+                  placeholder="Pflicht bei Ablehnung oder Infos anfordern."
+                  disabled={Boolean(saving)}
+                />
+              </label>
+              <label className="dash-decline-note">
+                Teilgutschrift (EUR)
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={partialEuro}
+                  onChange={(event) => onPartialEuro(event.target.value)}
+                  placeholder={centsToEuroInput(Math.round(fullCents / 2))}
+                  disabled={Boolean(saving)}
+                />
+                <small className="dash-complaint-decide__hint">
+                  Vollbetrag {formatEuroExact(fullCents)}. Leer = Hälfte.
+                </small>
+              </label>
+            </div>
           ) : null}
         </div>
 
-        <div className={`dash-drawer-actions${pending ? ' dash-drawer-actions--decide' : ''}`}>
-          {pending ? (
+        <div className={`dash-drawer-actions${decidable ? ' dash-drawer-actions--decide dash-drawer-actions--decide-wide' : ''}`}>
+          {decidable ? (
             <>
               <button
                 type="button"
@@ -218,7 +388,11 @@ function ComplaintDrawer({
                 disabled={Boolean(saving)}
                 onClick={() => onRun(
                   complaint.id,
-                  { status: 'approved', replaceLeadId: replaceId || undefined },
+                  {
+                    status: 'approved',
+                    note: adminNote || undefined,
+                    replaceLeadId: replaceId || undefined,
+                  },
                   replaceId
                     ? 'Erstattet und Ersatzlead gesendet. Der alte Lead liegt unter Ungültige Leads.'
                     : 'Erstattet. Der Lead liegt unter Ungültige Leads, sobald ein Ersatz gesendet wurde.',
@@ -228,11 +402,42 @@ function ComplaintDrawer({
               </button>
               <button
                 type="button"
-                className="dash-btn dash-btn--danger"
-                disabled={Boolean(saving) || !declineNote.trim()}
+                className="dash-btn dash-btn--ghost"
+                disabled={Boolean(saving) || (partialEuro.trim() !== '' && partialCents == null)}
                 onClick={() => onRun(
                   complaint.id,
-                  { status: 'declined', note: declineNote },
+                  {
+                    status: 'partial',
+                    note: adminNote || undefined,
+                    refundCents: partialCents || undefined,
+                    replaceLeadId: replaceId || undefined,
+                  },
+                  replaceId
+                    ? 'Teilweise erstattet und Ersatzlead gesendet.'
+                    : `Teilweise erstattet${partialCents ? ` (${formatEuroExact(partialCents)})` : ''}.`,
+                )}
+              >
+                Teilweise
+              </button>
+              <button
+                type="button"
+                className="dash-btn dash-btn--ghost"
+                disabled={Boolean(saving) || noteRequired}
+                onClick={() => onRun(
+                  complaint.id,
+                  { status: 'info_needed', note: adminNote },
+                  'Weitere Informationen angefordert. Der Berater sieht die Notiz.',
+                )}
+              >
+                Infos anfordern
+              </button>
+              <button
+                type="button"
+                className="dash-btn dash-btn--danger"
+                disabled={Boolean(saving) || noteRequired}
+                onClick={() => onRun(
+                  complaint.id,
+                  { status: 'declined', note: adminNote },
                   'Erstattung abgelehnt. Der Berater sieht die Notiz.',
                 )}
               >
@@ -290,8 +495,9 @@ export function AdminComplaints() {
   const [notice, setNotice] = useState(location.state?.notice || '');
   const [filter, setFilter] = useState('pending');
   const [selectedId, setSelectedId] = useState('');
-  const [declineNote, setDeclineNote] = useState('');
+  const [adminNote, setAdminNote] = useState('');
   const [replaceId, setReplaceId] = useState('');
+  const [partialEuro, setPartialEuro] = useState('');
 
   async function load() {
     const [complaintPayload, leadPayload] = await Promise.all([
@@ -342,12 +548,16 @@ export function AdminComplaints() {
 
   const visible = useMemo(() => {
     if (filter === 'all') return complaints;
+    if (filter === 'credited') {
+      return complaints.filter((entry) => entry.status === 'approved' || entry.status === 'partial');
+    }
     return complaints.filter((entry) => entry.status === filter);
   }, [complaints, filter]);
 
   const counts = useMemo(() => ({
     pending: complaints.filter((entry) => entry.status === 'pending').length,
-    approved: complaints.filter((entry) => entry.status === 'approved').length,
+    info_needed: complaints.filter((entry) => entry.status === 'info_needed').length,
+    credited: complaints.filter((entry) => entry.status === 'approved' || entry.status === 'partial').length,
     declined: complaints.filter((entry) => entry.status === 'declined').length,
   }), [complaints]);
 
@@ -362,8 +572,9 @@ export function AdminComplaints() {
       const result = await reviewComplaint(id, payload);
       await load();
       refreshDashboard({ silent: true }).catch(() => {});
-      setDeclineNote('');
+      setAdminNote('');
       setReplaceId('');
+      setPartialEuro('');
       setSelectedId('');
       if (result.replaceError) {
         setNotice(`${success} Ersatz: ${result.replaceError}`);
@@ -378,9 +589,11 @@ export function AdminComplaints() {
   }
 
   function openComplaint(id) {
+    const entry = complaints.find((item) => item.id === id);
     setSelectedId(id);
-    setDeclineNote('');
+    setAdminNote(entry?.status === 'info_needed' ? (entry.adminNote || '') : '');
     setReplaceId('');
+    setPartialEuro(centsToEuroInput(Math.round(complaintFullCents(entry) / 2)));
   }
 
   return (
@@ -388,16 +601,21 @@ export function AdminComplaints() {
       {notice ? <div className="dash-alert dash-alert--ok">{notice}</div> : null}
       {error ? <div className="dash-alert">{error}</div> : null}
 
-      <div className="dash-metrics dash-metrics--three">
+      <div className="dash-metrics dash-metrics--four">
         <div className="dash-metric dash-metric--signal">
           <span>In Prüfung</span>
           <strong>{loading ? '—' : counts.pending}</strong>
           <small>warten auf Entscheidung</small>
         </div>
         <div className="dash-metric">
+          <span>Infos nötig</span>
+          <strong>{loading ? '—' : counts.info_needed}</strong>
+          <small>Berater ergänzt</small>
+        </div>
+        <div className="dash-metric">
           <span>Erstattet</span>
-          <strong>{loading ? '—' : counts.approved}</strong>
-          <small>gültig gestrichen</small>
+          <strong>{loading ? '—' : counts.credited}</strong>
+          <small>voll / teilweise</small>
         </div>
         <div className="dash-metric">
           <span>Abgelehnt</span>
@@ -413,7 +631,8 @@ export function AdminComplaints() {
             onChange={setFilter}
             options={[
               { id: 'pending', label: 'In Prüfung', count: loading ? null : counts.pending },
-              { id: 'approved', label: 'Erstattet', count: loading ? null : counts.approved },
+              { id: 'info_needed', label: 'Infos nötig', count: loading ? null : counts.info_needed },
+              { id: 'credited', label: 'Erstattet', count: loading ? null : counts.credited },
               { id: 'declined', label: 'Abgelehnt', count: loading ? null : counts.declined },
               { id: 'all', label: 'Alle', count: loading ? null : complaints.length },
             ]}
@@ -429,6 +648,7 @@ export function AdminComplaints() {
           <div className="dash-lead-list">
             {visible.map((entry) => {
               const lead = entry.lead;
+              const credited = entry.status === 'approved' || entry.status === 'partial';
               return (
                 <article
                   key={entry.id}
@@ -452,7 +672,11 @@ export function AdminComplaints() {
                       {beraterName(entry)}
                       {entry.berater?.company ? ` · ${entry.berater.company}` : ''}
                     </span>
-                    <span className="dash-lead-row-tags">{complaintReasonLabel(entry.reason)}</span>
+                    <span className="dash-lead-row-tags">
+                      {complaintReasonLabel(entry.reason)}
+                      {entry.proofData || entry.proofName ? ' · Nachweis' : ''}
+                      {entry.contactStatus ? ` · ${contactStatusLabel(entry.contactStatus)}` : ''}
+                    </span>
                   </div>
                   <div className="dash-request-meta">
                     <div className="dash-request-meta__info">
@@ -461,7 +685,7 @@ export function AdminComplaints() {
                       </span>
                       <time dateTime={entry.createdAt}>{formatDate(entry.createdAt)}</time>
                     </div>
-                    {entry.status === 'approved' && (isReplacementPending(entry) || entry.replacementLead) ? (
+                    {credited && (isReplacementPending(entry) || entry.replacementLead) ? (
                       <div className="dash-request-meta__controls">
                         {isReplacementPending(entry) ? (
                           <span className="dash-badge dash-badge--warn">Ersatz offen</span>
@@ -489,10 +713,12 @@ export function AdminComplaints() {
           complaint={selected}
           pool={pool}
           saving={saving}
-          declineNote={declineNote}
+          adminNote={adminNote}
           replaceId={replaceId}
-          onDeclineNote={setDeclineNote}
+          partialEuro={partialEuro}
+          onAdminNote={setAdminNote}
           onReplaceId={setReplaceId}
+          onPartialEuro={setPartialEuro}
           onRun={run}
           onClose={() => setSelectedId('')}
           from={from}

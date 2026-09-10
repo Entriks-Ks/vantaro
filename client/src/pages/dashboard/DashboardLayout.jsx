@@ -117,7 +117,7 @@ function adminPageCopy(pathname, user) {
     return { kicker: 'Workflow', title: 'Anforderungen', subtitle: 'Anforderungen prüfen, Leads senden und den Versand steuern.' };
   }
   if (pathname.startsWith('/dashboard/reklamationen')) {
-    return { kicker: 'Workflow', title: 'Reklamationen', subtitle: 'Erstattung genehmigen oder ablehnen.' };
+    return { kicker: 'Workflow', title: 'Reklamationen', subtitle: 'Eingaben prüfen, Infos anfordern, erstatten oder ablehnen.' };
   }
   if (pathname.startsWith('/dashboard/leads/ungueltig') || pathname.startsWith('/dashboard/leads/abgelehnt')) {
     return {
@@ -130,10 +130,10 @@ function adminPageCopy(pathname, user) {
     return { kicker: 'Bestand', title: 'Neuer Lead', subtitle: 'Qualifizierten Kontakt anlegen.' };
   }
   if (pathname.startsWith('/dashboard/leads/')) {
-    return { kicker: 'Bestand', title: 'Lead', subtitle: 'Kontakt prüfen und zuweisen.' };
+    return { kicker: 'Bestand', title: 'Lead', subtitle: 'Kontakt prüfen und Bestand pflegen.' };
   }
   if (pathname.startsWith('/dashboard/leads')) {
-    return { kicker: 'Bestand', title: 'Leads', subtitle: 'Bestand filtern, importieren und zuweisen.' };
+    return { kicker: 'Bestand', title: 'Leads', subtitle: 'Bestand filtern, importieren und pflegen.' };
   }
   return {
     kicker: greeting(),

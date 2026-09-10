@@ -500,7 +500,7 @@ export async function linkNextReplacementComplaint(requestId, replacementLeadId)
     .from('lead_complaints')
     .select('id')
     .eq('request_id', requestId)
-    .eq('status', 'approved')
+    .in('status', ['approved', 'partial'])
     .is('replacement_lead_id', null)
     .order('refunded_at', { ascending: true })
     .limit(1)
@@ -529,7 +529,8 @@ export async function sendComplaintReplacement(id, replaceLeadId) {
   if (loadError) throw loadError;
   if (!current) return null;
 
-  if (normalizeComplaintStatus(current.status) !== 'approved') {
+  const status = normalizeComplaintStatus(current.status);
+  if (status !== 'approved' && status !== 'partial') {
     throw fail('Nur erstattete Reklamationen können einen Ersatz erhalten.');
   }
   if (current.replacement_lead_id) {

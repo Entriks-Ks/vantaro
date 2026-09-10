@@ -9,7 +9,6 @@ import {
   EMPLOYMENT_OPTIONS,
   INSURANCE_OPTIONS,
   STATUS_OPTIONS,
-  assignLead,
   createLead,
   deleteLead,
   downloadLeadCsvTemplate,
@@ -29,7 +28,6 @@ import {
   toggleListValue,
   updateLead,
 } from '../../lib/leads';
-import { fetchBeraterPipelines } from '../../lib/berater';
 import { complaintReasonLabel, fetchComplaints, sendComplaintReplacement } from '../../lib/complaints';
 import { DashSeg } from './DashboardLayout';
 import { formatDate } from './helpers';
@@ -105,12 +103,16 @@ export function LeadListItem({ lead }) {
         {tags.length ? <span className="dash-lead-row-tags">{tags.join(' · ')}</span> : null}
       </div>
       <div className="dash-lead-row-side">
-        <span className="dash-badge dash-badge--muted">{leadScopeLabel(lead.scope)}</span>
-        <span className={`dash-badge dash-badge--${statusTone(lead.status)}`}>
-          {statusLabel(lead.status)}
-        </span>
-        <small>{assigned}</small>
-        <small>{formatDate(lead.createdAt)}</small>
+        <div className="dash-lead-row-side-badges">
+          <span className="dash-badge dash-badge--muted">{leadScopeLabel(lead.scope)}</span>
+          <span className={`dash-badge dash-badge--${statusTone(lead.status)}`}>
+            {statusLabel(lead.status)}
+          </span>
+        </div>
+        <div className="dash-lead-row-side-meta">
+          <span className="dash-lead-row-side-assignee" title={assigned}>{assigned}</span>
+          <span className="dash-lead-row-side-date">{formatDate(lead.createdAt)}</span>
+        </div>
       </div>
     </Link>
   );
@@ -194,11 +196,13 @@ function ReplacementLeadListItem({ lead, checked, onSelect, disabled }) {
         {tags.length ? <span className="dash-lead-row-tags">{tags.join(' · ')}</span> : null}
       </div>
       <div className="dash-lead-row-side">
-        <span className="dash-badge dash-badge--muted">{leadScopeLabel(lead.scope)}</span>
-        <span className={`dash-badge dash-badge--${statusTone(lead.status)}`}>
-          {statusLabel(lead.status)}
-        </span>
-        <small>{formatDate(lead.createdAt)}</small>
+        <div className="dash-lead-row-side-badges">
+          <span className="dash-badge dash-badge--muted">{leadScopeLabel(lead.scope)}</span>
+          <span className={`dash-badge dash-badge--${statusTone(lead.status)}`}>
+            {statusLabel(lead.status)}
+          </span>
+        </div>
+        <span className="dash-lead-row-side-date">{formatDate(lead.createdAt)}</span>
       </div>
     </button>
   );
@@ -429,33 +433,8 @@ function LeadActionsMenu({ onEdit, onDelete, disabled, locked }) {
   );
 }
 
-function shortBeraterName(name) {
-  const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
-  if (!parts.length) return 'Berater';
-  if (parts.length === 1) return parts[0];
-  return `${parts[0]} ${parts[parts.length - 1][0]}.`;
-}
-
-function shortRequestCode(code) {
-  const value = String(code || '').trim();
-  if (!value) return 'ANF';
-  const parts = value.split('-');
-  if (parts.length >= 3 && parts[0] === 'ANF') {
-    return `ANF-${parts[parts.length - 1]}`;
-  }
-  return value;
-}
-
-function assignOptionLabel(entry) {
-  return `${shortRequestCode(entry.code)} · ${shortBeraterName(entry.beraterName)}`;
-}
-
 function LeadView({
   lead,
-  assignTargets,
-  selectedRequestId,
-  setSelectedRequestId,
-  onAssign,
   onEdit,
   onDelete,
   saving,
@@ -465,19 +444,7 @@ function LeadView({
     ? lead.employmentOther
     : employmentLabel(lead.employmentStatus);
   const assigneeName = lead.assignedToName || lead.assignedToEmail || '';
-  const currentRequestId = lead.requestId || '';
   const locked = isLeadDeliveryLocked(lead);
-  const assignDirty = selectedRequestId !== currentRequestId;
-  const selectedTarget = assignTargets.find((entry) => entry.requestId === selectedRequestId) || null;
-  const currentTarget = assignTargets.find((entry) => entry.requestId === currentRequestId) || null;
-  const assignLabel = !assignDirty
-    ? 'Zuweisen'
-    : selectedRequestId
-      ? 'Zuweisen'
-      : 'Zuweisung entfernen';
-  const currentLabel = currentTarget
-    ? assignOptionLabel(currentTarget)
-    : (assigneeName ? shortBeraterName(assigneeName) : 'Nicht zugewiesen');
   const hasContactActions = Boolean(lead.phone || lead.email);
 
   return (
@@ -504,13 +471,31 @@ function LeadView({
           </div>
         </div>
 
-        <LeadActionsMenu onEdit={onEdit} onDelete={onDelete} disabled={saving} locked={locked} />
+        <div className="dash-lead-hero-actions">
+          {hasContactActions ? (
+            <div className="dash-lead-reach dash-lead-reach--hero">
+              {lead.phone ? (
+                <a className="dash-btn dash-lead-reach__btn dash-lead-reach__btn--call" href={`tel:${lead.phone}`}>
+                  <Phone size={15} aria-hidden="true" />
+                  Anrufen
+                </a>
+              ) : null}
+              {lead.email ? (
+                <a className="dash-btn dash-lead-reach__btn dash-lead-reach__btn--mail" href={`mailto:${lead.email}`}>
+                  <Mail size={15} aria-hidden="true" />
+                  E-Mail
+                </a>
+              ) : null}
+            </div>
+          ) : null}
+          <LeadActionsMenu onEdit={onEdit} onDelete={onDelete} disabled={saving} locked={locked} />
+        </div>
       </section>
 
       {locked ? (
         <div className="dash-alert dash-alert--ok dash-lead-lock-note">
-          Dieser Lead ist zugestellt und gesperrt. Details können angesehen werden — bearbeiten oder neu zuweisen
-          ist erst nach einer Reklamation wieder möglich.
+          Dieser Lead ist zugestellt und gesperrt. Details können angesehen werden — bearbeiten ist erst nach einer
+          Reklamation wieder möglich.
         </div>
       ) : null}
 
@@ -549,97 +534,9 @@ function LeadView({
               <Fact label="Personenkreis"><ChipList ids={lead.coverageCircle} type="coverage" /></Fact>
             </div>
           </section>
-
-          <section className="dash-panel">
-            <div className="dash-panel-head"><strong>Hauptanliegen</strong></div>
-            <ChipList ids={lead.mainConcerns} type="concern" />
-          </section>
-
-          <section className="dash-panel">
-            <div className="dash-panel-head"><strong>Gesprächsnotizen</strong></div>
-            {lead.notes ? (
-              <p className="dash-lead-notes">{lead.notes}</p>
-            ) : (
-              <p className="dash-muted">Keine Notizen hinterlegt.</p>
-            )}
-          </section>
         </div>
 
         <aside className="dash-lead-aside">
-          {hasContactActions ? (
-            <div className="dash-lead-reach">
-              {lead.phone ? (
-                <a className="dash-btn dash-lead-reach__btn dash-lead-reach__btn--call" href={`tel:${lead.phone}`}>
-                  <Phone size={15} aria-hidden="true" />
-                  Anrufen
-                </a>
-              ) : null}
-              {lead.email ? (
-                <a className="dash-btn dash-lead-reach__btn dash-lead-reach__btn--mail" href={`mailto:${lead.email}`}>
-                  <Mail size={15} aria-hidden="true" />
-                  E-Mail
-                </a>
-              ) : null}
-            </div>
-          ) : null}
-
-          <section className="dash-panel dash-lead-assign">
-            <div className="dash-panel-head">
-              <strong>Zuweisung</strong>
-            </div>
-            <div className="dash-lead-assign-body">
-              <div className="dash-lead-assign-current">
-                <span>Aktuell</span>
-                <strong>{currentLabel}</strong>
-              </div>
-              {locked ? (
-                <p className="dash-panel-note">
-                  Anforderung kann nicht geändert werden. Der Lead bleibt unverändert, bis er über eine
-                  Reklamation zurückkommt.
-                </p>
-              ) : (
-                <>
-                  <label className="dash-lead-assign-field">
-                    Anforderung wählen
-                    <select
-                      value={selectedRequestId}
-                      onChange={(event) => setSelectedRequestId(event.target.value)}
-                    >
-                      <option value="">Nicht zugewiesen</option>
-                      {assignTargets.length ? (
-                        assignTargets.map((entry) => (
-                          <option key={entry.requestId} value={entry.requestId}>
-                            {assignOptionLabel(entry)}
-                          </option>
-                        ))
-                      ) : (
-                        <option value="" disabled>Keine aktiven Anforderungen</option>
-                      )}
-                    </select>
-                  </label>
-                  {selectedTarget ? (
-                    <p className="dash-panel-note">
-                      {selectedTarget.remaining != null ? `${selectedTarget.remaining} offen · ` : ''}
-                      {selectedTarget.scopeLabel || 'Paket'}
-                    </p>
-                  ) : !assignTargets.length ? (
-                    <p className="dash-panel-note">
-                      Nur aktive Anforderungen können Leads erhalten.
-                    </p>
-                  ) : null}
-                  <button
-                    type="button"
-                    className="dash-btn dash-lead-assign-submit"
-                    onClick={onAssign}
-                    disabled={saving || !assignDirty}
-                  >
-                    {saving ? 'Speichern…' : assignLabel}
-                  </button>
-                </>
-              )}
-            </div>
-          </section>
-
           <section className="dash-panel dash-lead-meta">
             <div className="dash-panel-head"><strong>Übersicht</strong></div>
             <dl className="dash-lead-meta-list">
@@ -651,6 +548,16 @@ function LeadView({
                 <dt>Status</dt>
                 <dd>{statusLabel(lead.status)}</dd>
               </div>
+              <div>
+                <dt>Berater</dt>
+                <dd>{assigneeName || 'Nicht zugewiesen'}</dd>
+              </div>
+              {lead.requestCode || lead.requestId ? (
+                <div>
+                  <dt>Anforderung</dt>
+                  <dd>{lead.requestCode || String(lead.requestId).slice(0, 8).toUpperCase()}</dd>
+                </div>
+              ) : null}
               <div>
                 <dt>Quelle</dt>
                 <dd>{sourceLabel(lead)}</dd>
@@ -672,6 +579,20 @@ function LeadView({
                 </div>
               ) : null}
             </dl>
+          </section>
+
+          <section className="dash-panel">
+            <div className="dash-panel-head"><strong>Hauptanliegen</strong></div>
+            <ChipList ids={lead.mainConcerns} type="concern" />
+          </section>
+
+          <section className="dash-panel">
+            <div className="dash-panel-head"><strong>Gesprächsnotizen</strong></div>
+            {lead.notes ? (
+              <p className="dash-lead-notes">{lead.notes}</p>
+            ) : (
+              <p className="dash-muted">Keine Notizen hinterlegt.</p>
+            )}
           </section>
         </aside>
       </div>
@@ -1204,66 +1125,11 @@ export function AdminLeadEditor() {
   const isNew = !id || id === 'new';
   const [form, setForm] = useState(emptyLeadForm);
   const [lead, setLead] = useState(null);
-  const [selectedRequestId, setSelectedRequestId] = useState('');
   const [editing, setEditing] = useState(isNew);
   const [loading, setLoading] = useState(!isNew);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
-  const [activeTargets, setActiveTargets] = useState([]);
-
-  const assignTargets = useMemo(() => {
-    if (!lead?.requestId) return activeTargets;
-    if (activeTargets.some((entry) => entry.requestId === lead.requestId)) return activeTargets;
-    return [
-      ...activeTargets,
-      {
-        requestId: lead.requestId,
-        beraterId: lead.assignedTo || '',
-        code: lead.requestCode || lead.requestId.slice(0, 8).toUpperCase(),
-        beraterName: lead.assignedToName || lead.assignedToEmail || 'Berater',
-        scopeLabel: leadScopeLabel(lead.scope),
-        remaining: null,
-      },
-    ];
-  }, [activeTargets, lead]);
-
-  useEffect(() => {
-    let alive = true;
-    fetchBeraterPipelines()
-      .then((payload) => {
-        if (!alive) return;
-        const targets = [];
-        for (const entry of payload.beraters || []) {
-          const name = entry.fullName || entry.email || 'Berater';
-          const seen = new Set();
-          const requests = [
-            ...(entry.requests || []),
-            ...(entry.request ? [entry.request] : []),
-          ];
-          for (const request of requests) {
-            if (!request?.id || request.status !== 'active' || seen.has(request.id)) continue;
-            seen.add(request.id);
-            targets.push({
-              requestId: request.id,
-              beraterId: entry.id,
-              code: request.code || request.id.slice(0, 8).toUpperCase(),
-              beraterName: name,
-              scopeLabel: leadScopeLabel(request.scope),
-              remaining: request.remaining ?? Math.max(0, (request.requestedCount || 0) - (request.validCount || 0)),
-            });
-          }
-        }
-        targets.sort((left, right) => String(left.code).localeCompare(String(right.code), 'de'));
-        setActiveTargets(targets);
-      })
-      .catch(() => {
-        if (alive) setActiveTargets([]);
-      });
-    return () => {
-      alive = false;
-    };
-  }, []);
 
   useEffect(() => {
     if (isNew) {
@@ -1278,7 +1144,6 @@ export function AdminLeadEditor() {
         if (!active) return;
         setLead(payload.lead);
         setForm(leadToForm(payload.lead));
-        setSelectedRequestId(payload.lead.requestId || '');
       })
       .catch((err) => {
         if (active) setError(err.message);
@@ -1329,33 +1194,8 @@ export function AdminLeadEditor() {
       const updated = await updateLead(id, payload);
       setLead(updated.lead);
       setForm(leadToForm(updated.lead));
-      setSelectedRequestId(updated.lead.requestId || '');
       setEditing(false);
       setNotice('Lead gespeichert.');
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function onAssign() {
-    if (isLeadDeliveryLocked(lead)) {
-      setError('Zugestellte Leads können nicht neu zugewiesen werden. Rückgabe nur über eine Reklamation.');
-      return;
-    }
-    setSaving(true);
-    setError('');
-    setNotice('');
-    try {
-      const target = assignTargets.find((entry) => entry.requestId === selectedRequestId) || null;
-      const updated = selectedRequestId && target
-        ? await assignLead(id, target.beraterId, { requestId: target.requestId })
-        : await assignLead(id, null, { requestId: null });
-      setLead(updated.lead);
-      setForm(leadToForm(updated.lead));
-      setSelectedRequestId(updated.lead.requestId || '');
-      setNotice(updated.lead.assignedTo ? 'Lead zugewiesen.' : 'Zuweisung entfernt.');
     } catch (err) {
       setError(err.message);
     } finally {
@@ -1385,7 +1225,7 @@ export function AdminLeadEditor() {
     ? 'Qualifizierten Kontakt manuell anlegen.'
     : (editing ? 'Daten anpassen und speichern.' : deliveryLocked
       ? 'Zugestellt — nur Ansicht, bis eine Reklamation vorliegt.'
-      : 'Kontakt prüfen und an einen Berater übergeben.');
+      : 'Kontakt prüfen und Bestand pflegen.');
 
   return (
     <div className="dash-stack">
@@ -1406,10 +1246,6 @@ export function AdminLeadEditor() {
       ) : !isNew && lead && (!editing || deliveryLocked) ? (
         <LeadView
           lead={lead}
-          assignTargets={assignTargets}
-          selectedRequestId={selectedRequestId}
-          setSelectedRequestId={setSelectedRequestId}
-          onAssign={onAssign}
           onEdit={startEdit}
           onDelete={onDelete}
           saving={saving}

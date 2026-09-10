@@ -125,7 +125,11 @@ function ChartLegend({ items }) {
         );
         return (
           <li key={item.id}>
-            {item.to ? <Link to={item.to}>{row}</Link> : row}
+            {item.to ? (
+              <Link className="dash-chart-legend-row" to={item.to}>{row}</Link>
+            ) : (
+              <div className="dash-chart-legend-row">{row}</div>
+            )}
           </li>
         );
       })}

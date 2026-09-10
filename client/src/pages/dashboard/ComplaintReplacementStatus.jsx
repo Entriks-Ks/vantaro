@@ -1,13 +1,17 @@
 import { Link } from 'react-router-dom';
 
+function isCreditedComplaint(complaint) {
+  return complaint?.status === 'approved' || complaint?.status === 'partial';
+}
+
 export function isReplacementPending(complaint) {
-  return complaint?.status === 'approved'
+  return isCreditedComplaint(complaint)
     && !complaint?.replacementLeadId
     && !complaint?.replacementLead;
 }
 
 export function ComplaintReplacementStatus({ complaint, from }) {
-  if (!complaint || complaint.status !== 'approved') return null;
+  if (!complaint || !isCreditedComplaint(complaint)) return null;
 
   const returnTo = from || '/dashboard/reklamationen';
 
