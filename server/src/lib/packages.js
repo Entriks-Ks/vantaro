@@ -1,4 +1,5 @@
 export const MIN_LEAD_PACK = 10;
+export const LEAD_PACK_STEP = 5;
 
 export const PACKAGES = [
   {

@@ -1,4 +1,5 @@
 export const MIN_LEAD_PACK = 10;
+export const LEAD_PACK_STEP = 5;
 
 export const PACKAGES = [
   {
@@ -6,7 +7,7 @@ export const PACKAGES = [
     label: 'PKV / deutschlandweit',
     title: 'Exklusive PKV-Chancen',
     description:
-      'Mindestabnahme 10 Chancen. Passende Beratungsgespräche bundesweit — nicht möglichst viele Datensätze.',
+      'Mindestabnahme 10 Leads — in 5er-Schritten erweiterbar (10, 15, 20, …). Bundesweite PKV-Chancen.',
     singleCents: 12900,
     packCents: 11900,
     minLeads: MIN_LEAD_PACK,
@@ -18,7 +19,7 @@ export const PACKAGES = [
     label: 'PKV / regional',
     title: 'Regionale PKV-Chancen',
     description:
-      'Mindestabnahme 10 Chancen. Regionaler Fokus mit höherer Nähe und planbarer Kapazität vor Ort.',
+      'Mindestabnahme 10 Leads — in 5er-Schritten erweiterbar (10, 15, 20, …). Regionaler Fokus mit Nähe vor Ort.',
     singleCents: 15900,
     packCents: 14900,
     minLeads: MIN_LEAD_PACK,

@@ -11,6 +11,11 @@ import {
   Flag,
   Ban,
   Settings,
+  Calendar,
+  CreditCard,
+  MessageCircle,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from 'lucide-react';
 import Brand from '../../components/Brand';
 import { useAuth } from '../../hooks/useAuth';
@@ -39,15 +44,22 @@ export function DashSeg({ value, onChange, options }) {
 }
 
 const BERATER_LINKS = [
-  { to: '/dashboard', match: 'home', label: 'Übersicht', icon: LayoutDashboard },
+  { to: '/dashboard', match: 'home', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/dashboard/leads', match: 'leads', label: 'Meine Leads', icon: ListChecks },
-  { to: '/dashboard/zahlung', match: 'zahlung', label: 'Zahlung', icon: Landmark },
+  { to: '/dashboard/kalender', match: 'kalender', label: 'Kalender', icon: Calendar },
+  { divider: true },
+  { to: '/dashboard/paket', match: 'paket', label: 'Mein Paket', icon: CreditCard },
+  { to: '/dashboard/profil', match: 'profil', label: 'Profil', icon: Settings },
+  { to: '/dashboard/support', match: 'support', label: 'Support', icon: MessageCircle },
 ];
 
 function isBeraterNavActive(match, pathname) {
   if (match === 'home') return pathname === '/dashboard' || pathname === '/dashboard/';
   if (match === 'leads') return pathname.startsWith('/dashboard/leads');
-  if (match === 'zahlung') return pathname.startsWith('/dashboard/zahlung');
+  if (match === 'kalender') return pathname.startsWith('/dashboard/kalender');
+  if (match === 'paket') return pathname.startsWith('/dashboard/paket');
+  if (match === 'profil') return pathname.startsWith('/dashboard/profil');
+  if (match === 'support') return pathname.startsWith('/dashboard/support');
   return false;
 }
 
@@ -275,7 +287,17 @@ function AdminShell({ user, logout, children }) {
   );
 }
 
-function AccountMenu({ user, logout, settingsActive = false, settingsTo = '/dashboard/profil', setupCount = 0 }) {
+const BERATER_SIDEBAR_KEY = 'vantaro-berater-sidebar';
+
+function readBeraterSidebarCollapsed() {
+  try {
+    return localStorage.getItem(BERATER_SIDEBAR_KEY) === 'collapsed';
+  } catch {
+    return false;
+  }
+}
+
+function AccountMenu({ user, logout, settingsActive = false, settingsTo = '/dashboard/profil', setupCount = 0, compact = false }) {
   const [open, setOpen] = useState(false);
   const menuRef = useRef(null);
   const setupLabel = setupCount === 1 ? '1 Angabe fehlt' : `${setupCount} Angaben fehlen`;
@@ -302,9 +324,11 @@ function AccountMenu({ user, logout, settingsActive = false, settingsTo = '/dash
     <div className={`broker-account${open ? ' is-open' : ''}`} ref={menuRef}>
       <button
         type="button"
-        className={`broker-profile-chip${settingsActive ? ' is-current' : ''}`}
+        className={`broker-profile-chip${settingsActive ? ' is-current' : ''}${compact ? ' is-compact' : ''}`}
         aria-haspopup="menu"
         aria-expanded={open}
+        aria-label={compact ? `Konto, ${displayName(user)}` : undefined}
+        title={compact ? displayName(user) : undefined}
         onClick={() => setOpen((value) => !value)}
       >
         <span className="broker-avatar">
@@ -351,41 +375,97 @@ function BeraterShell({ user, logout, children }) {
   const settingsActive = location.pathname.startsWith('/dashboard/profil')
     || location.pathname.startsWith('/dashboard/unternehmen')
     || location.pathname.startsWith('/dashboard/sicherheit');
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(readBeraterSidebarCollapsed);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(BERATER_SIDEBAR_KEY, collapsed ? 'collapsed' : 'open');
+    } catch {
+      /* ignore quota / private mode */
+    }
+  }, [collapsed]);
+
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [location.pathname]);
 
   return (
-    <div className="broker">
-      <header className="broker-nav">
-        <Brand to="/dashboard" />
-        <div className="broker-nav-end">
-          <nav className="broker-nav-links" aria-label="Portal">
-            {BERATER_LINKS.map((link) => {
-              const Icon = link.icon;
-              const active = isBeraterNavActive(link.match, location.pathname);
-              return (
-                <Link
-                  key={link.to}
-                  to={link.to}
-                  className={active ? 'is-active' : undefined}
-                  aria-current={active ? 'page' : undefined}
-                >
-                  <Icon size={16} strokeWidth={2.1} />
-                  <span>{link.label}</span>
-                </Link>
-              );
-            })}
-          </nav>
+    <div className={`broker${collapsed ? ' is-collapsed' : ''}`}>
+      {sidebarOpen ? (
+        <button
+          type="button"
+          className="broker-sidebar-backdrop"
+          aria-label="Menü schließen"
+          onClick={() => setSidebarOpen(false)}
+        />
+      ) : null}
+      <button
+        type="button"
+        className="broker-mobile-toggle"
+        onClick={() => setSidebarOpen((value) => !value)}
+        aria-expanded={sidebarOpen}
+        aria-controls="broker-sidebar-nav"
+        aria-label={sidebarOpen ? 'Menü schließen' : 'Menü öffnen'}
+      >
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <line x1="3" y1="12" x2="21" y2="12" />
+          <line x1="3" y1="6" x2="21" y2="6" />
+          <line x1="3" y1="18" x2="21" y2="18" />
+        </svg>
+      </button>
+
+      <aside className={`broker-sidebar${sidebarOpen ? ' is-open' : ''}`}>
+        <div className="broker-brand">
+          <Brand to="/dashboard" />
+          <button
+            type="button"
+            className="broker-collapse-btn"
+            onClick={() => setCollapsed((value) => !value)}
+            aria-expanded={!collapsed}
+            aria-controls="broker-sidebar-nav"
+            aria-label={collapsed ? 'Seitenleiste maximieren' : 'Seitenleiste minimieren'}
+            title={collapsed ? 'Seitenleiste maximieren' : 'Seitenleiste minimieren'}
+          >
+            {collapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
+          </button>
+        </div>
+        <nav className="broker-nav" id="broker-sidebar-nav" aria-label="Portal">
+          {BERATER_LINKS.map((link) => {
+            if (link.divider) {
+              return <div className="broker-nav-divider" key="divider" />;
+            }
+            const Icon = link.icon;
+            const active = isBeraterNavActive(link.match, location.pathname);
+            return (
+              <Link
+                key={link.to}
+                to={link.to}
+                title={link.label}
+                className={active ? 'is-active' : undefined}
+                aria-current={active ? 'page' : undefined}
+                onClick={() => setSidebarOpen(false)}
+              >
+                <Icon size={18} strokeWidth={2} />
+                <span>{link.label}</span>
+              </Link>
+            );
+          })}
+        </nav>
+        <div className="broker-sidebar-footer">
           <AccountMenu
             user={user}
             logout={logout}
             settingsActive={settingsActive}
             settingsTo={setupCta?.to || '/dashboard/profil'}
             setupCount={setupCta?.count || 0}
+            compact={collapsed}
           />
         </div>
-        <NavProgress pathname={location.pathname} />
-      </header>
+      </aside>
 
       <div className="broker-content">
+        <NavProgress pathname={location.pathname} />
         {children}
       </div>
     </div>

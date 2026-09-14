@@ -217,8 +217,8 @@ export async function checkoutLeadPackage(user, {
   if (!pkg) throw fail('Paket wurde nicht gefunden.');
 
   const count = Number(requestedCount);
-  if (!Number.isInteger(count) || count < pkg.minLeads || count % MIN_LEAD_PACK !== 0) {
-    throw fail(`Mindestabnahme ${MIN_LEAD_PACK} Leads, in 10er-Schritten.`);
+  if (!Number.isInteger(count) || count < 10 || count % 5 !== 0) {
+    throw fail('Mindestabnahme 10 Leads (in 5er-Schritten: 10, 15, 20, …).');
   }
 
   const parsedCard = parseCard(card);

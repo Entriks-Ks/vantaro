@@ -120,7 +120,7 @@ function AppContent() {
                 <a href="#kontakt">Pilotgespräch anfragen</a>
                 <a href="#preise">Preise &amp; Richtwerte</a>
                 <a href="#faq">FAQ &amp; Antworten</a>
-                <a href="mailto:rene.schirner@entriks.com?subject=VANTARO%20Anfrage">rene.schirner@entriks.com</a>
+                <a href="mailto:info@vantaro.io?subject=VANTARO%20Anfrage">info@vantaro.io</a>
               </div>
               <div className="footer-col">
                 <h4>Rechtliches</h4>

@@ -108,10 +108,10 @@ export function BrokerProvider({ children }) {
       },
       buyLeadPack(packageId, count = MIN_LEAD_PACK) {
         const pkg = packageById(packageId);
-        const leads = Math.max(MIN_LEAD_PACK, Number(count) || MIN_LEAD_PACK);
         if (!pkg) return { ok: false };
-        if (leads % MIN_LEAD_PACK !== 0) {
-          showToast(`Mindestabnahme: ${MIN_LEAD_PACK} Leads (in 10er-Schritten).`);
+        const leads = Math.max(MIN_LEAD_PACK, Number(count) || MIN_LEAD_PACK);
+        if (leads % 5 !== 0) {
+          showToast(`Abnahme in 5er-Schritten möglich (mind. ${MIN_LEAD_PACK} Leads).`);
           return { ok: false, reason: 'min' };
         }
         const netCents = packTotalCents(pkg, leads);

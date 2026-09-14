@@ -38,7 +38,7 @@ export default function ContactUs() {
     setSubmitted(false);
 
     try {
-      const response = await fetch('https://formsubmit.co/ajax/it.entriks@gmail.com', {
+      const response = await fetch('https://formsubmit.co/ajax/info@vantaro.io', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -247,7 +247,7 @@ export default function ContactUs() {
                   <div className="contact-cutout-actions">
                     <a
                       className="btn btn-primary"
-                      href="mailto:it.entriks@gmail.com?subject=VANTARO%20Pilotgespr%C3%A4ch"
+                      href="mailto:info@vantaro.io?subject=VANTARO%20Pilotgespr%C3%A4ch"
                     >
                       Pilotgespräch per E-Mail <span className="arrow">↗</span>
                     </a>

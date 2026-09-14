@@ -197,7 +197,7 @@ export default function ResetPassword() {
                 </Link>
                 <a
                   className="btn btn-outline-light"
-                  href="mailto:rene.schirner@entriks.com?subject=VANTARO%20Support"
+                  href="mailto:info@vantaro.io?subject=VANTARO%20Support"
                 >
                   Support kontaktieren <span className="arrow">↗</span>
                 </a>
