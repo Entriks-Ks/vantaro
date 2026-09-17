@@ -1,13 +1,6 @@
 import { apiUrl } from './api';
 import { readStoredSession } from './auth';
 
-export const TEST_CARD = {
-  holder: 'Max Mustermann',
-  number: '4242424242424242',
-  expiry: '12/30',
-  cvc: '123',
-};
-
 function authHeaders(json = false) {
   const session = readStoredSession();
   const headers = {};
@@ -34,6 +27,7 @@ export async function fetchAllPayments() {
   return parseResponse(response);
 }
 
+/** Start ProCredit HPP checkout. Returns { redirectUrl, paymentId, payment }. */
 export async function checkoutLeadPackage(payload) {
   const response = await fetch(apiUrl('/api/payments/checkout'), {
     method: 'POST',
@@ -43,9 +37,37 @@ export async function checkoutLeadPackage(payload) {
   return parseResponse(response);
 }
 
+/** Re-check a pending payment with the gateway (e.g. after closing the bank tab). */
+export async function syncMyPayment(paymentId) {
+  const response = await fetch(apiUrl(`/api/payments/${encodeURIComponent(paymentId)}/sync`), {
+    method: 'POST',
+    headers: authHeaders(true),
+    body: JSON.stringify({}),
+  });
+  return parseResponse(response);
+}
+
+export function paymentStatusLabel(status) {
+  switch (String(status || '').toLowerCase()) {
+    case 'paid':
+      return 'Bezahlt';
+    case 'pending':
+      return 'Offen';
+    case 'failed':
+      return 'Fehlgeschlagen';
+    case 'refunded':
+      return 'Erstattet';
+    default:
+      return status || '—';
+  }
+}
+
 export function formatCardMask(payment) {
-  if (!payment?.cardLast4) return payment?.method === 'card' ? 'Karte' : '—';
-  return `${payment.cardBrand || 'Karte'} •••• ${payment.cardLast4}`;
+  if (payment?.cardLast4) {
+    return `${payment.cardBrand || 'Karte'} •••• ${payment.cardLast4}`;
+  }
+  if (payment?.method === 'card') return 'ProCredit Bank';
+  return '—';
 }
 
 export function formatCardExpiry(payment) {
@@ -53,16 +75,18 @@ export function formatCardExpiry(payment) {
   return `${String(payment.cardExpMonth).padStart(2, '0')}/${String(payment.cardExpYear).slice(-2)}`;
 }
 
-export function formatCardNumberInput(value) {
-  return String(value || '')
-    .replace(/\D/g, '')
-    .slice(0, 19)
-    .replace(/(\d{4})(?=\d)/g, '$1 ')
-    .trim();
-}
-
-export function formatExpiryInput(value) {
-  const digits = String(value || '').replace(/\D/g, '').slice(0, 4);
-  if (digits.length <= 2) return digits;
-  return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+/** Browser metadata for ProCredit 3DS consumerDevice. */
+export function collectBrowserPaymentMeta() {
+  if (typeof window === 'undefined') return {};
+  return {
+    javaEnabled: false,
+    jsEnabled: true,
+    colorDepth: String(window.screen?.colorDepth || 24),
+    screenW: String(window.screen?.width || 1920),
+    screenH: String(window.screen?.height || 1080),
+    tzOffset: String(new Date().getTimezoneOffset()),
+    language: navigator.language || 'de-DE',
+    userAgent: navigator.userAgent || '',
+    acceptHeader: 'application/json,text/html;q=0.9,*/*;q=0.8',
+  };
 }

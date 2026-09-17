@@ -3,24 +3,45 @@ import { requireAuth, requireRole } from '../lib/auth.js';
 import { ROLES } from '../lib/roles.js';
 import {
   checkoutLeadPackage,
+  completePaymentReturn,
   listAllPayments,
   listMyPayments,
   paymentTableMissing,
+  syncMyPayment,
 } from '../lib/payments.js';
 import { handleLeadError, tableMissingResponse } from '../lib/leads.js';
 
 const router = Router();
-router.use(requireAuth);
 
 function handleError(res, error) {
   if (paymentTableMissing(error)) {
     return tableMissingResponse(
       res,
-      'Zahlungen fehlen. Bitte server/supabase/lead_payments.sql im Supabase SQL Editor ausführen.',
+      'Zahlungen fehlen. Bitte server/supabase/lead_payments.sql und lead_payments_procredit.sql im Supabase SQL Editor ausführen.',
     );
   }
   return handleLeadError(res, error);
 }
+
+/** Bank HPP return — no session; identified by return_token. */
+router.get('/return', async (req, res) => {
+  try {
+    const result = await completePaymentReturn({
+      token: req.query?.token,
+      paymentId: req.query?.paymentId || req.query?.payment_id,
+    });
+    res.redirect(303, result.redirectTo);
+  } catch (error) {
+    const frontend = (process.env.FRONTEND_URL || process.env.CLIENT_ORIGIN || 'https://www.vantaro.io')
+      .split(',')[0]
+      .trim()
+      .replace(/\/$/, '');
+    const message = encodeURIComponent(error.message || 'Zahlung konnte nicht bestätigt werden.');
+    res.redirect(303, `${frontend}/dashboard/paket?payment=failed&error=${message}`);
+  }
+});
+
+router.use(requireAuth);
 
 router.get('/', requireRole(ROLES.ADMIN), async (_req, res) => {
   try {
@@ -45,12 +66,25 @@ router.get('/mine', async (req, res) => {
 
 router.post('/checkout', async (req, res) => {
   try {
-    const result = await checkoutLeadPackage(req.user, {
-      packageId: req.body?.packageId ?? req.body?.package_id,
-      requestedCount: req.body?.requestedCount ?? req.body?.requested_count,
-      card: req.body?.card,
-    });
+    const result = await checkoutLeadPackage(
+      req.user,
+      {
+        packageId: req.body?.packageId ?? req.body?.package_id,
+        requestedCount: req.body?.requestedCount ?? req.body?.requested_count,
+        browser: req.body?.browser,
+      },
+      req,
+    );
     res.status(201).json(result);
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+router.post('/:id/sync', async (req, res) => {
+  try {
+    const result = await syncMyPayment(req.user, req.params.id);
+    res.json(result);
   } catch (error) {
     handleError(res, error);
   }

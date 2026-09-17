@@ -1,6 +1,7 @@
--- VANTARO test payments for lead packages
+-- VANTARO lead package payments (ProCredit HPP)
 -- Run AFTER lead_requests.sql, lead_workflow.sql and lead_scope.sql.
--- Testbetrieb: stores invoice + masked card data only (never the full PAN or CVC).
+-- Then run lead_payments_procredit.sql for pending status + gateway columns.
+-- Card PAN/CVC are never stored — only optional masked hints from the bank.
 
 create table if not exists public.lead_payments (
   id uuid primary key default gen_random_uuid(),
@@ -16,8 +17,8 @@ create table if not exists public.lead_payments (
   tax_cents integer not null check (tax_cents >= 0),
   gross_cents integer not null check (gross_cents >= 0),
   invoice_number text not null unique,
-  status text not null default 'paid'
-    check (status in ('paid', 'failed', 'refunded')),
+  status text not null default 'pending'
+    check (status in ('pending', 'paid', 'failed', 'refunded')),
   method text not null default 'card',
   card_brand text,
   card_last4 text,

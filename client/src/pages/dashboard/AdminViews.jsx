@@ -18,7 +18,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { useBroker } from '../../hooks/useBroker';
 import { useDashboard } from '../../hooks/useDashboard';
 import { leadTypeLabel, requestStatusLabel, requestStatusTone } from '../../lib/berater';
-import { fetchAllPayments, formatCardExpiry, formatCardMask } from '../../lib/payments';
+import { fetchAllPayments, formatCardExpiry, formatCardMask, paymentStatusLabel } from '../../lib/payments';
 import { leadScopeLabel } from '../../lib/scopes';
 import { fileToAvatarDataUrl, validatePassword } from '../../lib/profile';
 import PhoneField, { isValidMobile } from '../../components/PhoneField';
@@ -523,6 +523,7 @@ export function AdminPayment() {
   const paidTotal = payments
     .filter((entry) => entry.status === 'paid')
     .reduce((sum, entry) => sum + (entry.grossCents || 0), 0);
+  const pendingCount = payments.filter((entry) => entry.status === 'pending').length;
 
   return (
     <div className="dash-stack">
@@ -532,7 +533,7 @@ export function AdminPayment() {
         <div className="dash-metric">
           <span>Zahlungen</span>
           <strong>{loading ? '—' : paidCount}</strong>
-          <small>Testbetrieb, bezahlt</small>
+          <small>{pendingCount ? `${pendingCount} offen` : 'bezahlt'}</small>
         </div>
         <div className="dash-metric">
           <span>Umsatz</span>
@@ -541,8 +542,14 @@ export function AdminPayment() {
         </div>
         <div className="dash-metric">
           <span>Leads gekauft</span>
-          <strong>{loading ? '—' : payments.reduce((sum, entry) => sum + (entry.leadCount || 0), 0)}</strong>
-          <small>über Testzahlung</small>
+          <strong>
+            {loading
+              ? '—'
+              : payments
+                .filter((entry) => entry.status === 'paid')
+                .reduce((sum, entry) => sum + (entry.leadCount || 0), 0)}
+          </strong>
+          <small>über ProCredit</small>
         </div>
       </div>
 
@@ -550,7 +557,7 @@ export function AdminPayment() {
         <div className="dash-panel-head">
           <div>
             <strong>Zahlungseingänge</strong>
-            <p className="dash-panel-lede">Kartendaten sind Testdaten — nur letzte 4 Ziffern, keine echte Belastung.</p>
+            <p className="dash-panel-lede">Zahlungen über ProCredit Bank (Hosted Payment Page).</p>
           </div>
         </div>
 
@@ -574,13 +581,17 @@ export function AdminPayment() {
                     {entry.invoiceNumber} · {leadScopeLabel(entry.scope)} · {entry.leadCount} Leads · {entry.packageLabel}
                   </span>
                   <span className="dash-lead-row-tags">
-                    {formatCardMask(entry)} · {formatCardExpiry(entry)}
+                    {formatCardMask(entry)}
+                    {entry.cardLast4 && formatCardExpiry(entry) !== '—' ? ` · ${formatCardExpiry(entry)}` : ''}
                     {entry.cardHolder ? ` · ${entry.cardHolder}` : ''}
-                    {entry.testMode ? ' · Testbetrieb' : ''}
+                    {entry.testMode ? ' · Testmodus' : ''}
+                    {entry.pgStatus ? ` · PG: ${entry.pgStatus}` : ''}
                   </span>
                 </div>
                 <div className="dash-lead-row-side">
-                  <span className="dash-badge dash-badge--ok">Bezahlt</span>
+                  <span className={`dash-badge${entry.status === 'paid' ? ' dash-badge--ok' : ''}`}>
+                    {paymentStatusLabel(entry.status)}
+                  </span>
                   <strong>{formatEuroExact(entry.grossCents)}</strong>
                   <small>{formatDateTime(entry.paidAt || entry.createdAt)}</small>
                   {entry.beraterId ? (

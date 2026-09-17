@@ -13,6 +13,14 @@ dist-ssr
 *.local
 .env
 
+# ProCredit / TLS materials — never commit
+*.pem
+*.csr
+server/certs/
+**/certs/*.pem
+**/certs/*.key
+_procredit_extract.txt
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom';
-import { AlertCircle, ArrowLeft, ArrowRight, Building2, Calendar as CalendarIcon, CalendarClock, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, CircleCheck, Clock, CreditCard, Eye, EyeOff, FileCheck2, FileText, Filter, Flag, Globe, KeyRound, LayoutGrid, List, Lock, Mail, MapPin, MessageCircle, Paperclip, Phone, Printer, Receipt, Save, Search, Shield, ShieldCheck, Sparkles, StickyNote, User, UserPlus, Users, Wand2, X, Zap } from 'lucide-react';
+import { AlertCircle, ArrowLeft, ArrowRight, Building2, Calendar as CalendarIcon, CalendarClock, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, CircleCheck, Clock, CreditCard, Eye, EyeOff, FileCheck2, FileText, Filter, Flag, Globe, KeyRound, LayoutGrid, List, Lock, Mail, MapPin, MessageCircle, Paperclip, Phone, Printer, Receipt, Save, Search, Shield, ShieldCheck, Sparkles, StickyNote, User, UserPlus, Users, Wand2, X } from 'lucide-react';
 import AddressAutocomplete from '../../components/AddressAutocomplete';
 import AddressMap from '../../components/AddressMap';
 import BootScreen from '../../components/BootScreen';
@@ -37,7 +37,14 @@ import { LEGAL_FORMS, fileToAvatarDataUrl, generatePassword, validatePassword } 
 import { accountSetupGaps, displayName, firstName, formatDate, formatDateTime, formatEuroExact, initials } from './helpers';
 import { MIN_LEAD_PACK, PACKAGES, packageById, packTotalCents } from './packages';
 import { DEFAULT_LEAD_SCOPE, leadScopeLabel } from '../../lib/scopes';
-import { checkoutLeadPackage, fetchMyPayments, formatCardMask, formatCardNumberInput, formatExpiryInput, TEST_CARD } from '../../lib/payments';
+import {
+  checkoutLeadPackage,
+  collectBrowserPaymentMeta,
+  fetchMyPayments,
+  formatCardMask,
+  paymentStatusLabel,
+  syncMyPayment,
+} from '../../lib/payments';
 import {
   LEAD_STATUSES,
   PRODUCT_FILTERS,
@@ -2962,14 +2969,15 @@ export function BeraterLeadDetail() {
 }
 
 export function BeraterPayments() {
-  const { user } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
   const { activePackageId, selectPackage, activePackage } = useBroker();
   const [qtyByPackage, setQtyByPackage] = useState({});
   const [payments, setPayments] = useState([]);
   const [leadsUsed, setLeadsUsed] = useState(0);
   const [checkout, setCheckout] = useState(null);
-  const [card, setCard] = useState({ holder: '', number: '', expiry: '', cvc: '' });
   const [paying, setPaying] = useState(false);
+  const [syncingId, setSyncingId] = useState('');
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
 
@@ -2991,6 +2999,26 @@ export function BeraterPayments() {
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const payment = params.get('payment');
+    if (!payment) return;
+
+    if (payment === 'success') {
+      setNotice('Zahlung erfolgreich. Ihre Lead-Anforderung wurde angelegt.');
+      setError('');
+    } else if (payment === 'failed') {
+      setError(params.get('error') || 'Zahlung fehlgeschlagen oder abgebrochen.');
+      setNotice('');
+    } else if (payment === 'pending') {
+      setNotice('Zahlung noch nicht abgeschlossen. Der Status wird aktualisiert, sobald die Bank bestätigt.');
+      setError('');
+    }
+
+    loadBilling().catch(() => {});
+    navigate('/dashboard/paket', { replace: true });
+  }, [location.search, navigate]);
 
   const minLeads = 10;
   const leadStep = 5;
@@ -3017,43 +3045,47 @@ export function BeraterPayments() {
     setQtyByPackage((prev) => ({ ...prev, [packageId]: value }));
   };
 
-  const fillTestCard = () => {
-    setCard({
-      holder: TEST_CARD.holder,
-      number: formatCardNumberInput(TEST_CARD.number),
-      expiry: TEST_CARD.expiry,
-      cvc: TEST_CARD.cvc,
-    });
-  };
-
   const confirmPay = async () => {
     if (!checkoutPkg || paying) return;
     setPaying(true);
     setError('');
     setNotice('');
     try {
-      await new Promise((resolve) => window.setTimeout(resolve, 600));
-      const [expMonth, expYear] = String(card.expiry || '').split('/');
-      await checkoutLeadPackage({
+      const result = await checkoutLeadPackage({
         packageId: checkoutPkg.id,
         requestedCount: checkoutQty,
-        card: {
-          holder: card.holder,
-          number: card.number,
-          expMonth,
-          expYear,
-          cvc: card.cvc,
-        },
+        browser: collectBrowserPaymentMeta(),
       });
       selectPackage(checkoutPkg.id);
-      setCheckout(null);
-      setCard({ holder: '', number: '', expiry: '', cvc: '' });
+      if (result.redirectUrl) {
+        window.location.assign(result.redirectUrl);
+        return;
+      }
+      throw new Error('Zahlungsseite der Bank konnte nicht geöffnet werden.');
+    } catch (err) {
+      setError(err.message);
+      setPaying(false);
+    }
+  };
+
+  const handleSyncPending = async (paymentId) => {
+    if (!paymentId || syncingId) return;
+    setSyncingId(paymentId);
+    setError('');
+    try {
+      const result = await syncMyPayment(paymentId);
       await loadBilling();
-      setNotice(`${checkoutPkg.label} erfolgreich bezahlt. ${checkoutQty} Leads wurden Ihrem Kontingent hinzugefügt.`);
+      if (result.outcome === 'paid') {
+        setNotice('Zahlung bestätigt. Ihre Lead-Anforderung wurde angelegt.');
+      } else if (result.outcome === 'failed') {
+        setError('Zahlung wurde von der Bank abgelehnt oder abgebrochen.');
+      } else {
+        setNotice('Zahlung ist bei der Bank noch offen. Bitte später erneut prüfen.');
+      }
     } catch (err) {
       setError(err.message);
     } finally {
-      setPaying(false);
+      setSyncingId('');
     }
   };
 
@@ -3065,7 +3097,7 @@ export function BeraterPayments() {
           <div className="eyebrow">Abrechnung</div>
           <h1>Pakete &amp; Guthaben</h1>
           <p className="lede">
-            Laden Sie Ihr Lead-Kontingent nach Bedarf auf. Gebuchte Leads werden sofort freigeschaltet.
+            Laden Sie Ihr Lead-Kontingent nach Bedarf auf. Die Zahlung erfolgt über die ProCredit Bank.
           </p>
         </div>
       </div>
@@ -3201,7 +3233,7 @@ export function BeraterPayments() {
         })}
       </div>
 
-      {/* Clean Stripe-like Checkout Modal */}
+      {/* Confirm → redirect to ProCredit Hosted Payment Page */}
       {checkoutPkg ? (
         <div
           className="broker-checkout-overlay"
@@ -3214,7 +3246,7 @@ export function BeraterPayments() {
           <div className="broker-checkout-panel broker-simple-modal">
             <div className="broker-simple-modal-head">
               <div>
-                <h2>Zahlung abschließen</h2>
+                <h2>Zahlung bestätigen</h2>
                 <p>
                   {checkoutQty} Leads · <strong>{formatEuroExact(checkoutGross)}</strong> inkl. 19% MwSt.
                 </p>
@@ -3229,100 +3261,33 @@ export function BeraterPayments() {
               </button>
             </div>
 
-            <div className="broker-simple-test-bar">
-              <span>Testbetrieb</span>
+            <div className="broker-simple-sum-row" style={{ marginBottom: '1rem' }}>
+              <span>{checkoutPkg.label}</span>
+              <strong>{formatEuroExact(checkoutGross)}</strong>
+            </div>
+            <p className="lede" style={{ marginBottom: '1.25rem' }}>
+              Sie werden zur sicheren Zahlungsseite der ProCredit Bank weitergeleitet.
+              Kartendaten werden ausschließlich bei der Bank eingegeben.
+            </p>
+
+            <div className="broker-checkout-actions">
               <button
                 type="button"
-                className="broker-text-btn"
+                className="btn btn-outline"
                 disabled={paying}
-                onClick={fillTestCard}
+                onClick={() => setCheckout(null)}
               >
-                <Zap size={13} /> Testdaten einfügen
+                Abbrechen
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={paying}
+                onClick={confirmPay}
+              >
+                {paying ? 'Weiterleitung…' : `${formatEuroExact(checkoutGross)} bezahlen`}
               </button>
             </div>
-
-            <form
-              className="broker-card-form"
-              onSubmit={(event) => {
-                event.preventDefault();
-                confirmPay();
-              }}
-            >
-              <label>
-                Name des Karteninhabers
-                <input
-                  value={card.holder}
-                  onChange={(event) => setCard((current) => ({ ...current, holder: event.target.value }))}
-                  autoComplete="cc-name"
-                  placeholder="Max Mustermann"
-                  disabled={paying}
-                  required
-                />
-              </label>
-
-              <label>
-                Kartennummer
-                <input
-                  value={card.number}
-                  onChange={(event) => setCard((current) => ({
-                    ...current,
-                    number: formatCardNumberInput(event.target.value),
-                  }))}
-                  inputMode="numeric"
-                  autoComplete="cc-number"
-                  placeholder="4242 4242 4242 4242"
-                  disabled={paying}
-                  required
-                />
-              </label>
-
-              <div className="broker-card-row">
-                <label>
-                  Gültig bis
-                  <input
-                    value={card.expiry}
-                    onChange={(event) => setCard((current) => ({
-                      ...current,
-                      expiry: formatExpiryInput(event.target.value),
-                    }))}
-                    inputMode="numeric"
-                    autoComplete="cc-exp"
-                    placeholder="MM/YY"
-                    disabled={paying}
-                    required
-                  />
-                </label>
-                <label>
-                  CVC
-                  <input
-                    value={card.cvc}
-                    onChange={(event) => setCard((current) => ({
-                      ...current,
-                      cvc: event.target.value.replace(/\D/g, '').slice(0, 4),
-                    }))}
-                    inputMode="numeric"
-                    autoComplete="cc-csc"
-                    placeholder="123"
-                    disabled={paying}
-                    required
-                  />
-                </label>
-              </div>
-
-              <div className="broker-checkout-actions">
-                <button
-                  type="button"
-                  className="btn btn-outline"
-                  disabled={paying}
-                  onClick={() => setCheckout(null)}
-                >
-                  Abbrechen
-                </button>
-                <button type="submit" className="btn btn-primary" disabled={paying}>
-                  {paying ? 'Wird geprüft…' : `${formatEuroExact(checkoutGross)} bezahlen`}
-                </button>
-              </div>
-            </form>
           </div>
         </div>
       ) : null}
@@ -3367,7 +3332,20 @@ export function BeraterPayments() {
                       <span>{formatCardMask(invoice)}</span>
                     </td>
                     <td>
-                      <span className="broker-invoice-status is-paid">Bezahlt</span>
+                      <span className={`broker-invoice-status${invoice.status === 'paid' ? ' is-paid' : ''}`}>
+                        {paymentStatusLabel(invoice.status)}
+                      </span>
+                      {invoice.status === 'pending' ? (
+                        <button
+                          type="button"
+                          className="broker-text-btn"
+                          style={{ display: 'block', marginTop: 6 }}
+                          disabled={Boolean(syncingId)}
+                          onClick={() => handleSyncPending(invoice.id)}
+                        >
+                          {syncingId === invoice.id ? 'Prüfe…' : 'Status prüfen'}
+                        </button>
+                      ) : null}
                     </td>
                     <td style={{ textAlign: 'right' }}>
                       <strong className="broker-inv-amount">{formatEuroExact(invoice.grossCents)}</strong>

@@ -11,6 +11,8 @@ services:
         value: "22"
       - key: FRONTEND_URL
         sync: false
+      - key: API_PUBLIC_URL
+        sync: false
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_ANON_KEY
@@ -22,6 +24,22 @@ services:
       - key: RESEND_API_KEY
         sync: false
       - key: ADMIN_EMAILS
+        sync: false
+      - key: PROCREDIT_API_BASE_URL
+        sync: false
+      - key: PROCREDIT_MERCHANT_ID
+        sync: false
+      - key: PROCREDIT_CERT_PEM
+        sync: false
+      - key: PROCREDIT_KEY_PEM
+        sync: false
+      - key: PROCREDIT_CA_PEM
+        sync: false
+      - key: PROCREDIT_CURRENCY
+        value: EUR
+      - key: PROCREDIT_LANGUAGE
+        value: en
+      - key: PROCREDIT_TEST_MODE
         sync: false
       - key: TCDIAL_API_BASE_URL
         sync: false
