@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
-import { NavLink, Link, useLocation } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Link, NavLink, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
   Users,
@@ -10,7 +10,6 @@ import {
   Inbox,
   Flag,
   Ban,
-  Settings,
   Calendar,
   CreditCard,
   MessageCircle,
@@ -21,7 +20,7 @@ import Brand from '../../components/Brand';
 import { useAuth } from '../../hooks/useAuth';
 import { useDashboard } from '../../hooks/useDashboard';
 import { roleLabel } from '../../lib/roles';
-import { accountSetupCta, displayName, firstName, greeting, initials } from './helpers';
+import { displayName, firstName, greeting, initials } from './helpers';
 
 export function DashSeg({ value, onChange, options }) {
   return (
@@ -49,7 +48,6 @@ const BERATER_LINKS = [
   { to: '/dashboard/kalender', match: 'kalender', label: 'Kalender', icon: Calendar },
   { divider: true },
   { to: '/dashboard/paket', match: 'paket', label: 'Mein Paket', icon: CreditCard },
-  { to: '/dashboard/profil', match: 'profil', label: 'Profil', icon: Settings },
   { to: '/dashboard/support', match: 'support', label: 'Support', icon: MessageCircle },
 ];
 
@@ -58,7 +56,6 @@ function isBeraterNavActive(match, pathname) {
   if (match === 'leads') return pathname.startsWith('/dashboard/leads');
   if (match === 'kalender') return pathname.startsWith('/dashboard/kalender');
   if (match === 'paket') return pathname.startsWith('/dashboard/paket');
-  if (match === 'profil') return pathname.startsWith('/dashboard/profil');
   if (match === 'support') return pathname.startsWith('/dashboard/support');
   return false;
 }
@@ -112,9 +109,6 @@ const ADMIN_NAV = [
 function adminPageCopy(pathname, user) {
   if (pathname.startsWith('/dashboard/zahlung')) {
     return { kicker: 'Konto', title: 'Zahlung', subtitle: 'Testzahlungen der Berater — Rechnung und Kartendaten.' };
-  }
-  if (pathname.startsWith('/dashboard/profil')) {
-    return { kicker: 'Admin', title: 'Profil', subtitle: 'Name, E-Mail und Passwort.' };
   }
   if (pathname.startsWith('/dashboard/nutzer')) {
     return { kicker: 'Bestand', title: 'Nutzer', subtitle: 'Konten im Portal.' };
@@ -297,84 +291,35 @@ function readBeraterSidebarCollapsed() {
   }
 }
 
-function AccountMenu({ user, logout, settingsActive = false, settingsTo = '/dashboard/profil', setupCount = 0, compact = false }) {
-  const [open, setOpen] = useState(false);
-  const menuRef = useRef(null);
-  const setupLabel = setupCount === 1 ? '1 Angabe fehlt' : `${setupCount} Angaben fehlen`;
-
-  useEffect(() => {
-    if (!open) return undefined;
-
-    const onPointer = (event) => {
-      if (!menuRef.current?.contains(event.target)) setOpen(false);
-    };
-    const onKey = (event) => {
-      if (event.key === 'Escape') setOpen(false);
-    };
-
-    document.addEventListener('mousedown', onPointer);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('mousedown', onPointer);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [open]);
-
+function AccountMenu({ user, logout, compact = false }) {
   return (
-    <div className={`broker-account${open ? ' is-open' : ''}`} ref={menuRef}>
-      <button
-        type="button"
-        className={`broker-profile-chip${settingsActive ? ' is-current' : ''}${compact ? ' is-compact' : ''}`}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        aria-label={compact ? `Konto, ${displayName(user)}` : undefined}
+    <div className="broker-account">
+      <NavLink
+        to="/dashboard/profil"
+        className={({ isActive }) => `broker-profile-chip${isActive ? ' is-active' : ''}${compact ? ' is-compact' : ''}`}
+        aria-label={compact ? `Profil, ${displayName(user)}` : undefined}
         title={compact ? displayName(user) : undefined}
-        onClick={() => setOpen((value) => !value)}
       >
         <span className="broker-avatar">
           {user.avatarUrl ? <img src={user.avatarUrl} alt="" /> : initials(user)}
         </span>
         <span className="broker-profile-name">{displayName(user)}</span>
-        <svg className="broker-caret-icon" width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
-          <path d="M2.5 4.5 6 8l3.5-3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
+      </NavLink>
+      <button
+        type="button"
+        className="broker-logout-btn"
+        onClick={() => logout()}
+        title="Abmelden"
+        aria-label="Abmelden"
+      >
+        <LogOut size={16} />
       </button>
-      {open ? (
-        <div className="broker-account-menu" role="menu">
-          <Link
-            to={settingsTo}
-            role="menuitem"
-            onClick={() => setOpen(false)}
-          >
-            <Settings size={16} />
-            Einstellungen
-            {setupCount > 0 ? (
-              <span className="broker-setup-count" aria-label={setupLabel}>{setupCount}</span>
-            ) : null}
-          </Link>
-          <button
-            type="button"
-            role="menuitem"
-            onClick={() => {
-              setOpen(false);
-              logout();
-            }}
-          >
-            <LogOut size={16} />
-            Abmelden
-          </button>
-        </div>
-      ) : null}
     </div>
   );
 }
 
 function BeraterShell({ user, logout, children }) {
   const location = useLocation();
-  const setupCta = accountSetupCta(user);
-  const settingsActive = location.pathname.startsWith('/dashboard/profil')
-    || location.pathname.startsWith('/dashboard/unternehmen')
-    || location.pathname.startsWith('/dashboard/sicherheit');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(readBeraterSidebarCollapsed);
 
@@ -456,9 +401,6 @@ function BeraterShell({ user, logout, children }) {
           <AccountMenu
             user={user}
             logout={logout}
-            settingsActive={settingsActive}
-            settingsTo={setupCta?.to || '/dashboard/profil'}
-            setupCount={setupCta?.count || 0}
             compact={collapsed}
           />
         </div>

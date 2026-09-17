@@ -417,7 +417,7 @@ export function AdminOverview() {
                     </strong>
                     <span className="dash-lead-row-sub">
                       {leadScopeLabel(entry.scope)} · {leadTypeLabel(entry.leadType)} · {entry.requestedCount} angefordert · {entry.validCount} gültig
-                      {entry.payment ? ` · ${entry.payment.invoiceNumber} · ${formatEuroExact(entry.payment.grossCents)}` : ''}
+                      {entry.payment ? ` · ${entry.payment.invoiceNumber} · ${formatEuroExact(entry.payment.netCents || entry.payment.grossCents)}` : ''}
                     </span>
                   </div>
                   <div className="dash-lead-row-side">
@@ -522,7 +522,7 @@ export function AdminPayment() {
   const paidCount = payments.filter((entry) => entry.status === 'paid').length;
   const paidTotal = payments
     .filter((entry) => entry.status === 'paid')
-    .reduce((sum, entry) => sum + (entry.grossCents || 0), 0);
+    .reduce((sum, entry) => sum + (entry.netCents || entry.grossCents || 0), 0);
   const pendingCount = payments.filter((entry) => entry.status === 'pending').length;
 
   return (
@@ -538,7 +538,6 @@ export function AdminPayment() {
         <div className="dash-metric">
           <span>Umsatz</span>
           <strong>{loading ? '—' : formatEuroExact(paidTotal)}</strong>
-          <small>inkl. MwSt.</small>
         </div>
         <div className="dash-metric">
           <span>Leads gekauft</span>
@@ -592,7 +591,7 @@ export function AdminPayment() {
                   <span className={`dash-badge${entry.status === 'paid' ? ' dash-badge--ok' : ''}`}>
                     {paymentStatusLabel(entry.status)}
                   </span>
-                  <strong>{formatEuroExact(entry.grossCents)}</strong>
+                  <strong>{formatEuroExact(entry.netCents || entry.grossCents)}</strong>
                   <small>{formatDateTime(entry.paidAt || entry.createdAt)}</small>
                   {entry.beraterId ? (
                     <div className="dash-row-actions">

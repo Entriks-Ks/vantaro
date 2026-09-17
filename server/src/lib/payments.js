@@ -13,7 +13,7 @@ import {
   getProcreditConfig,
 } from './procredit.js';
 
-const TAX_RATE = 0.19;
+const TAX_RATE = 0;
 
 function fail(message, status = 400) {
   const error = new Error(message);
@@ -333,8 +333,8 @@ export async function checkoutLeadPackage(user, {
   }
 
   const netCents = packTotalCents(pkg, count);
-  const taxCents = Math.round(netCents * TAX_RATE);
-  const grossCents = netCents + taxCents;
+  const taxCents = 0;
+  const grossCents = netCents;
   const invoiceNumber = makeInvoiceNumber();
   const returnToken = crypto.randomBytes(24).toString('hex');
   const billingName = [user.firstName, user.lastName].filter(Boolean).join(' ').trim()
@@ -374,7 +374,7 @@ export async function checkoutLeadPackage(user, {
 
   try {
     const order = await createPurchaseOrder({
-      amountCents: grossCents,
+      amountCents: netCents,
       description: `Lead package ${pkg.scope} x${count}`,
       hppRedirectUrl,
       browser: browserFromRequest(req, browser),

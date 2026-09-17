@@ -268,7 +268,7 @@ function DetailsPanel({ berater, totals, requestCount, assignedCount, payments }
   const phone = String(berater.phone || '').trim();
   const company = berater.company || profile.company || '';
   const paid = (payments || []).filter((entry) => entry.status === 'paid');
-  const grossTotal = paid.reduce((sum, entry) => sum + (Number(entry.grossCents) || 0), 0);
+  const grossTotal = paid.reduce((sum, entry) => sum + (Number(entry.netCents || entry.grossCents) || 0), 0);
 
   return (
     <div className="dash-bv-panel dash-bv-panel--details">
@@ -571,9 +571,8 @@ function PaymentPanel({ payments }) {
     () => (payments || []).filter((entry) => entry.status === 'paid'),
     [payments],
   );
-  const grossTotal = paid.reduce((sum, entry) => sum + (Number(entry.grossCents) || 0), 0);
-  const taxTotal = paid.reduce((sum, entry) => sum + (Number(entry.taxCents) || 0), 0);
-  const netTotal = paid.reduce((sum, entry) => sum + (Number(entry.netCents) || 0), 0);
+  const grossTotal = paid.reduce((sum, entry) => sum + (Number(entry.netCents || entry.grossCents) || 0), 0);
+  const netTotal = paid.reduce((sum, entry) => sum + (Number(entry.netCents || entry.grossCents) || 0), 0);
   const leadTotal = paid.reduce((sum, entry) => sum + (Number(entry.leadCount) || 0), 0);
   const avgOrder = paid.length ? Math.round(grossTotal / paid.length) : 0;
 
@@ -582,7 +581,7 @@ function PaymentPanel({ payments }) {
     for (const entry of paid) {
       const key = entry.leadType || 'PKV';
       const current = map.get(key) || { id: key, label: leadTypeLabel(key), value: 0 };
-      current.value += Number(entry.grossCents) || 0;
+      current.value += Number(entry.netCents || entry.grossCents) || 0;
       map.set(key, current);
     }
     return [...map.values()]
@@ -601,7 +600,7 @@ function PaymentPanel({ payments }) {
       const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
       const label = date.toLocaleDateString('de-DE', { month: 'short', year: '2-digit' });
       const current = map.get(key) || { id: key, label, value: 0 };
-      current.value += Number(entry.grossCents) || 0;
+      current.value += Number(entry.netCents || entry.grossCents) || 0;
       map.set(key, current);
     }
     return [...map.values()]
@@ -630,7 +629,6 @@ function PaymentPanel({ payments }) {
         <div>
           <span>Gesamtumsatz</span>
           <strong>{formatEuroExact(grossTotal)}</strong>
-          <small>Netto {formatEuroExact(netTotal)} · MwSt. {formatEuroExact(taxTotal)}</small>
         </div>
         <div className="dash-bv-pay-hero__stats">
           <div>
@@ -696,7 +694,7 @@ function PaymentPanel({ payments }) {
                 </span>
               </div>
               <div className="dash-bv-pay-row__side">
-                <b>{formatEuroExact(entry.grossCents)}</b>
+                <b>{formatEuroExact(entry.netCents || entry.grossCents)}</b>
                 <small>{formatDate(entry.paidAt || entry.createdAt)}</small>
               </div>
             </article>

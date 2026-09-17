@@ -13385,6 +13385,136 @@ button.dash-lead-row.dash-replacement-row.is-selected {
     color: #94a3b8;
 }
 
+.support-form {
+    max-width: 600px;
+}
+
+.support-form-error {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px;
+    margin-bottom: 24px;
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    border-radius: 8px;
+    color: #fca5a5;
+    font-size: 14px;
+}
+
+.support-form-group {
+    margin-bottom: 20px;
+}
+
+.support-form-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    color: #f3f7ff;
+}
+
+.support-form-group input,
+.support-form-group select,
+.support-form-group textarea {
+    width: 100%;
+    padding: 12px 16px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    color: #f3f7ff;
+    font-size: 15px;
+    font-family: inherit;
+    transition: border-color var(--transition), background var(--transition);
+}
+
+.support-form-group select {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23f3f7ff' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 16px center;
+    padding-right: 40px;
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+}
+
+.support-form-group select option {
+    background: #1a2332;
+    color: #f3f7ff;
+}
+
+.support-form-group input:focus,
+.support-form-group select:focus,
+.support-form-group textarea:focus {
+    outline: none;
+    border-color: rgba(86, 211, 194, 0.5);
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.support-form-group input:disabled,
+.support-form-group select:disabled,
+.support-form-group textarea:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.support-form-group textarea {
+    resize: vertical;
+    min-height: 120px;
+}
+
+.support-form-actions {
+    margin-top: 28px;
+}
+
+.support-form-submit {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    padding: 14px 24px;
+    background: #56d3c4;
+    color: #070b14;
+    border: none;
+    border-radius: 10px;
+    font-size: 15px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background var(--transition), transform var(--transition);
+}
+
+.support-form-submit:hover:not(:disabled) {
+    background: #4bc2b0;
+    transform: translateY(-1px);
+}
+
+.support-form-submit:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+.support-form-submit:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.support-form-spinner {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(243, 247, 255, 0.3);
+    border-top-color: #f3f7ff;
+    border-radius: 50%;
+    animation: support-form-spin 0.8s linear infinite;
+}
+
+@keyframes support-form-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
 .broker-faq-list {
     display: flex;
     flex-direction: column;
@@ -13478,10 +13608,11 @@ button.dash-lead-row.dash-replacement-row.is-selected {
     padding: 5px 12px 5px 5px;
     border-radius: 999px;
     transition: background var(--transition), border-color var(--transition), box-shadow var(--transition);
+    text-decoration: none;
 }
 .broker-profile-chip:hover,
-.broker-account.is-open .broker-profile-chip,
-.broker-profile-chip.is-current {
+.broker-profile-chip.is-current,
+.broker-profile-chip.is-active {
     background: rgba(86, 211, 196, .08);
     border-color: rgba(27, 168, 154, .28);
     box-shadow: 0 8px 18px rgba(0, 0, 0, .22);
@@ -13495,16 +13626,27 @@ button.dash-lead-row.dash-replacement-row.is-selected {
     text-overflow: ellipsis;
     white-space: nowrap;
 }
-.broker-caret-icon {
-    color: #8fa0b3;
-    flex-shrink: 0;
-    transition: transform .2s ease;
-}
-.broker-account.is-open .broker-caret-icon {
-    transform: rotate(180deg);
-}
 .broker-account {
-    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.broker-logout-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border: 1px solid rgba(255, 255, 255, .12);
+    background: rgba(255, 255, 255, .06);
+    border-radius: 999px;
+    color: var(--ink);
+    transition: background var(--transition), border-color var(--transition), color var(--transition);
+}
+.broker-logout-btn:hover {
+    background: rgba(220, 38, 38, .12);
+    border-color: rgba(220, 38, 38, .28);
+    color: #ef4444;
 }
 .broker-account-menu {
     position: absolute;

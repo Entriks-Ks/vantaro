@@ -8,6 +8,7 @@ import PhoneField, { isValidMobile } from '../../components/PhoneField';
 import { useAuth } from '../../hooks/useAuth';
 import { useBroker } from '../../hooks/useBroker';
 import { didGoogleMapsAuthFail, geocodeAddress, hasGoogleMapsKey, isInGermany, reverseGeocode } from '../../lib/googleMaps';
+import { readStoredSession } from '../../lib/auth';
 import {
   fetchMyRequests,
 } from '../../lib/berater';
@@ -1305,7 +1306,7 @@ export function BeraterHome() {
         <div className="broker-panel-header">
           <div>
             <h2>Aktuelle Leads</h2>
-            <p>Die letzten Chancen in Ihrem Bestand</p>
+            <p>Neue Chancen in Ihrem Bestand</p>
           </div>
           <Link to="/dashboard/leads" className="broker-text-btn">Alle anzeigen</Link>
         </div>
@@ -1429,10 +1430,6 @@ function LeadCard({ lead, onOpen, dragging = false, onDragStart, onDragEnd }) {
       ) : null}
       {lead.notes ? <p className="broker-lead-note">{lead.notes}</p> : null}
       <div className="broker-lead-bottom">
-        <div className="broker-lead-price">
-          {formatEuroExact(lead.priceCents)}
-          <span>bezahlt</span>
-        </div>
         <span className="broker-muted-action">Ziehen oder öffnen</span>
       </div>
     </article>
@@ -1455,7 +1452,6 @@ function LeadListRow({ lead, onOpen }) {
       <span className="broker-list-meta">{lead.productCode || leadProductCode(lead)}</span>
       <span className="broker-list-meta">{lead.quality}</span>
       <LeadStatusMark lead={lead} />
-      <span className="broker-list-price">{formatEuroExact(lead.priceCents)}</span>
     </button>
   );
 }
@@ -1557,6 +1553,9 @@ export function BeraterLeads() {
   ), [leads, leadStatuses, insurance]);
 
   const visible = pipeline;
+  const nonAbgeschlossenCount = useMemo(() => (
+    visible.filter((lead) => lead.status !== 'abgeschlossen' && lead.contactStatus !== 'abgeschlossen').length
+  ), [visible]);
   const totalPages = Math.max(1, Math.ceil(visible.length / pageSize));
 
   useEffect(() => {
@@ -1712,7 +1711,7 @@ export function BeraterLeads() {
             ))}
           </div>
           <span className="broker-filter-count">
-            {loading ? 'Laden…' : `${visible.length} ${visible.length === 1 ? 'Chance' : 'Chancen'}`}
+            {loading ? 'Laden…' : `${nonAbgeschlossenCount} ${nonAbgeschlossenCount === 1 ? 'Chance' : 'Chancen'}`}
           </span>
         </div>
       </div>
@@ -2579,6 +2578,61 @@ export function BeraterCalendar() {
 }
 
 export function BeraterSupport() {
+  const { user } = useAuth();
+  const { showToast } = useBroker();
+  const [form, setForm] = useState({ subject: '', message: '', category: 'general' });
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState('');
+
+  const categories = [
+    { value: 'general', label: 'Allgemeine Frage' },
+    { value: 'billing', label: 'Abrechnung & Zahlung' },
+    { value: 'technical', label: 'Technisches Problem' },
+    { value: 'leads', label: 'Lead-Bestand' },
+    { value: 'account', label: 'Konto & Profil' },
+  ];
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setError('');
+
+    if (!form.subject.trim() || !form.message.trim()) {
+      setError('Bitte füllen Sie alle Pflichtfelder aus.');
+      return;
+    }
+
+    setSending(true);
+    try {
+      const session = readStoredSession();
+      const response = await fetch('/api/contact', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+        },
+        body: JSON.stringify({
+          name: user?.fullName || user?.email || '',
+          email: user?.email || '',
+          category: form.category,
+          subject: form.subject,
+          message: form.message,
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Nachricht konnte nicht gesendet werden.');
+      }
+
+      showToast('Ihre Nachricht wurde erfolgreich gesendet.');
+      setForm({ subject: '', message: '', category: 'general' });
+    } catch (err) {
+      setError(err.message || 'Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.');
+    } finally {
+      setSending(false);
+    }
+  }
+
   return (
     <div className="broker-page">
       <div className="broker-heading">
@@ -2597,17 +2651,72 @@ export function BeraterSupport() {
           </div>
         </div>
         <div className="broker-panel-body">
-          <div className="broker-support-options">
-            <a href="mailto:support@vantaro.io" className="broker-support-card">
-              <span className="broker-support-icon" aria-hidden="true">
-                <Mail size={22} />
-              </span>
-              <div>
-                <strong>E-Mail</strong>
-                <span>support@vantaro.io</span>
+          <form onSubmit={handleSubmit} className="support-form">
+            {error && (
+              <div className="support-form-error">
+                <AlertCircle size={16} />
+                <span>{error}</span>
               </div>
-            </a>
-          </div>
+            )}
+
+            <div className="support-form-group">
+              <label htmlFor="category">Kategorie</label>
+              <select
+                id="category"
+                value={form.category}
+                onChange={(e) => setForm({ ...form, category: e.target.value })}
+                disabled={sending}
+              >
+                {categories.map((cat) => (
+                  <option key={cat.value} value={cat.value}>
+                    {cat.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="support-form-group">
+              <label htmlFor="subject">Betreff *</label>
+              <input
+                id="subject"
+                type="text"
+                value={form.subject}
+                onChange={(e) => setForm({ ...form, subject: e.target.value })}
+                placeholder="z.B. Frage zur Abrechnung"
+                disabled={sending}
+                required
+              />
+            </div>
+
+            <div className="support-form-group">
+              <label htmlFor="message">Nachricht *</label>
+              <textarea
+                id="message"
+                value={form.message}
+                onChange={(e) => setForm({ ...form, message: e.target.value })}
+                placeholder="Beschreiben Sie Ihr Anliegen möglichst detailliert..."
+                rows={6}
+                disabled={sending}
+                required
+              />
+            </div>
+
+            <div className="support-form-actions">
+              <button type="submit" className="support-form-submit" disabled={sending}>
+                {sending ? (
+                  <>
+                    <span className="support-form-spinner" />
+                    Wird gesendet...
+                  </>
+                ) : (
+                  <>
+                    <MessageCircle size={18} />
+                    Nachricht senden
+                  </>
+                )}
+              </button>
+            </div>
+          </form>
         </div>
       </section>
     </div>
@@ -3036,8 +3145,6 @@ export function BeraterPayments() {
   const checkoutPkg = checkout ? packageById(checkout.packageId) : null;
   const checkoutQty = checkout?.qty || minLeads;
   const checkoutNet = checkoutPkg ? packTotalCents(checkoutPkg, checkoutQty) : 0;
-  const checkoutTax = Math.round(checkoutNet * 0.19);
-  const checkoutGross = checkoutNet + checkoutTax;
 
   const setQty = (packageId, next) => {
     const parsed = Math.round(Number(next) / leadStep) * leadStep;
@@ -3145,8 +3252,6 @@ export function BeraterPayments() {
           const active = activePackageId === pkg.id;
           const qty = getQty(pkg.id);
           const net = packTotalCents(pkg, qty);
-          const tax = Math.round(net * 0.19);
-          const gross = net + tax;
 
           return (
             <article
@@ -3197,8 +3302,7 @@ export function BeraterPayments() {
               </div>
 
               <div className="broker-simple-sum-row">
-                <span>Gesamt ({qty} Leads inkl. 19% MwSt.)</span>
-                <strong>{formatEuroExact(gross)}</strong>
+                <span>Gesamt ({qty} nicht im Inland steuerbare Leistung, ohne MwSt.)</span>
               </div>
 
               <div className="broker-simple-btn-group">
@@ -3248,7 +3352,7 @@ export function BeraterPayments() {
               <div>
                 <h2>Zahlung bestätigen</h2>
                 <p>
-                  {checkoutQty} Leads · <strong>{formatEuroExact(checkoutGross)}</strong> inkl. 19% MwSt.
+                  {checkoutQty} Leads
                 </p>
               </div>
               <button
@@ -3263,7 +3367,7 @@ export function BeraterPayments() {
 
             <div className="broker-simple-sum-row" style={{ marginBottom: '1rem' }}>
               <span>{checkoutPkg.label}</span>
-              <strong>{formatEuroExact(checkoutGross)}</strong>
+              <strong>{formatEuroExact(checkoutNet)}</strong>
             </div>
             <p className="lede" style={{ marginBottom: '1.25rem' }}>
               Sie werden zur sicheren Zahlungsseite der ProCredit Bank weitergeleitet.
@@ -3285,7 +3389,7 @@ export function BeraterPayments() {
                 disabled={paying}
                 onClick={confirmPay}
               >
-                {paying ? 'Weiterleitung…' : `${formatEuroExact(checkoutGross)} bezahlen`}
+                {paying ? 'Weiterleitung…' : `${formatEuroExact(checkoutNet)} bezahlen`}
               </button>
             </div>
           </div>
@@ -3348,7 +3452,7 @@ export function BeraterPayments() {
                       ) : null}
                     </td>
                     <td style={{ textAlign: 'right' }}>
-                      <strong className="broker-inv-amount">{formatEuroExact(invoice.grossCents)}</strong>
+                      <strong className="broker-inv-amount">{formatEuroExact(invoice.netCents || invoice.grossCents)}</strong>
                     </td>
                   </tr>
                 ))}

@@ -684,3 +684,125 @@ export async function sendFollowUpReminderEmail(payload) {
 export async function sendFollowUpScheduledEmail(payload) {
   return sendFollowUpEmail({ ...payload, kind: 'scheduled' });
 }
+
+function supportEmail({ name, email, category, subject, message }) {
+  const year = new Date().getFullYear();
+  const safeName = escapeHtml(name);
+  const safeEmail = escapeHtml(email);
+  const safeCategory = escapeHtml(category || 'Allgemein');
+  const safeSubject = escapeHtml(subject);
+  const safeMessage = escapeHtml(message);
+
+  const categoryLabels = {
+    general: 'Allgemeine Frage',
+    billing: 'Abrechnung & Zahlung',
+    technical: 'Technisches Problem',
+    leads: 'Lead-Bestand',
+    account: 'Konto & Profil',
+  };
+
+  const categoryLabel = categoryLabels[category] || 'Allgemeine Frage';
+
+  const text = `Neue Support-Anfrage von ${safeName}
+
+Kategorie: ${categoryLabel}
+E-Mail: ${safeEmail}
+
+Betreff: ${safeSubject}
+
+Nachricht:
+${safeMessage}
+
+© ${year} VANTARO. Alle Rechte vorbehalten.`;
+
+  const html = `<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="color-scheme" content="light" />
+    <title>Neue Support-Anfrage</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
+  </head>
+  <body style="margin:0;padding:0;background:#ffffff;color:#101827;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff;">
+      <tr>
+        <td align="center" style="background:#070b14;padding:22px 24px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;">
+            <tr>
+              <td align="center">
+                <img src="cid:vantaro-wordmark" width="168" height="18" alt="VANTARO" style="display:block;margin:0 auto;width:168px;height:18px;border:0;" />
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+      <tr>
+        <td align="center" style="padding:36px 24px 40px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;">
+            <tr>
+              <td align="left" style="padding:0 0 12px;font-family:${HEADING_FONT};font-size:28px;font-weight:600;line-height:1.2;letter-spacing:-0.04em;color:#101827;">
+                Neue Support-Anfrage
+              </td>
+            </tr>
+            <tr>
+              <td align="left" style="padding:0 0 24px;font-family:${BODY_FONT};font-size:16px;line-height:1.6;color:#3d4b5c;">
+                Von: <strong style="color:#101827;">${safeName}</strong>
+              </td>
+            </tr>
+            <tr>
+              <td align="left" style="padding:0 0 8px;font-family:${BODY_FONT};font-size:14px;line-height:1.6;color:#5a6b7c;">
+                <strong>Kategorie:</strong> ${safeCategory}
+              </td>
+            </tr>
+            <tr>
+              <td align="left" style="padding:0 0 8px;font-family:${BODY_FONT};font-size:14px;line-height:1.6;color:#5a6b7c;">
+                <strong>E-Mail:</strong> <a href="mailto:${safeEmail}" style="color:#101827;text-decoration:underline;">${safeEmail}</a>
+              </td>
+            </tr>
+            <tr>
+              <td align="left" style="padding:0 0 20px;font-family:${BODY_FONT};font-size:14px;line-height:1.6;color:#5a6b7c;">
+                <strong>Betreff:</strong> ${safeSubject}
+              </td>
+            </tr>
+            <tr>
+              <td align="left" style="padding:0 0 28px;font-family:${BODY_FONT};font-size:14px;line-height:1.6;color:#5a6b7c;">
+                <strong>Nachricht:</strong>
+              </td>
+            </tr>
+            <tr>
+              <td align="left" style="padding:0 0 32px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:16px;font-family:${BODY_FONT};font-size:15px;line-height:1.6;color:#3d4b5c;">
+                ${safeMessage.replace(/\n/g, '<br />')}
+              </td>
+            </tr>
+            <tr>
+              <td align="center" style="padding:24px 0 0;border-top:1px solid #e6e8eb;font-family:${BODY_FONT};font-size:12px;line-height:1.7;color:#8b9aaa;">
+                © ${year} VANTARO. Alle Rechte vorbehalten.
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`;
+
+  return { text, html };
+}
+
+export async function sendSupportEmail({ name, email, category, subject, message }) {
+  const supportEmail = process.env.SUPPORT_EMAIL?.trim() || 'support@vantaro.io';
+  const emailSubject = `Support-Anfrage: ${subject}`;
+  const content = supportEmail({ name, email, category, subject, message });
+  
+  await sendWithResend({
+    to: supportEmail,
+    subject: emailSubject,
+    ...content,
+    attachments: logoAttachments,
+  });
+  
+  return 'resend';
+}

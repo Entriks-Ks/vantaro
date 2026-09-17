@@ -22,6 +22,7 @@ server/certs/
 _procredit_extract.txt
 
 # Editor directories and files
+.cursor/
 .vscode/*
 !.vscode/extensions.json
 .idea
@@ -31,6 +32,10 @@ _procredit_extract.txt
 *.njsproj
 *.sln
 *.sw?
+
+# ProCredit docs (local only)
+ProCredit Requirements for implementing recurring payments.pdf
+ProCredit E-COMMERCE_Internet_Shop_Integration_v1.7.pdf
 
 # Xcode
 ios/Vantaro.xcodeproj/xcuserdata/
