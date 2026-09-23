@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { APPLE_ICON, EMAIL_GOOGLE_ICON, EMAIL_OUTLOOK_ICON } from './brandIcons.js';
-import { followUpCalendarLinks, SHOW_APPLE_CALENDAR } from './followUpCalendar.js';
+import { buildFollowUpIcs, followUpCalendarLinks, SHOW_APPLE_CALENDAR } from './followUpCalendar.js';
 
 const FROM = process.env.EMAIL_FROM?.trim() || '';
 const HEADING_FONT = "'Space Grotesk', Arial, Helvetica, sans-serif";
@@ -143,7 +143,7 @@ Wenn Sie kein Konto erstellt haben, ignorieren Sie diese E-Mail.
   return { text, html };
 }
 
-async function sendWithResend({ to, subject, text, html, attachments, from }) {
+async function sendWithResend({ to, subject, text, html, attachments, from, replyTo }) {
   if (!process.env.RESEND_API_KEY?.trim()) {
     throw new Error('RESEND_API_KEY fehlt in server/.env.');
   }
@@ -165,6 +165,7 @@ async function sendWithResend({ to, subject, text, html, attachments, from }) {
       text,
       html,
       attachments,
+      ...(replyTo ? { reply_to: replyTo } : {}),
     }),
   });
 
@@ -292,6 +293,12 @@ function leadsFrom() {
   return process.env.EMAIL_FROM_LEADS?.trim() || FROM;
 }
 
+function organizerAddress() {
+  const raw = leadsFrom() || FROM;
+  const match = String(raw).match(/<([^>]+)>/);
+  return (match ? match[1] : String(raw)).replace(/^mailto:/i, '').trim() || 'noreply@vantaro.io';
+}
+
 export function hasLeadsMailer() {
   return Boolean(process.env.RESEND_API_KEY?.trim() && leadsFrom());
 }
@@ -319,9 +326,17 @@ function followUpReminderEmail({
   outlookUrl,
   appleUrl,
   kind = 'due',
+  eventType = 'wiedervorlage',
+  whenKind = 'due',
 }) {
   const year = new Date().getFullYear();
   const scheduled = kind === 'scheduled';
+  const updated = kind === 'updated';
+  const cancelled = kind === 'cancelled';
+  const isTermin = eventType === 'termin';
+  const noun = isTermin ? 'Termin' : 'Wiedervorlage';
+  const articleAcc = isTermin ? 'einen Termin' : 'eine Wiedervorlage';
+  const articleNom = isTermin ? 'ein Termin' : 'eine Wiedervorlage';
   const safeBerater = escapeHtml(beraterName);
   const safeLead = escapeHtml(leadName);
   const safeWhen = escapeHtml(whenLabel);
@@ -337,20 +352,62 @@ function followUpReminderEmail({
   const safePhoneLine = phone
     ? `Telefon: ${safePhone}`
     : 'Für diesen Lead ist keine Telefonnummer hinterlegt.';
-  const heading = scheduled ? 'Wiedervorlage gespeichert' : 'Wiedervorlage ist fällig';
-  const intro = scheduled
-    ? `${greeting}, Sie haben eine Wiedervorlage für <strong style="color:#101827;">${safeLead}</strong> gelegt. Speichern Sie die Erinnerung in Ihrem Kalender.`
-    : `${greeting}, für <strong style="color:#101827;">${safeLead}</strong> ist jetzt eine Wiedervorlage fällig.`;
-  const introText = scheduled
-    ? `${greeting}, Sie haben eine Wiedervorlage für ${leadName} gelegt. Speichern Sie die Erinnerung in Ihrem Kalender.`
-    : `${greeting},\n\nfür ${leadName} ist jetzt eine Wiedervorlage fällig.`;
-  const footerNote = scheduled
-    ? 'Sie können Datum und Uhrzeit jederzeit im Portal ändern.'
-    : 'Wenn Sie den Lead bereits bearbeitet haben, können Sie diese E-Mail ignorieren.';
-  const preview = scheduled
-    ? `Wiedervorlage gespeichert für ${safeLead} · ${safeWhen}.`
-    : `Wiedervorlage für ${safeLead} · ${safeWhen}.`;
-  const title = scheduled ? `Wiedervorlage gespeichert für ${safeLead}` : `Wiedervorlage für ${safeLead}`;
+  const heading = cancelled
+    ? `${noun} abgesagt`
+    : updated
+      ? `${noun} geändert`
+      : scheduled
+        ? `${noun} gespeichert`
+        : whenKind === 'hour'
+          ? `${noun} in 1 Stunde`
+          : whenKind === 'soon'
+            ? `${noun} in 15 Minuten`
+            : `${noun} ist fällig`;
+  const intro = cancelled
+    ? `${greeting}, ${articleNom} für <strong style="color:#101827;">${safeLead}</strong> wurde im Portal entfernt. Der Kalendereintrag wird aktualisiert.`
+    : updated
+      ? `${greeting}, ${articleNom} für <strong style="color:#101827;">${safeLead}</strong> wurde geändert. Der Eintrag in Google Kalender wird mitverschoben.`
+      : scheduled
+        ? `${greeting}, Sie haben ${articleAcc} für <strong style="color:#101827;">${safeLead}</strong> gelegt. Speichern Sie die Erinnerung in Ihrem Kalender.`
+        : whenKind === 'hour'
+          ? `${greeting}, für <strong style="color:#101827;">${safeLead}</strong> steht in 1 Stunde ${articleNom} an.`
+          : whenKind === 'soon'
+            ? `${greeting}, für <strong style="color:#101827;">${safeLead}</strong> steht in 15 Minuten ${articleNom} an.`
+            : `${greeting}, für <strong style="color:#101827;">${safeLead}</strong> ist jetzt ${articleNom} fällig.`;
+  const introText = cancelled
+    ? `${greeting}, ${articleNom} für ${leadName} wurde im Portal entfernt. Der Kalendereintrag wird aktualisiert.`
+    : updated
+      ? `${greeting}, ${articleNom} für ${leadName} wurde geändert. Der Eintrag in Google Kalender wird mitverschoben.`
+      : scheduled
+        ? `${greeting}, Sie haben ${articleAcc} für ${leadName} gelegt. Speichern Sie die Erinnerung in Ihrem Kalender.`
+        : whenKind === 'hour'
+          ? `${greeting},\n\nfür ${leadName} steht in 1 Stunde ${articleNom} an.`
+          : whenKind === 'soon'
+            ? `${greeting},\n\nfür ${leadName} steht in 15 Minuten ${articleNom} an.`
+            : `${greeting},\n\nfür ${leadName} ist jetzt ${articleNom} fällig.`;
+  const footerNote = cancelled
+    ? 'Wenn der Termin im Kalender bleibt, löschen Sie den Eintrag dort bitte einmalig.'
+    : updated || scheduled
+      ? 'Sie können Datum und Uhrzeit jederzeit im Portal ändern — Google Kalender folgt mit.'
+      : 'Wenn Sie den Lead bereits bearbeitet haben, können Sie diese E-Mail ignorieren.';
+  const preview = cancelled
+    ? `${noun} abgesagt · ${safeLead}.`
+    : updated
+      ? `${noun} geändert für ${safeLead} · ${safeWhen}.`
+      : scheduled
+        ? `${noun} gespeichert für ${safeLead} · ${safeWhen}.`
+        : whenKind === 'hour'
+          ? `${noun} in 1 Stunde · ${safeLead} · ${safeWhen}.`
+          : whenKind === 'soon'
+            ? `${noun} in 15 Minuten · ${safeLead} · ${safeWhen}.`
+            : `${noun} für ${safeLead} · ${safeWhen}.`;
+  const title = cancelled
+    ? `${noun} abgesagt für ${safeLead}`
+    : updated
+      ? `${noun} geändert für ${safeLead}`
+      : scheduled
+        ? `${noun} gespeichert für ${safeLead}`
+        : `${noun} für ${safeLead}`;
   const calendarText = googleUrl || outlookUrl || (SHOW_APPLE_CALENDAR && appleUrl)
     ? `
 
@@ -487,18 +544,34 @@ async function sendFollowUpEmail({
   leadUrl,
   leadId,
   kind = 'due',
+  eventType = 'wiedervorlage',
+  whenKind = 'due',
+  includeCalendar = true,
 }) {
+  const noun = eventType === 'termin' ? 'Termin' : 'Wiedervorlage';
   const whenLabel = formatFollowUpWhen(followUpAt) || 'jetzt';
-  const subject = kind === 'scheduled'
-    ? `Wiedervorlage gespeichert · ${leadName} · ${whenLabel}`
-    : `Wiedervorlage · ${leadName} · ${whenLabel}`;
-  const calendar = leadId && followUpAt
+  const timingLabel = whenKind === 'hour'
+    ? 'in 1 Stunde'
+    : whenKind === 'soon'
+      ? 'in 15 Minuten'
+      : null;
+  const subject = kind === 'cancelled'
+    ? `${noun} abgesagt · ${leadName}`
+    : kind === 'updated'
+      ? `${noun} geändert · ${leadName} · ${whenLabel}`
+      : kind === 'scheduled'
+        ? `${noun} gespeichert · ${leadName} · ${whenLabel}`
+        : timingLabel
+          ? `${noun} ${timingLabel} · ${leadName} · ${whenLabel}`
+          : `${noun} · ${leadName} · ${whenLabel}`;
+  const calendar = leadId && followUpAt && kind !== 'cancelled'
     ? followUpCalendarLinks({
       leadId,
       leadName,
       followUpAt,
       phone,
       leadUrl,
+      eventType,
     })
     : null;
   const content = followUpReminderEmail({
@@ -511,8 +584,29 @@ async function sendFollowUpEmail({
     outlookUrl: calendar?.outlookUrl,
     appleUrl: calendar?.appleUrl,
     kind,
+    eventType,
+    whenKind,
   });
-  const attachments = logoAttachments;
+  const attachments = [...logoAttachments];
+  if (includeCalendar && leadId && followUpAt && to) {
+    const ics = buildFollowUpIcs({
+      leadId,
+      leadName,
+      followUpAt,
+      phone,
+      leadUrl,
+      eventType,
+      method: kind === 'cancelled' ? 'CANCEL' : 'REQUEST',
+      sequence: Math.max(1, Math.floor(Date.now() / 1000)),
+      attendeeEmail: to,
+      organizerEmail: organizerAddress(),
+    });
+    attachments.push({
+      filename: eventType === 'termin' ? 'VANTARO-Termin.ics' : 'VANTARO-Wiedervorlage.ics',
+      content: Buffer.from(ics, 'utf8').toString('base64'),
+      content_type: `text/calendar; charset=UTF-8; method=${kind === 'cancelled' ? 'CANCEL' : 'REQUEST'}`,
+    });
+  }
   await sendWithResend({
     to,
     from: leadsFrom(),
@@ -682,36 +776,80 @@ export async function sendFollowUpReminderEmail(payload) {
 }
 
 export async function sendFollowUpScheduledEmail(payload) {
-  return sendFollowUpEmail({ ...payload, kind: 'scheduled' });
+  return sendFollowUpEmail({ ...payload, kind: payload.kind || 'scheduled' });
 }
 
-function supportEmail({ name, email, category, subject, message }) {
+function supportEmail({
+  name,
+  email,
+  category,
+  subject,
+  message,
+  phone,
+  company,
+  customerNumber,
+  priority,
+  leadRef,
+  userId,
+  pageUrl,
+  userAgent,
+  attachments = [],
+}) {
   const year = new Date().getFullYear();
   const safeName = escapeHtml(name);
   const safeEmail = escapeHtml(email);
-  const safeCategory = escapeHtml(category || 'Allgemein');
   const safeSubject = escapeHtml(subject);
   const safeMessage = escapeHtml(message);
-
   const categoryLabels = {
     general: 'Allgemeine Frage',
     billing: 'Abrechnung & Zahlung',
     technical: 'Technisches Problem',
     leads: 'Lead-Bestand',
     account: 'Konto & Profil',
+    calendar: 'Termine & Wiedervorlage',
   };
-
+  const priorityLabels = {
+    normal: 'Normal',
+    urgent: 'Dringend',
+  };
   const categoryLabel = categoryLabels[category] || 'Allgemeine Frage';
+  const priorityLabel = priorityLabels[priority] || 'Normal';
+  const safeCategory = escapeHtml(categoryLabel);
+  const safePriority = escapeHtml(priorityLabel);
+  const fact = (label, value) => (value
+    ? `${label}: ${value}`
+    : '');
+  const facts = [
+    fact('Kategorie', categoryLabel),
+    fact('Priorität', priorityLabel),
+    fact('Name', name),
+    fact('E-Mail', email),
+    fact('Telefon', phone),
+    fact('Unternehmen', company),
+    fact('Kundennummer', customerNumber),
+    fact('Lead-Bezug', leadRef),
+    fact('Konto-ID', userId),
+    fact('Anhänge', attachments.map((file) => file.filename).filter(Boolean).join(', ')),
+    fact('Seite', pageUrl),
+    fact('Browser', userAgent),
+  ].filter(Boolean);
 
-  const text = `Neue Support-Anfrage von ${safeName}
+  const htmlFact = (label, value) => (value
+    ? `<tr>
+              <td align="left" style="padding:0 0 8px;font-family:${BODY_FONT};font-size:14px;line-height:1.6;color:#5a6b7c;">
+                <strong style="color:#101827;">${escapeHtml(label)}:</strong> ${escapeHtml(value)}
+              </td>
+            </tr>`
+    : '');
 
-Kategorie: ${categoryLabel}
-E-Mail: ${safeEmail}
+  const text = `Neue Support-Anfrage von ${name}
 
-Betreff: ${safeSubject}
+${facts.join('\n')}
+
+Betreff: ${subject}
 
 Nachricht:
-${safeMessage}
+${message}
 
 © ${year} VANTARO. Alle Rechte vorbehalten.`;
 
@@ -750,33 +888,42 @@ ${safeMessage}
             <tr>
               <td align="left" style="padding:0 0 24px;font-family:${BODY_FONT};font-size:16px;line-height:1.6;color:#3d4b5c;">
                 Von: <strong style="color:#101827;">${safeName}</strong>
+                ${priority === 'urgent' ? ' · <strong style="color:#dc5942;">Dringend</strong>' : ''}
+              </td>
+            </tr>
+            ${htmlFact('Kategorie', categoryLabel)}
+            ${htmlFact('Priorität', priorityLabel)}
+            ${htmlFact('E-Mail', email)}
+            ${htmlFact('Telefon', phone)}
+            ${htmlFact('Unternehmen', company)}
+            ${htmlFact('Kundennummer', customerNumber)}
+            ${htmlFact('Lead-Bezug', leadRef)}
+            ${htmlFact('Konto-ID', userId)}
+            <tr>
+              <td align="left" style="padding:8px 0 12px;font-family:${BODY_FONT};font-size:14px;line-height:1.6;color:#5a6b7c;">
+                <strong style="color:#101827;">Betreff:</strong> ${safeSubject}
               </td>
             </tr>
             <tr>
-              <td align="left" style="padding:0 0 8px;font-family:${BODY_FONT};font-size:14px;line-height:1.6;color:#5a6b7c;">
-                <strong>Kategorie:</strong> ${safeCategory}
-              </td>
-            </tr>
-            <tr>
-              <td align="left" style="padding:0 0 8px;font-family:${BODY_FONT};font-size:14px;line-height:1.6;color:#5a6b7c;">
-                <strong>E-Mail:</strong> <a href="mailto:${safeEmail}" style="color:#101827;text-decoration:underline;">${safeEmail}</a>
-              </td>
-            </tr>
-            <tr>
-              <td align="left" style="padding:0 0 20px;font-family:${BODY_FONT};font-size:14px;line-height:1.6;color:#5a6b7c;">
-                <strong>Betreff:</strong> ${safeSubject}
-              </td>
-            </tr>
-            <tr>
-              <td align="left" style="padding:0 0 28px;font-family:${BODY_FONT};font-size:14px;line-height:1.6;color:#5a6b7c;">
-                <strong>Nachricht:</strong>
-              </td>
-            </tr>
-            <tr>
-              <td align="left" style="padding:0 0 32px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:16px;font-family:${BODY_FONT};font-size:15px;line-height:1.6;color:#3d4b5c;">
+              <td align="left" style="padding:0 0 12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:16px;font-family:${BODY_FONT};font-size:15px;line-height:1.6;color:#3d4b5c;">
                 ${safeMessage.replace(/\n/g, '<br />')}
               </td>
             </tr>
+            ${attachments.length
+              ? `<tr>
+              <td align="left" style="padding:8px 0 4px;font-family:${BODY_FONT};font-size:14px;line-height:1.6;color:#5a6b7c;">
+                <strong style="color:#101827;">Anhänge:</strong> ${escapeHtml(attachments.map((file) => file.filename).join(', '))}
+              </td>
+            </tr>`
+              : ''}
+            ${attachments.filter((file) => file.content_id && String(file.content_type || '').startsWith('image/')).map((file) => `
+            <tr>
+              <td align="left" style="padding:8px 0 12px;">
+                <img src="cid:${escapeHtml(file.content_id)}" alt="${escapeHtml(file.filename)}" style="display:block;max-width:100%;height:auto;border:1px solid #e2e8f0;border-radius:12px;" />
+              </td>
+            </tr>`).join('')}
+            ${htmlFact('Seite', pageUrl)}
+            ${htmlFact('Browser', userAgent)}
             <tr>
               <td align="center" style="padding:24px 0 0;border-top:1px solid #e6e8eb;font-family:${BODY_FONT};font-size:12px;line-height:1.7;color:#8b9aaa;">
                 © ${year} VANTARO. Alle Rechte vorbehalten.
@@ -792,17 +939,117 @@ ${safeMessage}
   return { text, html };
 }
 
-export async function sendSupportEmail({ name, email, category, subject, message }) {
-  const supportEmail = process.env.SUPPORT_EMAIL?.trim() || 'support@vantaro.io';
-  const emailSubject = `Support-Anfrage: ${subject}`;
-  const content = supportEmail({ name, email, category, subject, message });
-  
+function supportReceiptEmail({ name, subject, category, attachments = [] }) {
+  const year = new Date().getFullYear();
+  const safeName = escapeHtml(name);
+  const safeSubject = escapeHtml(subject);
+  const greeting = safeName ? `Hallo ${safeName}` : 'Hallo';
+  const categoryLabels = {
+    general: 'Allgemeine Frage',
+    billing: 'Abrechnung & Zahlung',
+    technical: 'Technisches Problem',
+    leads: 'Lead-Bestand',
+    account: 'Konto & Profil',
+    calendar: 'Termine & Wiedervorlage',
+  };
+  const categoryLabel = categoryLabels[category] || 'Allgemeine Frage';
+
+  const text = `${greeting},
+
+wir haben Ihre Support-Anfrage erhalten und melden uns werktags.
+
+Betreff: ${subject}
+Kategorie: ${categoryLabel}
+${attachments.length ? `Anhänge: ${attachments.length}` : ''}
+
+© ${year} VANTARO. Alle Rechte vorbehalten.`;
+
+  const html = `<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Ihre Anfrage bei VANTARO</title>
+  </head>
+  <body style="margin:0;padding:0;background:#ffffff;color:#101827;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff;">
+      <tr>
+        <td align="center" style="background:#070b14;padding:22px 24px;">
+          <img src="cid:vantaro-wordmark" width="168" height="18" alt="VANTARO" style="display:block;margin:0 auto;width:168px;height:18px;border:0;" />
+        </td>
+      </tr>
+      <tr>
+        <td align="center" style="padding:36px 24px 40px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;">
+            <tr>
+              <td align="left" style="padding:0 0 12px;font-family:${HEADING_FONT};font-size:28px;font-weight:600;line-height:1.2;letter-spacing:-0.04em;color:#101827;">
+                Anfrage erhalten
+              </td>
+            </tr>
+            <tr>
+              <td align="left" style="padding:0 0 20px;font-family:${BODY_FONT};font-size:16px;line-height:1.6;color:#3d4b5c;">
+                ${greeting}, wir haben Ihre Nachricht erhalten und antworten werktags.
+              </td>
+            </tr>
+            <tr>
+              <td align="left" style="padding:0 0 8px;font-family:${BODY_FONT};font-size:14px;line-height:1.6;color:#5a6b7c;">
+                <strong style="color:#101827;">Betreff:</strong> ${safeSubject}
+              </td>
+            </tr>
+            <tr>
+              <td align="left" style="padding:0 0 ${attachments.length ? '8' : '28'}px;font-family:${BODY_FONT};font-size:14px;line-height:1.6;color:#5a6b7c;">
+                <strong style="color:#101827;">Kategorie:</strong> ${escapeHtml(categoryLabel)}
+              </td>
+            </tr>
+            ${attachments.length
+              ? `<tr>
+              <td align="left" style="padding:0 0 28px;font-family:${BODY_FONT};font-size:14px;line-height:1.6;color:#5a6b7c;">
+                <strong style="color:#101827;">Anhänge:</strong> ${attachments.length} Datei${attachments.length === 1 ? '' : 'en'} mitgesendet
+              </td>
+            </tr>`
+              : ''}
+            <tr>
+              <td align="center" style="padding:24px 0 0;border-top:1px solid #e6e8eb;font-family:${BODY_FONT};font-size:12px;line-height:1.7;color:#8b9aaa;">
+                © ${year} VANTARO. Alle Rechte vorbehalten.
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`;
+
+  return { text, html };
+}
+
+export async function sendSupportEmail(payload) {
+  const inbox = process.env.SUPPORT_EMAIL?.trim() || 'info@vantaro.io';
+  const urgent = payload.priority === 'urgent';
+  const emailSubject = `${urgent ? '[Dringend] ' : ''}Support: ${payload.subject}`;
+  const content = supportEmail(payload);
+
   await sendWithResend({
-    to: supportEmail,
+    to: inbox,
     subject: emailSubject,
+    replyTo: payload.email,
     ...content,
-    attachments: logoAttachments,
+    attachments: [...logoAttachments, ...(payload.attachments || [])],
   });
-  
+
+  if (payload.email) {
+    try {
+      const receipt = supportReceiptEmail(payload);
+      await sendWithResend({
+        to: payload.email,
+        subject: `Ihre Anfrage bei VANTARO: ${payload.subject}`,
+        ...receipt,
+        attachments: logoAttachments,
+      });
+    } catch (error) {
+      console.error('Support receipt email failed:', error.message);
+    }
+  }
+
   return 'resend';
 }

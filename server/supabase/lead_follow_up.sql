@@ -5,7 +5,10 @@ alter table public.leads
   add column if not exists contact_status text,
   add column if not exists appointment_at timestamptz,
   add column if not exists follow_up_at timestamptz,
-  add column if not exists follow_up_reminded_at timestamptz;
+  add column if not exists follow_up_reminded_at timestamptz,
+  add column if not exists follow_up_soon_reminded_at timestamptz,
+  add column if not exists appointment_reminded_at timestamptz,
+  add column if not exists appointment_soon_reminded_at timestamptz;
 
 alter table public.leads drop constraint if exists leads_contact_status_check;
 alter table public.leads
@@ -19,6 +22,24 @@ create index if not exists leads_follow_up_due_idx
   on public.leads (follow_up_at)
   where contact_status = 'wiedervorlage'
     and follow_up_reminded_at is null
+    and assigned_to is not null;
+
+create index if not exists leads_follow_up_soon_idx
+  on public.leads (follow_up_at)
+  where contact_status = 'wiedervorlage'
+    and follow_up_soon_reminded_at is null
+    and assigned_to is not null;
+
+create index if not exists leads_appointment_due_idx
+  on public.leads (appointment_at)
+  where contact_status = 'termin'
+    and appointment_reminded_at is null
+    and assigned_to is not null;
+
+create index if not exists leads_appointment_soon_idx
+  on public.leads (appointment_at)
+  where contact_status = 'termin'
+    and appointment_soon_reminded_at is null
     and assigned_to is not null;
 
 notify pgrst, 'reload schema';

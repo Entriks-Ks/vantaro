@@ -168,6 +168,26 @@ export function readProfileFields(metadata = {}, email = '') {
     radiusKm: Number.isFinite(radiusKm) && radiusKm > 0 ? radiusKm : 10,
     products: products.length ? products : ['PKV', 'bAV', 'BU'],
     email: trim(email),
+    settings: normalizeUserSettings(metadata.settings),
+  };
+}
+
+const APPEARANCES = new Set(['dark', 'light', 'device']);
+
+export function normalizeAppearance(value) {
+  return APPEARANCES.has(value) ? value : 'dark';
+}
+
+export function normalizeUserSettings(raw) {
+  const src = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+  return {
+    toastAlerts: src.toastAlerts !== false,
+    browserAlerts: src.browserAlerts === true,
+    emailReminders: src.emailReminders !== false,
+    googleCalendar: src.googleCalendar !== false,
+    terminAlerts: src.terminAlerts !== false,
+    wiedervorlageAlerts: src.wiedervorlageAlerts !== false,
+    appearance: normalizeAppearance(src.appearance),
   };
 }
 
@@ -326,5 +346,8 @@ export function buildMetadataPatch(existing = {}, payload = {}, {
     onboarding_complete: completeOnboarding
       ? true
       : existing.onboarding_complete === true,
+    settings: normalizeUserSettings(
+      payload.settings !== undefined ? payload.settings : existing.settings,
+    ),
   };
 }

@@ -31,6 +31,7 @@ export function publicUser(user) {
       radiusKm: profile.radiusKm,
       products: profile.products,
     },
+    settings: profile.settings,
   };
 }
 

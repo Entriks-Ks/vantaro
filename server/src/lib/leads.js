@@ -9,6 +9,7 @@ export const COVERAGE_CIRCLES = ['allein', 'partner', 'kinder', 'familie'];
 export const MAIN_CONCERNS = ['beitrag', 'leistungen', 'krankentagegeld', 'check'];
 export const LEAD_STATUSES = ['neu', 'in_bearbeitung', 'zugewiesen', 'erledigt'];
 export const CONTACT_STATUSES = ['neu', 'kontaktiert', 'termin', 'wiedervorlage', 'abgeschlossen'];
+export const CLOSE_OUTCOMES = ['erfolgreich', 'fehlgeschlagen'];
 export const LEAD_SOURCES = ['csv', 'manual', 'api'];
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -316,9 +317,13 @@ export function toPublicLead(row, assignee = null) {
     notes: row.notes || null,
     brokerNotes: row.broker_notes || null,
     contactStatus: CONTACT_STATUSES.includes(row.contact_status) ? row.contact_status : null,
+    closeOutcome: CLOSE_OUTCOMES.includes(row.close_outcome) ? row.close_outcome : null,
     appointmentAt: row.appointment_at || null,
     followUpAt: row.follow_up_at || null,
     followUpRemindedAt: row.follow_up_reminded_at || null,
+    followUpSoonRemindedAt: row.follow_up_soon_reminded_at || null,
+    appointmentRemindedAt: row.appointment_reminded_at || null,
+    appointmentSoonRemindedAt: row.appointment_soon_reminded_at || null,
     status: row.status,
     scope: leadScopeOrDefault(row.scope),
     assignedTo: row.assigned_to || null,
@@ -477,6 +482,24 @@ export function parseLeadInput(body = {}, { partial = false, lenient = false } =
     else row.contact_status = contact || null;
   }
 
+  const hasCloseOutcome = hasField(body, 'closeOutcome', 'close_outcome');
+  if (hasCloseOutcome) {
+    const outcome = trim(body.closeOutcome ?? body.close_outcome);
+    if (outcome && !CLOSE_OUTCOMES.includes(outcome)) {
+      errors.push('Abschluss-Ergebnis ist ungültig.');
+    } else {
+      row.close_outcome = outcome || null;
+    }
+  }
+
+  if (hasContact && row.contact_status === 'abgeschlossen') {
+    if (!hasCloseOutcome || !row.close_outcome) {
+      errors.push('Bitte wählen Sie, ob der Lead erfolgreich oder nicht erfolgreich war.');
+    }
+  } else if (hasContact && row.contact_status !== 'abgeschlossen') {
+    row.close_outcome = null;
+  }
+
   const hasFollowUp = hasField(body, 'followUpAt', 'follow_up_at');
   if (hasFollowUp) {
     const followUp = parseIsoTimestamp(body.followUpAt ?? body.follow_up_at, 'Wiedervorlage');
@@ -484,6 +507,7 @@ export function parseLeadInput(body = {}, { partial = false, lenient = false } =
     else {
       row.follow_up_at = followUp.value;
       row.follow_up_reminded_at = null;
+      row.follow_up_soon_reminded_at = null;
     }
   }
 
@@ -491,22 +515,36 @@ export function parseLeadInput(body = {}, { partial = false, lenient = false } =
   if (hasAppointment) {
     const appointment = parseIsoTimestamp(body.appointmentAt ?? body.appointment_at, 'Termin');
     if (appointment.error) errors.push(appointment.error);
-    else row.appointment_at = appointment.value;
+    else {
+      row.appointment_at = appointment.value;
+      row.appointment_reminded_at = null;
+      row.appointment_soon_reminded_at = null;
+    }
   }
 
   if (row.contact_status === 'wiedervorlage') {
-    if (!hasAppointment) row.appointment_at = null;
+    if (!hasAppointment) {
+      row.appointment_at = null;
+      row.appointment_reminded_at = null;
+      row.appointment_soon_reminded_at = null;
+    }
   } else if (row.contact_status === 'termin') {
     if (!hasFollowUp) {
       row.follow_up_at = null;
       row.follow_up_reminded_at = null;
+      row.follow_up_soon_reminded_at = null;
     }
   } else if (hasContact && row.contact_status && row.contact_status !== 'wiedervorlage' && row.contact_status !== 'termin') {
     if (!hasFollowUp) {
       row.follow_up_at = null;
       row.follow_up_reminded_at = null;
+      row.follow_up_soon_reminded_at = null;
     }
-    if (!hasAppointment) row.appointment_at = null;
+    if (!hasAppointment) {
+      row.appointment_at = null;
+      row.appointment_reminded_at = null;
+      row.appointment_soon_reminded_at = null;
+    }
   }
 
   const hasStatus = 'status' in body;
@@ -767,6 +805,22 @@ export async function updateLead(id, input, { bypassDeliveryLock = false } = {})
     return withAssignee(current);
   }
 
+  if (Object.prototype.hasOwnProperty.call(parsed.row, 'close_outcome')) {
+    const nextContact = Object.prototype.hasOwnProperty.call(parsed.row, 'contact_status')
+      ? parsed.row.contact_status
+      : current.contact_status;
+    if (parsed.row.close_outcome && nextContact !== 'abgeschlossen') {
+      const error = new Error('Abschluss-Ergebnis nur bei Status Abgeschlossen.');
+      error.status = 400;
+      throw error;
+    }
+    if (!parsed.row.close_outcome && nextContact === 'abgeschlossen') {
+      const error = new Error('Bitte wählen Sie, ob der Lead erfolgreich oder nicht erfolgreich war.');
+      error.status = 400;
+      throw error;
+    }
+  }
+
   if (parsed.row.status === 'zugewiesen' && !current.assigned_to) {
     const error = new Error('Bitte zuerst einen Berater zuweisen.');
     error.status = 400;
@@ -1020,10 +1074,16 @@ export function handleLeadError(res, error) {
       'Berater-Notizen fehlen. Bitte server/supabase/lead_workflow.sql im Supabase SQL Editor ausführen.',
     );
   }
-  if (/contact_status|appointment_at|follow_up_at|follow_up_reminded_at/i.test(String(error?.message || error?.code || ''))) {
+  if (/contact_status|appointment_at|follow_up_at|follow_up_reminded_at|appointment_reminded_at|follow_up_soon_reminded_at|appointment_soon_reminded_at/i.test(String(error?.message || error?.code || ''))) {
     return tableMissingResponse(
       res,
-      'Wiedervorlage fehlt. Bitte server/supabase/lead_follow_up.sql im Supabase SQL Editor ausführen.',
+      'Wiedervorlage fehlt. Bitte server/supabase/lead_follow_up.sql und server/supabase/lead_schedule_remind.sql im Supabase SQL Editor ausführen.',
+    );
+  }
+  if (/close_outcome/i.test(String(error?.message || error?.code || ''))) {
+    return tableMissingResponse(
+      res,
+      'Abschluss-Ergebnis fehlt. Bitte server/supabase/lead_close_outcome.sql im Supabase SQL Editor ausführen.',
     );
   }
   if (/external_source|external_id/i.test(String(error?.message || ''))) {

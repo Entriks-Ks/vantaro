@@ -10,6 +10,7 @@ import {
   buildMetadataPatch,
   isCanonicalCustomerNumber,
   normalizePhone,
+  normalizeUserSettings,
   readProfileFields,
   validateAccountFields,
   validateCompanyFields,
@@ -283,6 +284,40 @@ router.put('/profile', requireAuth, async (req, res) => {
   const completeOnboarding = req.body?.completeOnboarding === true;
   const existing = req.authUser.user_metadata || {};
   const current = readProfileFields(existing, req.authUser.email);
+
+  const settingsOnly = req.body?.settings !== undefined
+    && req.body?.firstName === undefined
+    && req.body?.lastName === undefined
+    && req.body?.phone === undefined
+    && req.body?.company === undefined
+    && req.body?.legalForm === undefined
+    && req.body?.businessStreet === undefined
+    && req.body?.businessZip === undefined
+    && req.body?.businessCity === undefined
+    && req.body?.website === undefined
+    && req.body?.avatarUrl === undefined
+    && req.body?.completeOnboarding !== true
+    && !password;
+
+  if (settingsOnly) {
+    if (!req.body.settings || typeof req.body.settings !== 'object' || Array.isArray(req.body.settings)) {
+      return res.status(400).json({ error: 'Einstellungen sind ungültig.' });
+    }
+    const { data, error } = await supabase.auth.admin.updateUserById(req.authUser.id, {
+      user_metadata: {
+        ...existing,
+        settings: normalizeUserSettings({
+          ...(existing.settings || {}),
+          ...req.body.settings,
+        }),
+      },
+    });
+    if (error || !data.user) {
+      console.error('Update settings failed:', error?.message);
+      return res.status(400).json({ error: 'Einstellungen konnten nicht gespeichert werden.' });
+    }
+    return res.json({ user: publicUser(data.user) });
+  }
 
   const firstName = String(req.body?.firstName ?? current.firstName).trim();
   const lastName = String(req.body?.lastName ?? current.lastName).trim();

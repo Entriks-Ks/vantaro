@@ -673,7 +673,7 @@ export function AdminProfile() {
   useEffect(() => {
     setForm(adminProfileForm(user));
     setAvatarName('');
-  }, [user]);
+  }, [user?.id, user?.firstName, user?.lastName, user?.phone, user?.avatarUrl]);
 
   const handleChange = (event) => {
     const { name, value } = event.target;

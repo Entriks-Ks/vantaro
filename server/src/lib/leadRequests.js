@@ -791,6 +791,57 @@ export async function autoFillOpenAutoRequests({ limit = 40 } = {}) {
   return results;
 }
 
+function matchingOpenRequests(requests, lead) {
+  const leadScope = leadScopeOrDefault(lead?.scope);
+  return (requests || []).filter((entry) => (
+    entry.status === 'active'
+    && leadScopeOrDefault(entry.scope) === leadScope
+    && Number(entry.remaining) > 0
+  ));
+}
+
+export async function assignLeadToBerater(leadId, beraterId, { requestId } = {}) {
+  requireDb();
+  if (!isUuid(leadId)) throw fail('Lead wurde nicht gefunden.');
+
+  const lead = await getLeadById(leadId);
+  if (!lead) return null;
+  if (lead.refunded_at) {
+    throw fail('Erstattete Leads können nicht erneut zugewiesen werden.');
+  }
+  if (lead.assigned_to) {
+    throw fail('Dieser Lead ist bereits zugestellt und kann nicht neu zugewiesen werden. Rückgabe nur über eine Reklamation.');
+  }
+  if (lead.status === 'erledigt') {
+    throw fail('Erledigte Leads können nicht zugewiesen werden.');
+  }
+
+  await requireBerater(beraterId);
+  if (!requestId) throw fail('Bitte eine Anforderung auswählen.');
+  if (!isUuid(requestId)) throw fail('Anforderung ist ungültig.');
+
+  const requests = await listRequestsForBerater(beraterId);
+  const eligible = matchingOpenRequests(requests, lead);
+  if (!eligible.length) {
+    throw fail('Dieser Berater hat keinen offenen Auftrag für dieses Paket.');
+  }
+
+  const target = eligible.find((entry) => entry.id === requestId);
+  if (!target) {
+    throw fail('Die gewählte Anforderung ist nicht aktiv, hat kein Restkontingent oder passt nicht zum Paket.');
+  }
+
+  const result = await sendLeadsToRequest(target.id, [leadId]);
+  const assigned = result?.leads?.[0] || null;
+  if (assigned) {
+    assigned.requestCode = result?.request?.code || assigned.requestCode || null;
+  }
+  return {
+    lead: assigned,
+    request: result?.request || null,
+  };
+}
+
 export async function sendLeadsToRequest(requestId, leadIds, { skipReplacementLink = false } = {}) {
   requireDb();
   const current = await getRequestById(requestId);

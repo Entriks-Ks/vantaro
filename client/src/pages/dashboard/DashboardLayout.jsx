@@ -12,6 +12,8 @@ import {
   Ban,
   Calendar,
   CreditCard,
+  Handshake,
+  GraduationCap,
   MessageCircle,
   PanelLeftClose,
   PanelLeftOpen,
@@ -21,6 +23,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { useDashboard } from '../../hooks/useDashboard';
 import { roleLabel } from '../../lib/roles';
 import { displayName, firstName, greeting, initials } from './helpers';
+import ScheduleBell from './ScheduleBell';
 
 export function DashSeg({ value, onChange, options }) {
   return (
@@ -48,6 +51,8 @@ const BERATER_LINKS = [
   { to: '/dashboard/kalender', match: 'kalender', label: 'Kalender', icon: Calendar },
   { divider: true },
   { to: '/dashboard/paket', match: 'paket', label: 'Mein Paket', icon: CreditCard },
+  { to: '/dashboard/partner', match: 'partner', label: 'Partner', icon: Handshake },
+  { to: '/dashboard/academy', match: 'academy', label: 'Academy', icon: GraduationCap },
   { to: '/dashboard/support', match: 'support', label: 'Support', icon: MessageCircle },
 ];
 
@@ -56,6 +61,8 @@ function isBeraterNavActive(match, pathname) {
   if (match === 'leads') return pathname.startsWith('/dashboard/leads');
   if (match === 'kalender') return pathname.startsWith('/dashboard/kalender');
   if (match === 'paket') return pathname.startsWith('/dashboard/paket');
+  if (match === 'partner') return pathname.startsWith('/dashboard/partner');
+  if (match === 'academy') return pathname.startsWith('/dashboard/academy');
   if (match === 'support') return pathname.startsWith('/dashboard/support');
   return false;
 }
@@ -407,6 +414,9 @@ function BeraterShell({ user, logout, children }) {
       </aside>
 
       <div className="broker-content">
+        <div className="broker-topbar">
+          <ScheduleBell />
+        </div>
         <NavProgress pathname={location.pathname} />
         {children}
       </div>

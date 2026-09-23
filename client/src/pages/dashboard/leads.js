@@ -12,8 +12,15 @@ export const LEAD_STATUSES = [
   { id: 'kontaktiert', label: 'Kontaktiert', hint: 'Erster Kontakt erfolgt' },
   { id: 'termin', label: 'Termin', hint: 'Gespräch geplant' },
   { id: 'wiedervorlage', label: 'Wiedervorlage', hint: 'Später erneut kontaktieren' },
-  { id: 'abgeschlossen', label: 'Abgeschlossen', hint: 'Vorgang beendet' },
+  { id: 'abgeschlossen', label: 'Abgeschlossen', hint: 'Kunde gewonnen oder nicht' },
 ];
+
+export const CLOSE_OUTCOMES = [
+  { id: 'erfolgreich', label: 'Erfolgreich', hint: 'Aus dem Gespräch wurde ein Kunde' },
+  { id: 'fehlgeschlagen', label: 'Nicht erfolgreich', hint: 'Kein Abschluss nach dem Gespräch' },
+];
+
+const CLOSE_OUTCOME_IDS = new Set(CLOSE_OUTCOMES.map((item) => item.id));
 
 export const VIEW_MODES = [
   { id: 'kanban', label: 'Kanban' },
@@ -48,11 +55,21 @@ export function pipelineStatusOf(lead, statuses = {}) {
   return defaultPipelineStatus(lead?.status);
 }
 
-export function contactUpdatePayload(statusId, { followUpAt = null, appointmentAt = null } = {}) {
+export function closeOutcomeOf(lead) {
+  const value = lead?.closeOutcome;
+  return CLOSE_OUTCOME_IDS.has(value) ? value : null;
+}
+
+export function closeOutcomeLabel(outcomeId) {
+  return CLOSE_OUTCOMES.find((item) => item.id === outcomeId)?.label || '';
+}
+
+export function contactUpdatePayload(statusId, { followUpAt = null, appointmentAt = null, closeOutcome = null } = {}) {
   return {
     contactStatus: statusId,
     followUpAt: statusId === 'wiedervorlage' ? followUpAt || null : null,
     appointmentAt: statusId === 'termin' ? appointmentAt || null : null,
+    closeOutcome: statusId === 'abgeschlossen' ? closeOutcome || null : null,
   };
 }
 

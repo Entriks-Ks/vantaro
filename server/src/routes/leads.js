@@ -21,7 +21,8 @@ import {
   complaintTableMissing,
   reportLead,
 } from '../lib/complaints.js';
-import { notifyFollowUpSaved } from '../lib/followUpReminders.js';
+import { assignLeadToBerater, requestTableMissing } from '../lib/leadRequests.js';
+import { notifyScheduleCancelled, notifyScheduleSaved } from '../lib/followUpReminders.js';
 
 const router = Router();
 const adminOnly = [requireAuth, requireRole(ROLES.ADMIN)];
@@ -183,6 +184,10 @@ router.patch('/:id', requireAuth, async (req, res) => {
     if (req.body?.contactStatus != null || req.body?.contact_status != null) {
       payload.contactStatus = req.body.contactStatus ?? req.body.contact_status;
     }
+    if (Object.prototype.hasOwnProperty.call(req.body || {}, 'closeOutcome')
+      || Object.prototype.hasOwnProperty.call(req.body || {}, 'close_outcome')) {
+      payload.closeOutcome = req.body.closeOutcome ?? req.body.close_outcome;
+    }
     if (Object.prototype.hasOwnProperty.call(req.body || {}, 'followUpAt')
       || Object.prototype.hasOwnProperty.call(req.body || {}, 'follow_up_at')) {
       payload.followUpAt = req.body.followUpAt ?? req.body.follow_up_at;
@@ -197,14 +202,65 @@ router.patch('/:id', requireAuth, async (req, res) => {
     }
     const previousFollowUp = current.follow_up_at ? new Date(current.follow_up_at).toISOString() : '';
     const nextFollowUp = lead.followUpAt ? new Date(lead.followUpAt).toISOString() : '';
-    if (previousFollowUp !== nextFollowUp && lead.contactStatus === 'wiedervorlage' && lead.followUpAt) {
-      notifyFollowUpSaved(lead).catch((error) => {
-        console.error('Wiedervorlage notify failed:', error.message);
+    const previousAppointment = current.appointment_at ? new Date(current.appointment_at).toISOString() : '';
+    const nextAppointment = lead.appointmentAt ? new Date(lead.appointmentAt).toISOString() : '';
+    if (lead.contactStatus === 'wiedervorlage' && nextFollowUp && previousFollowUp !== nextFollowUp) {
+      notifyScheduleSaved(lead, { previousAt: previousFollowUp }).catch((error) => {
+        console.error('Schedule notify failed:', error.message);
+      });
+    } else if (lead.contactStatus === 'termin' && nextAppointment && previousAppointment !== nextAppointment) {
+      notifyScheduleSaved(lead, { previousAt: previousAppointment }).catch((error) => {
+        console.error('Schedule notify failed:', error.message);
+      });
+    }
+    if (previousAppointment && (lead.contactStatus !== 'termin' || !nextAppointment)) {
+      notifyScheduleCancelled({ lead, eventType: 'termin', at: previousAppointment }).catch((error) => {
+        console.error('Schedule cancel failed:', error.message);
+      });
+    }
+    if (previousFollowUp && (lead.contactStatus !== 'wiedervorlage' || !nextFollowUp)) {
+      notifyScheduleCancelled({ lead, eventType: 'wiedervorlage', at: previousFollowUp }).catch((error) => {
+        console.error('Schedule cancel failed:', error.message);
       });
     }
     const [withComplaint] = await attachComplaints([lead]);
     res.json({ lead: withComplaint });
   } catch (error) {
+    if (complaintTableMissing(error)) {
+      return tableMissingResponse(
+        res,
+        'Reklamationen fehlen. Bitte server/supabase/lead_workflow.sql im Supabase SQL Editor ausführen.',
+      );
+    }
+    handleLeadError(res, error);
+  }
+});
+
+router.post('/:id/assign', ...adminOnly, async (req, res) => {
+  try {
+    if (!isUuid(req.params.id)) {
+      return res.status(400).json({ error: 'Lead wurde nicht gefunden.' });
+    }
+    const result = await assignLeadToBerater(
+      req.params.id,
+      req.body?.beraterId ?? req.body?.berater_id,
+      { requestId: req.body?.requestId ?? req.body?.request_id },
+    );
+    if (!result?.lead) {
+      return res.status(404).json({ error: 'Lead wurde nicht gefunden.' });
+    }
+    const [lead] = await attachComplaints([result.lead]);
+    res.json({
+      lead: hideBrokerNotes(lead),
+      request: result.request || null,
+    });
+  } catch (error) {
+    if (requestTableMissing(error)) {
+      return tableMissingResponse(
+        res,
+        'Berater-Aufträge fehlen. Bitte server/supabase/lead_requests.sql, lead_workflow.sql, lead_request_code.sql und lead_request_fulfillment_mode.sql im Supabase SQL Editor ausführen.',
+      );
+    }
     if (complaintTableMissing(error)) {
       return tableMissingResponse(
         res,

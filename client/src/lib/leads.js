@@ -273,6 +273,15 @@ export async function updateLead(id, payload) {
   return parseResponse(response);
 }
 
+export async function assignLeadToBerater(id, payload) {
+  const response = await fetch(apiUrl(`/api/leads/${id}/assign`), {
+    method: 'POST',
+    headers: authHeaders(true),
+    body: JSON.stringify(payload),
+  });
+  return parseResponse(response);
+}
+
 export async function restoreRejectedLead(id) {
   const response = await fetch(apiUrl(`/api/leads/${id}/restore`), {
     method: 'POST',

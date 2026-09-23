@@ -1,6 +1,13 @@
 import { useEffect, useState } from 'react';
-import { Cookie, X } from 'lucide-react';
+import { Cookie, Moon, Sun, X } from 'lucide-react';
 import { applyConsent, CONSENT_STORAGE_KEY, DEFAULT_PREFS } from '../lib/analytics';
+import { useAuth } from '../hooks/useAuth';
+import {
+  isStoredAdmin,
+  PUBLIC_THEME_EVENT,
+  readPublicTheme,
+  writePublicTheme,
+} from '../lib/theme';
 
 function readConsent() {
   try {
@@ -21,6 +28,42 @@ function saveConsent(prefs) {
   applyConsent(payload);
   window.dispatchEvent(new CustomEvent('vantaro:consent', { detail: payload }));
   return payload;
+}
+
+function PublicThemeToggle() {
+  const { isAdmin, loading } = useAuth();
+  const [theme, setTheme] = useState(readPublicTheme);
+
+  useEffect(() => {
+    const onChange = (event) => {
+      const next = event.detail?.theme;
+      if (next === 'light' || next === 'dark') setTheme(next);
+    };
+    window.addEventListener(PUBLIC_THEME_EVENT, onChange);
+    return () => window.removeEventListener(PUBLIC_THEME_EVENT, onChange);
+  }, []);
+
+  if (isAdmin || (loading && isStoredAdmin())) return null;
+
+  const isLight = theme === 'light';
+  const Icon = isLight ? Sun : Moon;
+
+  return (
+    <button
+      type="button"
+      className={`theme-launcher${isLight ? ' is-light' : ''}`}
+      aria-pressed={isLight}
+      aria-label={isLight ? 'Hellmodus aktiv. Auf Dunkel umschalten.' : 'Dunkelmodus aktiv. Auf Hell umschalten.'}
+      onClick={() => {
+        const next = isLight ? 'dark' : 'light';
+        writePublicTheme(next);
+        setTheme(next);
+      }}
+    >
+      <Icon size={16} strokeWidth={2.2} />
+      <span>{isLight ? 'Hell' : 'Dunkel'}</span>
+    </button>
+  );
 }
 
 export default function CookieConsent() {
@@ -117,16 +160,19 @@ export default function CookieConsent() {
 
   return (
     <>
-      <button
-        type="button"
-        className={`cookie-launcher${open ? ' is-open' : ''}${!hasChoice ? ' is-pending' : ''}`}
-        aria-expanded={open}
-        aria-controls="cookie-consent-panel"
-        onClick={togglePanel}
-      >
-        <Cookie size={16} strokeWidth={2.2} />
-        <span>Cookies</span>
-      </button>
+      <div className="edge-tools">
+        <button
+          type="button"
+          className={`cookie-launcher${open ? ' is-open' : ''}${!hasChoice ? ' is-pending' : ''}`}
+          aria-expanded={open}
+          aria-controls="cookie-consent-panel"
+          onClick={togglePanel}
+        >
+          <Cookie size={16} strokeWidth={2.2} />
+          <span>Cookies</span>
+        </button>
+        <PublicThemeToggle />
+      </div>
 
       {open && (
         <div className="cookie-overlay" onClick={dismiss}>

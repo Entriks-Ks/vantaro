@@ -30,9 +30,20 @@ create table if not exists public.leads (
       contact_status is null
       or contact_status in ('neu', 'kontaktiert', 'termin', 'wiedervorlage', 'abgeschlossen')
     ),
+  close_outcome text
+    check (
+      close_outcome is null
+      or (
+        close_outcome in ('erfolgreich', 'fehlgeschlagen')
+        and contact_status = 'abgeschlossen'
+      )
+    ),
   appointment_at timestamptz,
   follow_up_at timestamptz,
   follow_up_reminded_at timestamptz,
+  follow_up_soon_reminded_at timestamptz,
+  appointment_reminded_at timestamptz,
+  appointment_soon_reminded_at timestamptz,
   status text not null default 'neu'
     check (status in ('neu', 'in_bearbeitung', 'zugewiesen', 'erledigt')),
   assigned_to uuid references auth.users (id) on delete set null,

@@ -159,6 +159,7 @@ export function dashboardDocumentTitle(pathname, isAdmin = false) {
   if (path.startsWith('/dashboard/leads')) return isAdmin ? 'Leads — VANTARO' : 'Meine Leads — VANTARO';
   if (path.startsWith('/dashboard/kalender')) return 'Kalender — VANTARO';
   if (path.startsWith('/dashboard/paket')) return 'Mein Paket — VANTARO';
+  if (path.startsWith('/dashboard/partner')) return 'Partner — VANTARO';
   if (path.startsWith('/dashboard/support')) return 'Support — VANTARO';
   if (path.startsWith('/dashboard/zahlung')) return 'Zahlung — VANTARO';
   if (path.startsWith('/dashboard/profil')) return 'Profil — VANTARO';

@@ -135,23 +135,38 @@ export function buildFollowUpIcs({
   phone,
   leadUrl,
   minutes = EVENT_MINUTES,
+  eventType = 'wiedervorlage',
+  method = 'PUBLISH',
+  attendeeEmail = '',
+  organizerEmail = '',
+  sequence,
 }) {
+  const noun = eventType === 'termin' ? 'Termin' : 'Wiedervorlage';
   const start = berlinStamp(followUpAt);
   const end = berlinStamp(new Date(new Date(followUpAt).getTime() + minutes * 60 * 1000));
   const stamp = icsUtc(new Date());
-  const title = `Wiedervorlage: ${leadName}`;
+  const title = `${noun}: ${leadName}`;
   const description = [
-    `Wiedervorlage für ${leadName}`,
+    `${noun} für ${leadName}`,
     phone ? `Telefon: ${phone}` : '',
     leadUrl ? `Lead: ${leadUrl}` : '',
   ].filter(Boolean).join('\n');
+  const calendarMethod = ['REQUEST', 'CANCEL'].includes(String(method || '').toUpperCase())
+    ? String(method).toUpperCase()
+    : 'PUBLISH';
+  const organizer = String(organizerEmail || '').trim();
+  const attendee = String(attendeeEmail || '').trim();
+  const nextSequence = Number.isFinite(Number(sequence))
+    ? Math.max(0, Math.floor(Number(sequence)))
+    : Math.max(1, Math.floor(Date.now() / 1000));
+  const cancelled = calendarMethod === 'CANCEL';
 
   const lines = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
-    'PRODID:-//VANTARO//Wiedervorlage//DE',
+    `PRODID:-//VANTARO//${noun}//DE`,
     'CALSCALE:GREGORIAN',
-    'METHOD:PUBLISH',
+    `METHOD:${calendarMethod}`,
     'BEGIN:VTIMEZONE',
     'TZID:Europe/Berlin',
     'X-LIC-LOCATION:Europe/Berlin',
@@ -171,18 +186,23 @@ export function buildFollowUpIcs({
     'END:STANDARD',
     'END:VTIMEZONE',
     'BEGIN:VEVENT',
-    `UID:wiedervorlage-${leadId}@vantaro.io`,
+    `UID:${eventType}-${leadId}@vantaro.io`,
     `DTSTAMP:${stamp}`,
+    `LAST-MODIFIED:${stamp}`,
     `DTSTART;TZID=Europe/Berlin:${start}`,
     `DTEND;TZID=Europe/Berlin:${end}`,
     `SUMMARY:${icsEscape(title)}`,
     `DESCRIPTION:${icsEscape(description)}`,
+    `STATUS:${cancelled ? 'CANCELLED' : 'CONFIRMED'}`,
+    `SEQUENCE:${nextSequence}`,
+    organizer ? `ORGANIZER;CN=VANTARO:mailto:${organizer}` : '',
+    attendee ? `ATTENDEE;CN=${icsEscape(attendee)};RSVP=FALSE;PARTSTAT=${cancelled ? 'DECLINED' : 'ACCEPTED'}:mailto:${attendee}` : '',
     leadUrl ? `URL:${leadUrl}` : '',
-    'BEGIN:VALARM',
-    'ACTION:DISPLAY',
-    'DESCRIPTION:Wiedervorlage',
-    'TRIGGER:-PT0M',
-    'END:VALARM',
+    cancelled ? '' : 'BEGIN:VALARM',
+    cancelled ? '' : 'ACTION:DISPLAY',
+    cancelled ? '' : `DESCRIPTION:${noun}`,
+    cancelled ? '' : 'TRIGGER:-PT15M',
+    cancelled ? '' : 'END:VALARM',
     'END:VEVENT',
     'END:VCALENDAR',
   ].filter(Boolean);
@@ -196,10 +216,12 @@ export function followUpCalendarLinks({
   followUpAt,
   phone,
   leadUrl,
+  eventType = 'wiedervorlage',
 }) {
-  const title = `Wiedervorlage: ${leadName}`;
+  const noun = eventType === 'termin' ? 'Termin' : 'Wiedervorlage';
+  const title = `${noun}: ${leadName}`;
   const details = [
-    `Wiedervorlage für ${leadName}`,
+    `${noun} für ${leadName}`,
     phone ? `Telefon: ${phone}` : '',
     leadUrl || '',
   ].filter(Boolean).join('\n');
@@ -208,6 +230,6 @@ export function followUpCalendarLinks({
     title,
     googleUrl: googleCalendarUrl({ title, details, startAt: followUpAt }),
     outlookUrl: outlookCalendarUrl({ title, details, startAt: followUpAt }),
-    appleUrl: followUpAppleUrl(leadId, followUpAt),
+    appleUrl: eventType === 'wiedervorlage' ? followUpAppleUrl(leadId, followUpAt) : '',
   };
 }

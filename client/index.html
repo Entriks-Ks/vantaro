@@ -1,6 +1,37 @@
 <!doctype html>
-<html lang="de" class="is-preloading">
+<html lang="de" class="is-preloading" data-theme="dark">
   <head>
+    <script>
+      (function () {
+        var path = (location.pathname || '/').replace(/\/+$/, '') || '/';
+        var dashboard = path === '/dashboard' || path.indexOf('/dashboard/') === 0;
+        var admin = false;
+        try {
+          var session = JSON.parse(localStorage.getItem('vantaro-auth') || 'null');
+          var role = session && session.user && String(session.user.role || '').toLowerCase();
+          admin = role === 'admin';
+        } catch (e) {}
+        var pref = 'dark';
+        try {
+          var saved = localStorage.getItem('vantaro.theme');
+          if (saved === 'light' || saved === 'dark' || saved === 'device') pref = saved;
+        } catch (e) {}
+        var publicTheme = 'dark';
+        try {
+          if (localStorage.getItem('vantaro.publicTheme') === 'light') publicTheme = 'light';
+        } catch (e) {}
+        var resolved = admin
+          ? 'dark'
+          : (dashboard
+            ? (pref === 'device'
+              ? (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark')
+              : pref)
+            : publicTheme);
+        var root = document.documentElement;
+        root.setAttribute('data-theme', resolved);
+        root.style.colorScheme = resolved;
+      })();
+    </script>
     <!-- Google tag (gtag.js) + Consent Mode v2 — Reihenfolge laut Google Developers -->
     <script>
       window.dataLayer = window.dataLayer || [];
@@ -57,8 +88,17 @@
     <meta name="author" content="VANTARO" />
     <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
     <meta name="googlebot" content="index, follow" />
-    <meta name="theme-color" content="#101827" />
-    <meta name="color-scheme" content="light" />
+    <meta name="theme-color" content="#070b14" />
+    <meta name="color-scheme" content="dark" />
+    <script>
+      (function () {
+        var resolved = document.documentElement.getAttribute('data-theme') || 'dark';
+        var theme = document.querySelector('meta[name="theme-color"]');
+        if (theme) theme.setAttribute('content', resolved === 'light' ? '#f4f6f1' : '#070b14');
+        var scheme = document.querySelector('meta[name="color-scheme"]');
+        if (scheme) scheme.setAttribute('content', resolved);
+      })();
+    </script>
     <meta name="format-detection" content="telephone=no" />
     <meta name="geo.region" content="DE" />
     <meta name="geo.placename" content="Deutschland" />

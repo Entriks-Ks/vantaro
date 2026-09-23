@@ -12,8 +12,11 @@ import {
   BeraterProfile,
   BeraterCompany,
   BeraterSecurity,
+  BeraterSettings,
   BeraterCalendar,
   BeraterSupport,
+  BeraterAcademy,
+  BeraterPartners,
 } from './dashboard/BeraterViews';
 import {
   AdminOverview,
@@ -61,6 +64,7 @@ export default function Dashboard() {
                 <Route path="profil" element={<AdminProfile />} />
                 <Route path="unternehmen" element={<Navigate to="/dashboard/profil" replace />} />
                 <Route path="sicherheit" element={<Navigate to="/dashboard/profil" replace />} />
+                <Route path="einstellungen" element={<Navigate to="/dashboard/profil" replace />} />
                 <Route path="users" element={<Navigate to="/dashboard/nutzer" replace />} />
                 <Route path="payment" element={<Navigate to="/dashboard/zahlung" replace />} />
               </>
@@ -71,11 +75,14 @@ export default function Dashboard() {
                 <Route path="kalender" element={<BeraterCalendar />} />
                 <Route path="paket" element={<BeraterPayments />} />
                 <Route path="zahlung" element={<Navigate to="/dashboard/paket" replace />} />
+                <Route path="partner" element={<BeraterPartners />} />
+                <Route path="academy" element={<BeraterAcademy />} />
                 <Route path="profil" element={<BeraterProfile />} />
                 <Route path="support" element={<BeraterSupport />} />
                 <Route path="pakete" element={<Navigate to="/dashboard/paket" replace />} />
                 <Route path="unternehmen" element={<BeraterCompany />} />
                 <Route path="sicherheit" element={<BeraterSecurity />} />
+                <Route path="einstellungen" element={<BeraterSettings />} />
                 <Route path="guthaben" element={<Navigate to="/dashboard/paket" replace />} />
                 <Route path="chancen" element={<Navigate to="/dashboard/leads" replace />} />
                 <Route path="aufgaben" element={<Navigate to="/dashboard" replace />} />

@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import { supabase, supabaseConfig } from './supabase.js';
+import { publicUser } from './auth.js';
 import { ROLES } from './roles.js';
 import { listDirectoryUsers } from './users.js';
 import { tableMissing } from './leads.js';
@@ -145,6 +146,54 @@ export async function listMyPayments(beraterId) {
     .order('created_at', { ascending: false });
   if (error) throw error;
   return (data || []).map((row) => toPublicPayment(row));
+}
+
+function invoicePartyFromUser(user) {
+  const profile = user?.profile || {};
+  const address = profile.billingAddress || profile.businessAddress || {};
+  return {
+    customerNumber: user?.customerNumber || '',
+    billingName: [user?.firstName, user?.lastName].filter(Boolean).join(' ').trim()
+      || user?.fullName
+      || '',
+    billingEmail: user?.email || '',
+    billingCompany: profile.company || '',
+    billingStreet: address.street || '',
+    billingZip: address.zip || '',
+    billingCity: address.city || '',
+  };
+}
+
+async function loadInvoiceParty(user, beraterId, isOwner) {
+  if (isOwner) return invoicePartyFromUser(user);
+  try {
+    const { data, error } = await supabase.auth.admin.getUserById(beraterId);
+    if (error || !data?.user) return {};
+    return invoicePartyFromUser(publicUser(data.user));
+  } catch {
+    return {};
+  }
+}
+
+export async function getPaymentForViewer(user, paymentId) {
+  requireDb();
+  const row = await loadPaymentById(paymentId);
+  if (!row) throw fail('Rechnung nicht gefunden.', 404);
+  const isOwner = row.berater_id === user?.id;
+  const isAdmin = user?.role === ROLES.ADMIN;
+  if (!isOwner && !isAdmin) throw fail('Rechnung nicht gefunden.', 404);
+  const payment = toPublicPayment(row);
+  const party = await loadInvoiceParty(user, row.berater_id, isOwner);
+  return {
+    ...payment,
+    customerNumber: party.customerNumber || payment.customerNumber || '',
+    billingName: payment.billingName || party.billingName || '',
+    billingEmail: payment.billingEmail || party.billingEmail || '',
+    billingCompany: payment.billingCompany || party.billingCompany || '',
+    billingStreet: party.billingStreet || '',
+    billingZip: party.billingZip || '',
+    billingCity: party.billingCity || '',
+  };
 }
 
 export async function listAllPayments() {

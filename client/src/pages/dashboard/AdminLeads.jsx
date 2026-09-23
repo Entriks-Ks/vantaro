@@ -1,14 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Copy, Mail, MoreHorizontal, Phone, Pencil, Trash2, UserRound } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Copy, Mail, MoreHorizontal, Phone, Pencil, Trash2, UserPlus, UserRound } from 'lucide-react';
 import PhoneField from '../../components/PhoneField';
 import { useDashboard } from '../../hooks/useDashboard';
+import { fetchBeraterPipelines, leadTypeLabel } from '../../lib/berater';
 import {
   CONCERN_OPTIONS,
   COVERAGE_OPTIONS,
   EMPLOYMENT_OPTIONS,
   INSURANCE_OPTIONS,
   STATUS_OPTIONS,
+  assignLeadToBerater,
   createLead,
   deleteLead,
   downloadLeadCsvTemplate,
@@ -28,6 +30,7 @@ import {
   toggleListValue,
   updateLead,
 } from '../../lib/leads';
+import { leadScopeOrDefault } from './requestHelpers';
 import { complaintReasonLabel, fetchComplaints, sendComplaintReplacement } from '../../lib/complaints';
 import { DashSeg } from './DashboardLayout';
 import { formatDate } from './helpers';
@@ -433,10 +436,189 @@ function LeadActionsMenu({ onEdit, onDelete, disabled, locked }) {
   );
 }
 
+function beraterLabel(user) {
+  return user?.fullName || user?.email || 'Berater';
+}
+
+function openRequestsForLead(berater, lead) {
+  const scope = leadScopeOrDefault(lead?.scope);
+  return (berater?.requests || []).filter((request) => (
+    request.status === 'active'
+    && leadScopeOrDefault(request.scope) === scope
+    && Number(request.remaining) > 0
+  ));
+}
+
+function requestAssignLabel(request) {
+  const code = request?.code || String(request?.id || '').slice(0, 8).toUpperCase();
+  const remaining = Number(request?.remaining) || 0;
+  const requested = Number(request?.requestedCount) || 0;
+  return {
+    code,
+    detail: [
+      leadTypeLabel(request?.leadType),
+      leadScopeLabel(request?.scope),
+      `${request?.validCount || 0}/${requested} gültig`,
+      `${remaining} offen`,
+    ].filter(Boolean).join(' · '),
+  };
+}
+
+function LeadAssignPanel({ lead, disabled, onAssigned }) {
+  const [beraters, setBeraters] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [beraterId, setBeraterId] = useState('');
+  const [requestId, setRequestId] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    fetchBeraterPipelines()
+      .then((payload) => {
+        if (!active) return;
+        setBeraters(payload.beraters || []);
+      })
+      .catch((err) => {
+        if (active) setError(err.message);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [lead?.id]);
+
+  const options = useMemo(() => (
+    beraters
+      .map((entry) => {
+        const requests = openRequestsForLead(entry, lead)
+          .slice()
+          .sort((left, right) => new Date(left.createdAt || 0) - new Date(right.createdAt || 0));
+        const remaining = requests.reduce((sum, request) => sum + (Number(request.remaining) || 0), 0);
+        return { id: entry.id, name: beraterLabel(entry), remaining, requests };
+      })
+      .filter((entry) => entry.requests.length)
+      .sort((left, right) => left.name.localeCompare(right.name, 'de'))
+  ), [beraters, lead]);
+
+  const selectedBerater = options.find((entry) => entry.id === beraterId) || null;
+  const requestChoices = selectedBerater?.requests || [];
+
+  function selectBerater(nextId) {
+    setBeraterId(nextId);
+    const next = options.find((entry) => entry.id === nextId);
+    const requests = next?.requests || [];
+    setRequestId(requests.length === 1 ? requests[0].id : '');
+  }
+
+  async function onAssign(event) {
+    event.preventDefault();
+    if (!beraterId || !requestId || saving || disabled) return;
+    setSaving(true);
+    setError('');
+    try {
+      const result = await assignLeadToBerater(lead.id, { beraterId, requestId });
+      onAssigned?.(result.lead);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <section className="dash-panel dash-lead-assign">
+      <div className="dash-panel-head"><strong>Zuweisung</strong></div>
+      <form className="dash-lead-assign-body" onSubmit={onAssign}>
+        <div className="dash-lead-assign-current">
+          <span>Aktuell</span>
+          <strong>Nicht zugewiesen</strong>
+        </div>
+        {loading ? (
+          <p className="dash-muted">Berater werden geladen…</p>
+        ) : options.length ? (
+          <>
+            <label className="dash-lead-assign-field">
+              Berater
+              <select
+                value={beraterId}
+                onChange={(event) => selectBerater(event.target.value)}
+                disabled={saving || disabled}
+                required
+              >
+                <option value="">Berater wählen</option>
+                {options.map((entry) => (
+                  <option key={entry.id} value={entry.id}>
+                    {entry.name} · {entry.remaining} offen
+                  </option>
+                ))}
+              </select>
+            </label>
+            {beraterId ? (
+              <fieldset className="dash-lead-assign-field dash-lead-assign-requests">
+                <legend>Anforderung</legend>
+                <div className="dash-pick-list dash-lead-assign-picks">
+                  {requestChoices.map((request) => {
+                    const label = requestAssignLabel(request);
+                    const checked = requestId === request.id;
+                    return (
+                      <label
+                        key={request.id}
+                        className={`dash-pick-row${checked ? ' is-checked' : ''}${saving || disabled ? ' is-disabled' : ''}`}
+                      >
+                        <input
+                          type="radio"
+                          name="lead-assign-request"
+                          value={request.id}
+                          checked={checked}
+                          onChange={() => setRequestId(request.id)}
+                          disabled={saving || disabled}
+                          required
+                        />
+                        <span>
+                          <strong>{label.code}</strong>
+                          <small>{label.detail}</small>
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </fieldset>
+            ) : (
+              <p className="dash-lead-assign-hint">
+                Zuerst Berater wählen, dann die passende Anforderung.
+              </p>
+            )}
+          </>
+        ) : error ? null : (
+          <p className="dash-muted">
+            Kein Berater mit offenem Auftrag für dieses Paket.
+          </p>
+        )}
+        {error ? <div className="dash-alert">{error}</div> : null}
+        {options.length ? (
+          <button
+            type="submit"
+            className="dash-btn dash-lead-assign-submit"
+            disabled={!beraterId || !requestId || saving || disabled}
+          >
+            <UserPlus size={15} aria-hidden="true" />
+            {saving ? 'Wird zugewiesen…' : 'An Anforderung senden'}
+          </button>
+        ) : null}
+      </form>
+    </section>
+  );
+}
+
 function LeadView({
   lead,
   onEdit,
   onDelete,
+  onAssigned,
   saving,
 }) {
   const age = leadAge(lead.dateOfBirth);
@@ -537,6 +719,9 @@ function LeadView({
         </div>
 
         <aside className="dash-lead-aside">
+          {!locked && !lead.refundedAt && lead.status !== 'erledigt' ? (
+            <LeadAssignPanel lead={lead} disabled={saving} onAssigned={onAssigned} />
+          ) : null}
           <section className="dash-panel dash-lead-meta">
             <div className="dash-panel-head"><strong>Übersicht</strong></div>
             <dl className="dash-lead-meta-list">
@@ -1121,6 +1306,7 @@ export function AdminLeadEditor() {
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
+  const { refresh } = useDashboard();
   const backTo = returnTo(location);
   const isNew = !id || id === 'new';
   const [form, setForm] = useState(emptyLeadForm);
@@ -1248,6 +1434,14 @@ export function AdminLeadEditor() {
           lead={lead}
           onEdit={startEdit}
           onDelete={onDelete}
+          onAssigned={(next) => {
+            if (!next) return;
+            setLead(next);
+            setForm(leadToForm(next));
+            setNotice('Lead wurde dem Berater zugewiesen.');
+            setError('');
+            refresh({ silent: true }).catch(() => {});
+          }}
           saving={saving}
         />
       ) : (

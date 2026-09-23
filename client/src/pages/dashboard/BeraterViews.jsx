@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom';
-import { AlertCircle, ArrowLeft, ArrowRight, Building2, Calendar as CalendarIcon, CalendarClock, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, CircleCheck, Clock, CreditCard, Eye, EyeOff, FileCheck2, FileText, Filter, Flag, Globe, KeyRound, LayoutGrid, List, Lock, Mail, MapPin, MessageCircle, Paperclip, Phone, Printer, Receipt, Save, Search, Shield, ShieldCheck, Sparkles, StickyNote, User, UserPlus, Users, Wand2, X } from 'lucide-react';
+import { AlertCircle, ArrowLeft, ArrowRight, Bell, Building2, Calendar as CalendarIcon, CalendarClock, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, CircleCheck, CircleX, Clock, Cookie, CreditCard, Download, Eye, EyeOff, FileCheck2, FileText, Filter, Flag, Globe, GraduationCap, Handshake, KeyRound, LayoutGrid, List, Lock, Mail, MapPin, MessageCircle, Paperclip, Phone, Printer, Receipt, Save, Search, Send, Settings, Shield, ShieldCheck, Sparkles, StickyNote, User, UserPlus, Users, Wand2, X } from 'lucide-react';
 import AddressAutocomplete from '../../components/AddressAutocomplete';
 import AddressMap from '../../components/AddressMap';
 import BootScreen from '../../components/BootScreen';
@@ -9,6 +10,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { useBroker } from '../../hooks/useBroker';
 import { didGoogleMapsAuthFail, geocodeAddress, hasGoogleMapsKey, isInGermany, reverseGeocode } from '../../lib/googleMaps';
 import { readStoredSession } from '../../lib/auth';
+import { apiUrl } from '../../lib/api';
 import {
   fetchMyRequests,
 } from '../../lib/berater';
@@ -35,21 +37,33 @@ import {
   updateLead,
 } from '../../lib/leads';
 import { LEGAL_FORMS, fileToAvatarDataUrl, generatePassword, validatePassword } from '../../lib/profile';
+import ThemeMode from '../../components/ThemeMode';
 import { accountSetupGaps, displayName, firstName, formatDate, formatDateTime, formatEuroExact, initials } from './helpers';
 import { MIN_LEAD_PACK, PACKAGES, packageById, packTotalCents } from './packages';
 import { DEFAULT_LEAD_SCOPE, leadScopeLabel } from '../../lib/scopes';
 import {
   checkoutLeadPackage,
   collectBrowserPaymentMeta,
+  downloadPaymentInvoice,
   fetchMyPayments,
   formatCardMask,
+  openPaymentInvoice,
   paymentStatusLabel,
   syncMyPayment,
 } from '../../lib/payments';
 import {
+  readBrokerSettings,
+  subscribeBrokerSettings,
+  writeBrokerSettings,
+} from '../../lib/brokerSettings';
+import { applyConsent, CONSENT_STORAGE_KEY, DEFAULT_PREFS, readStoredConsent } from '../../lib/analytics';
+import {
+  CLOSE_OUTCOMES,
   LEAD_STATUSES,
   PRODUCT_FILTERS,
   VIEW_MODES,
+  closeOutcomeLabel,
+  closeOutcomeOf,
   formatDistance,
   leadPriceCents,
   leadProductCode,
@@ -114,25 +128,26 @@ function leadPreviewLine(lead) {
     .join(' • ');
 }
 
-function leadScheduleOf(lead) {
+function leadScheduleOf(lead, now = Date.now()) {
   const status = lead?.status || lead?.contactStatus;
+  let kind = null;
+  let at = null;
   if (status === 'termin' && lead?.appointmentAt) {
-    return {
-      kind: 'termin',
-      at: lead.appointmentAt,
-      label: formatScheduleLabel(lead.appointmentAt),
-      overdue: false,
-    };
+    kind = 'termin';
+    at = lead.appointmentAt;
+  } else if (status === 'wiedervorlage' && lead?.followUpAt) {
+    kind = 'wiedervorlage';
+    at = lead.followUpAt;
   }
-  if (status === 'wiedervorlage' && lead?.followUpAt) {
-    return {
-      kind: 'wiedervorlage',
-      at: lead.followUpAt,
-      label: formatScheduleLabel(lead.followUpAt),
-      overdue: new Date(lead.followUpAt).getTime() < Date.now(),
-    };
-  }
-  return null;
+  if (!kind) return null;
+  const due = new Date(at).getTime();
+  return {
+    kind,
+    at,
+    label: formatScheduleLabel(at),
+    overdue: Number.isFinite(due) && due < now,
+    urgency: scheduleUrgencyOf(at, now),
+  };
 }
 
 function pad2(value) {
@@ -208,6 +223,85 @@ function formatScheduleLabel(value) {
   if (!value) return '';
   const text = formatDateTime(value).replace(',', ' · ');
   return /uhr/i.test(text) ? text : `${text} Uhr`;
+}
+
+const MS_HOUR = 60 * 60 * 1000;
+const MS_DAY = 24 * MS_HOUR;
+const SCHEDULE_CLOCK_MS = 30 * 1000;
+
+function scheduleUrgencyOf(at, now = Date.now()) {
+  const due = new Date(at).getTime();
+  if (!Number.isFinite(due)) return 'ok';
+  const remaining = due - now;
+  if (remaining <= 2 * MS_HOUR) return 'critical';
+  if (remaining <= 6 * MS_HOUR) return 'urgent';
+  if (remaining <= 24 * MS_HOUR) return 'soon';
+  if (remaining <= 3 * MS_DAY) return 'near';
+  return 'ok';
+}
+
+function formatScheduleParts(value) {
+  if (!value) return { dateLabel: '', timeLabel: '', label: '' };
+  const date = new Date(value);
+  return {
+    dateLabel: new Intl.DateTimeFormat('de-DE', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    }).format(date),
+    timeLabel: new Intl.DateTimeFormat('de-DE', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+    }).format(date),
+    label: formatScheduleLabel(value),
+  };
+}
+
+let scheduleClockTimer = null;
+const scheduleClockListeners = new Set();
+
+function subscribeScheduleClock(listener) {
+  scheduleClockListeners.add(listener);
+  if (scheduleClockTimer == null && typeof window !== 'undefined') {
+    scheduleClockTimer = window.setInterval(() => {
+      const now = Date.now();
+      scheduleClockListeners.forEach((fn) => fn(now));
+    }, SCHEDULE_CLOCK_MS);
+  }
+  return () => {
+    scheduleClockListeners.delete(listener);
+    if (!scheduleClockListeners.size && scheduleClockTimer != null) {
+      window.clearInterval(scheduleClockTimer);
+      scheduleClockTimer = null;
+    }
+  };
+}
+
+function useScheduleClock() {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => subscribeScheduleClock(setNow), []);
+  return now;
+}
+
+function LeadScheduleBlock({ kind = 'wiedervorlage', at, compact = false }) {
+  const now = useScheduleClock();
+  const parts = formatScheduleParts(at);
+  const urgency = scheduleUrgencyOf(at, now);
+  const overdue = new Date(at).getTime() < now;
+  const isTermin = kind === 'termin';
+  const Icon = isTermin ? CalendarClock : Clock;
+
+  return (
+    <div
+      className={`broker-lead-when is-${urgency}${overdue ? ' is-overdue' : ''}${compact ? ' is-compact' : ''}`}
+      aria-label={`${isTermin ? 'Termin' : 'Wiedervorlage'} ${parts.label}`}
+    >
+      <Icon className="broker-lead-when-icon" size={compact ? 15 : 18} aria-hidden="true" />
+      <span className="broker-lead-when-date">{parts.dateLabel}</span>
+      <strong className="broker-lead-when-time">{parts.timeLabel}</strong>
+    </div>
+  );
 }
 
 const TIME_HOURS = Array.from({ length: 24 }, (_, index) => pad2(index));
@@ -468,6 +562,84 @@ function LeadScheduleSummary({ kind = 'wiedervorlage', value, locked, onEdit }) 
   );
 }
 
+function CloseOutcomeMark({ outcome, compact = false }) {
+  if (outcome === 'erfolgreich') {
+    return (
+      <span className={`broker-close-outcome is-erfolgreich${compact ? ' is-compact' : ''}`}>
+        <CircleCheck size={compact ? 11 : 12} aria-hidden="true" />
+        Erfolgreich
+      </span>
+    );
+  }
+  if (outcome === 'fehlgeschlagen') {
+    return (
+      <span className={`broker-close-outcome is-fehlgeschlagen${compact ? ' is-compact' : ''}`}>
+        <CircleX size={compact ? 11 : 12} aria-hidden="true" />
+        Nicht erfolgreich
+      </span>
+    );
+  }
+  return (
+    <span className={`broker-close-outcome is-pending${compact ? ' is-compact' : ''}`}>
+      Ergebnis wählen
+    </span>
+  );
+}
+
+function LeadCloseOutcomeModal({ leadName, value, saving, onSave, onClose }) {
+  const titleId = 'lead-close-outcome-modal-title';
+
+  useEffect(() => {
+    function onKey(event) {
+      if (event.key === 'Escape' && !saving) onClose();
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [saving, onClose]);
+
+  return (
+    <div className="broker-modal" role="dialog" aria-modal="true" aria-labelledby={titleId}>
+      <button type="button" className="broker-modal__backdrop" aria-label="Schließen" onClick={saving ? undefined : onClose} />
+      <div className="broker-modal__panel broker-schedule-modal broker-close-outcome-modal">
+        <div className="broker-modal__top">
+          <h2 id={titleId}>Vorgang abschließen</h2>
+          <button type="button" className="broker-modal__close" aria-label="Schließen" disabled={saving} onClick={onClose}>
+            <X size={18} />
+          </button>
+        </div>
+        <p className="broker-schedule-modal__lede">
+          {leadName ? `${leadName} · ` : ''}
+          Wurde aus dem Gespräch ein Kunde, oder nicht?
+        </p>
+        <div className="broker-close-outcome-choices">
+          {CLOSE_OUTCOMES.map((option) => {
+            const Icon = option.id === 'erfolgreich' ? CircleCheck : CircleX;
+            const isSelected = value === option.id;
+            return (
+              <button
+                key={option.id}
+                type="button"
+                className={`broker-close-outcome-choice is-${option.id}${isSelected ? ' is-active' : ''}`}
+                disabled={saving}
+                onClick={() => onSave(option.id)}
+              >
+                <span className="broker-close-outcome-choice-icon" aria-hidden="true">
+                  <Icon size={22} />
+                </span>
+                <span>
+                  <strong>{option.label}</strong>
+                  <small>{option.hint}</small>
+                </span>
+              </button>
+            );
+          })}
+        </div>
+        {saving ? <p className="broker-calendar-hint">Wird gespeichert…</p> : null}
+      </div>
+    </div>
+  );
+}
+
 function LeadScheduleModal({ kind, value, saving, locked, leadName, onSave, onClose }) {
   const isTermin = kind === 'termin';
   const titleId = 'lead-schedule-modal-title';
@@ -545,6 +717,8 @@ function LeadStatusMark({ lead, large = false, placement = 'list' }) {
   const reviewing = isOpenComplaint(lead?.complaint);
   const Icon = PIPELINE_ICONS[lead.status] || Sparkles;
   const compact = placement === 'home';
+  const outcome = closeOutcomeOf(lead);
+  const showOutcome = lead.status === 'abgeschlossen';
   const reviewMark = reviewing ? (
     <span className={`broker-status is-reported${large ? ' broker-status--lg' : ''}${compact ? ' is-compact' : ''}`}>
       <Flag size={compact ? 11 : large ? 14 : 12} aria-hidden="true" />
@@ -554,12 +728,15 @@ function LeadStatusMark({ lead, large = false, placement = 'list' }) {
 
   return (
     <span className={`broker-status-stack${large ? ' is-large' : ''}${placement === 'kanban' ? ' is-kanban' : ''}${compact ? ' is-home' : ''}`}>
-      {placement === 'kanban' ? null : (
+      {placement === 'kanban' ? (
+        showOutcome ? <CloseOutcomeMark outcome={outcome} compact /> : null
+      ) : (
         <span className={`broker-status-iconic${large ? ' is-large' : ''}`}>
           <Icon size={large ? 15 : 14} aria-hidden="true" />
           {statusLabel(lead.status)}
         </span>
       )}
+      {showOutcome && placement !== 'kanban' ? <CloseOutcomeMark outcome={outcome} compact={compact} /> : null}
       {reviewMark}
     </span>
   );
@@ -582,6 +759,7 @@ function LeadStatusDropdown({
     </span>
   ) : null;
   const CurrentIcon = PIPELINE_ICONS[status] || Sparkles;
+  const outcome = closeOutcomeOf(lead);
 
   useEffect(() => {
     if (!open) return;
@@ -620,6 +798,7 @@ function LeadStatusDropdown({
           <span className="broker-status-iconic is-large">
             <CurrentIcon size={15} aria-hidden="true" />
             <span>{statusLabel(status)}</span>
+            {status === 'abgeschlossen' ? <CloseOutcomeMark outcome={outcome} compact /> : null}
           </span>
           <ChevronDown size={14} className={`broker-status-chevron${open ? ' is-open' : ''}`} aria-hidden="true" />
         </button>
@@ -655,7 +834,11 @@ function LeadStatusDropdown({
                   </span>
                   <span className="broker-status-dropdown-copy">
                     <strong>{option.label}</strong>
-                    <small>{option.hint}</small>
+                    <small>
+                      {option.id === 'abgeschlossen' && outcome
+                        ? `${option.hint} · aktuell ${closeOutcomeLabel(outcome)}`
+                        : option.hint}
+                    </small>
                   </span>
                   {isSelected ? (
                     <Check size={16} className="broker-status-dropdown-check" aria-hidden="true" />
@@ -681,6 +864,7 @@ function DetailFact({ label, children, wide = false }) {
 }
 
 const PROOF_MAX_BYTES = 1_200_000;
+const SUPPORT_ATTACH_MAX = 3;
 
 function readProofFile(file) {
   return new Promise((resolve, reject) => {
@@ -951,8 +1135,7 @@ function ReportModal({
   const canSubmit = Boolean(reason && detailLen >= COMPLAINT_COMMENT_MIN);
   const titleId = `report-modal-title-${lead.id}`;
   const proofId = `report-proof-${lead.id}`;
-
-  return (
+  const modal = (
     <div className="broker-modal broker-report-modal-wrap" role="dialog" aria-modal="true" aria-labelledby={titleId}>
       <button type="button" className="broker-modal__backdrop" aria-label="Schließen" onClick={saving ? undefined : onClose} disabled={saving} />
       <form
@@ -1131,6 +1314,9 @@ function ReportModal({
       </form>
     </div>
   );
+
+  const host = typeof document !== 'undefined' ? document.querySelector('.broker') : null;
+  return host ? createPortal(modal, host) : modal;
 }
 
 export function BeraterHome() {
@@ -1165,8 +1351,13 @@ export function BeraterHome() {
 
   const stats = useMemo(() => {
     const byStatus = Object.fromEntries(LEAD_STATUSES.map((status) => [status.id, 0]));
+    let erfolgreich = 0;
+    let fehlgeschlagen = 0;
     pipelineLeads.forEach((lead) => {
       byStatus[lead.status] = (byStatus[lead.status] || 0) + 1;
+      const outcome = closeOutcomeOf(lead);
+      if (outcome === 'erfolgreich') erfolgreich += 1;
+      else if (outcome === 'fehlgeschlagen') fehlgeschlagen += 1;
     });
     return {
       total: pipelineLeads.length,
@@ -1174,13 +1365,16 @@ export function BeraterHome() {
       kontaktiert: byStatus.kontaktiert || 0,
       termin: byStatus.termin || 0,
       wiedervorlage: byStatus.wiedervorlage || 0,
-      abgeschlossen: byStatus.abgeschlossen || 0,
+      erfolgreich,
+      fehlgeschlagen,
     };
   }, [pipelineLeads]);
 
-  const recent = pipelineLeads.slice(0, 3);
+  const recent = pipelineLeads
+    .filter((lead) => closeOutcomeOf(lead) !== 'fehlgeschlagen')
+    .slice(0, 3);
   const inProgress = stats.kontaktiert + stats.termin + stats.wiedervorlage;
-  const pipelineTotal = Math.max(stats.total, 1);
+  const pipelineTotal = Math.max(stats.total - stats.fehlgeschlagen, 1);
   const pipelineColors = {
     neu: '#56d3c4',
     kontaktiert: '#7aa2ff',
@@ -1235,7 +1429,7 @@ export function BeraterHome() {
         <article className="broker-home-metric">
           <div className="broker-home-metric-body">
             <span>Abgeschlossen</span>
-            <strong>{loading ? '—' : stats.abgeschlossen}</strong>
+            <strong>{loading ? '—' : stats.erfolgreich}</strong>
             <small>Verträge abgeschlossen</small>
           </div>
           <span className="broker-home-metric-icon" aria-hidden="true">
@@ -1251,14 +1445,15 @@ export function BeraterHome() {
             <h2>Pipeline</h2>
             <p>Echtzeit-Verteilung Ihrer Leads nach aktuellem Bearbeitungsstand</p>
           </div>
-          <Link to="/dashboard/leads" className="broker-text-btn">
-            Board öffnen <ArrowRight size={14} aria-hidden="true" />
+          <Link to="/dashboard/leads" className="broker-pipeline-open">
+            <span>Board öffnen</span>
+            <ArrowRight size={14} strokeWidth={2.25} aria-hidden="true" />
           </Link>
         </div>
 
         <div className="broker-pipeline-stack" aria-hidden={loading}>
           {LEAD_STATUSES.map((status) => {
-            const value = stats[status.id] || 0;
+            const value = status.id === 'abgeschlossen' ? stats.erfolgreich : (stats[status.id] || 0);
             const pct = loading || value <= 0 ? 0 : Math.max((value / pipelineTotal) * 100, 3);
             if (value <= 0) return null;
             return (
@@ -1274,8 +1469,8 @@ export function BeraterHome() {
 
         <div className="broker-pipeline-cards">
           {LEAD_STATUSES.map((status) => {
-            const value = stats[status.id] || 0;
-            const pct = loading || stats.total <= 0 ? 0 : Math.round((value / stats.total) * 100);
+            const value = status.id === 'abgeschlossen' ? stats.erfolgreich : (stats[status.id] || 0);
+            const pct = loading || pipelineTotal <= 0 ? 0 : Math.round((value / pipelineTotal) * 100);
             const Icon = PIPELINE_ICONS[status.id] || Sparkles;
             const color = pipelineColors[status.id] || '#56d3c4';
             return (
@@ -1415,19 +1610,16 @@ function LeadCard({ lead, onOpen, dragging = false, onDragStart, onDragEnd }) {
         </div>
         <LeadStatusMark lead={lead} placement="kanban" />
       </div>
+      {schedule ? (
+        <LeadScheduleBlock kind={schedule.kind} at={schedule.at} />
+      ) : needsSchedule ? (
+        <div className="broker-lead-when is-missing">Datum und Uhrzeit wählen</div>
+      ) : null}
       <div className="broker-lead-meta">
         {distance ? <span>{distance} entfernt</span> : null}
         <span>{lead.productCode || leadProductCode(lead)}</span>
         <span>{lead.quality || 'Exklusiv'}</span>
       </div>
-      {schedule ? (
-        <div className={`broker-lead-schedule${schedule.overdue ? ' is-overdue' : ''}`}>
-          {schedule.kind === 'termin' ? <CalendarClock size={14} aria-hidden="true" /> : <Clock size={14} aria-hidden="true" />}
-          {schedule.label}
-        </div>
-      ) : needsSchedule ? (
-        <div className="broker-lead-schedule is-missing">Datum und Uhrzeit wählen</div>
-      ) : null}
       {lead.notes ? <p className="broker-lead-note">{lead.notes}</p> : null}
       <div className="broker-lead-bottom">
         <span className="broker-muted-action">Ziehen oder öffnen</span>
@@ -1444,9 +1636,7 @@ function LeadListRow({ lead, onOpen }) {
         <strong>{lead.name}</strong>
         <small>{lead.address}</small>
         {schedule ? (
-          <small className={`broker-lead-schedule${schedule.overdue ? ' is-overdue' : ''}`}>
-            {schedule.label}
-          </small>
+          <LeadScheduleBlock kind={schedule.kind} at={schedule.at} compact />
         ) : null}
       </span>
       <span className="broker-list-meta">{lead.productCode || leadProductCode(lead)}</span>
@@ -1525,6 +1715,7 @@ export function BeraterLeads() {
   const [draggingId, setDraggingId] = useState('');
   const [dropStatus, setDropStatus] = useState('');
   const [scheduleTarget, setScheduleTarget] = useState(null);
+  const [outcomeTarget, setOutcomeTarget] = useState(null);
   const [savingSchedule, setSavingSchedule] = useState(false);
   const pageSize = 8;
 
@@ -1583,6 +1774,18 @@ export function BeraterLeads() {
       setDropStatus('');
       return;
     }
+    if (id && statusId === 'abgeschlossen' && current) {
+      const alreadyClosed = pipelineStatusOf(current, leadStatuses) === 'abgeschlossen' && closeOutcomeOf(current);
+      if (alreadyClosed) {
+        setDraggingId('');
+        setDropStatus('');
+        return;
+      }
+      setOutcomeTarget(current);
+      setDraggingId('');
+      setDropStatus('');
+      return;
+    }
     if (id && statusId) {
       setLeadStatus(id, statusId);
       updateLead(id, contactUpdatePayload(statusId, {
@@ -1601,6 +1804,34 @@ export function BeraterLeads() {
     setDraggingId('');
     setDropStatus('');
   };
+
+  async function saveKanbanOutcome(outcomeId) {
+    const current = outcomeTarget;
+    if (!current) return;
+    setSavingSchedule(true);
+    setError('');
+    try {
+      const payload = await updateLead(current.id, contactUpdatePayload('abgeschlossen', {
+        closeOutcome: outcomeId,
+      }));
+      setLeadStatus(current.id, 'abgeschlossen');
+      setLeads((list) => list.map((entry) => (
+        String(entry.id) === String(current.id)
+          ? { ...entry, ...payload.lead, complaint: entry.complaint }
+          : entry
+      )));
+      setOutcomeTarget(null);
+      showToast(
+        outcomeId === 'erfolgreich'
+          ? 'Lead als erfolgreich gespeichert.'
+          : 'Lead als nicht erfolgreich gespeichert.',
+      );
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSavingSchedule(false);
+    }
+  }
 
   async function saveKanbanSchedule(iso) {
     const current = scheduleTarget?.lead;
@@ -1663,7 +1894,7 @@ export function BeraterLeads() {
       <div className="broker-heading">
         <div>
           <div className="eyebrow">Ihr Bestand</div>
-          <h1>Meine <em>Leads</em></h1>
+          <h1>Meine Leads</h1>
           <p className="lede">Karten in die passende Spalte ziehen — oder in der Liste öffnen.</p>
         </div>
       </div>
@@ -1793,6 +2024,17 @@ export function BeraterLeads() {
           onSave={saveKanbanSchedule}
           onClose={() => {
             if (!savingSchedule) setScheduleTarget(null);
+          }}
+        />
+      ) : null}
+      {outcomeTarget ? (
+        <LeadCloseOutcomeModal
+          leadName={outcomeTarget.fullName || outcomeTarget.name}
+          value={closeOutcomeOf(outcomeTarget)}
+          saving={savingSchedule}
+          onSave={saveKanbanOutcome}
+          onClose={() => {
+            if (!savingSchedule) setOutcomeTarget(null);
           }}
         />
       ) : null}
@@ -2577,55 +2819,179 @@ export function BeraterCalendar() {
   );
 }
 
+export function BeraterAcademy() {
+  return (
+    <div className="broker-page">
+      <div className="broker-heading">
+        <div>
+          <div className="eyebrow">Lernen</div>
+          <h1>Academy</h1>
+          <p className="lede">Schulungen, Videos und Unterlagen für Ihren Bestand — in Kürze.</p>
+        </div>
+      </div>
+      <section className="broker-panel broker-coming-soon">
+        <span className="broker-coming-soon-icon" aria-hidden="true">
+          <GraduationCap size={28} strokeWidth={1.8} />
+        </span>
+        <em>Coming soon</em>
+        <strong>Academy folgt in Kürze</strong>
+        <p>Dieser Bereich wird vorbereitet. Sobald Inhalte bereitstehen, finden Sie sie hier.</p>
+      </section>
+    </div>
+  );
+}
+
+export function BeraterPartners() {
+  return (
+    <div className="broker-page">
+      <div className="broker-heading">
+        <div>
+          <div className="eyebrow">Netzwerk</div>
+          <h1>Partner</h1>
+          <p className="lede">Partner anlegen und verwalten — in Kürze.</p>
+        </div>
+      </div>
+      <section className="broker-panel broker-coming-soon">
+        <span className="broker-coming-soon-icon" aria-hidden="true">
+          <Handshake size={28} strokeWidth={1.8} />
+        </span>
+        <em>Coming soon</em>
+        <strong>Partner folgt in Kürze</strong>
+        <p>Dieser Bereich wird vorbereitet. Sobald Sie Partner anlegen können, finden Sie sie hier.</p>
+      </section>
+    </div>
+  );
+}
+
 export function BeraterSupport() {
   const { user } = useAuth();
   const { showToast } = useBroker();
-  const [form, setForm] = useState({ subject: '', message: '', category: 'general' });
+  const [form, setForm] = useState({
+    category: 'general',
+    priority: 'normal',
+    subject: '',
+    message: '',
+    phone: user?.phone || '',
+    leadRef: '',
+  });
   const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
   const [error, setError] = useState('');
+  const [files, setFiles] = useState([]);
+  const [dragOver, setDragOver] = useState(false);
 
-  const categories = [
-    { value: 'general', label: 'Allgemeine Frage' },
-    { value: 'billing', label: 'Abrechnung & Zahlung' },
-    { value: 'technical', label: 'Technisches Problem' },
-    { value: 'leads', label: 'Lead-Bestand' },
-    { value: 'account', label: 'Konto & Profil' },
+  const faqs = [
+    {
+      q: 'Wie schnell antwortet der Support?',
+      a: 'Werktags in der Regel innerhalb eines Arbeitstages. Dringende Anfragen zu laufenden Terminen behandeln wir bevorzugt.',
+    },
+    {
+      q: 'Lead ungültig oder falsch?',
+      a: 'Reklamationen zu einzelnen Leads bitte direkt im Lead unter „Reklamation“ einreichen — inkl. Nachweis. Der Support hier ist für Portal, Konto und Abrechnung.',
+    },
+    {
+      q: 'Rechnung oder Paket',
+      a: 'Unter Mein Paket finden Sie Zahlungen und Rechnungen. Für Korrekturen senden Sie uns die Rechnungsnummer mit.',
+    },
   ];
 
-  async function handleSubmit(e) {
-    e.preventDefault();
-    setError('');
+  const company = user?.profile?.company || '';
+  const customerNumber = user?.customerNumber || '';
+  const display = displayName(user) || user?.email || '';
 
-    if (!form.subject.trim() || !form.message.trim()) {
-      setError('Bitte füllen Sie alle Pflichtfelder aus.');
+  function updateField(key, value) {
+    setForm((prev) => ({ ...prev, [key]: value }));
+    setSent(false);
+  }
+
+  async function addSupportFiles(fileList) {
+    const incoming = Array.from(fileList || []);
+    if (!incoming.length) return;
+    setSent(false);
+
+    const room = SUPPORT_ATTACH_MAX - files.length;
+    if (room <= 0) {
+      setError('Maximal 3 Dateien.');
+      return;
+    }
+
+    const sliced = incoming.slice(0, room);
+    try {
+      const parsed = [];
+      for (const file of sliced) {
+        parsed.push(await readProofFile(file));
+      }
+      setFiles((prev) => [
+        ...prev,
+        ...parsed.filter(Boolean).map((item, index) => ({
+          id: `${item.name}-${item.data.length}-${Date.now()}-${index}`,
+          name: item.name,
+          data: item.data,
+          type: String(item.data.match(/^data:([^;]+)/)?.[1] || '').toLowerCase(),
+        })),
+      ]);
+      setError(incoming.length > room
+        ? 'Maximal 3 Dateien — überzählige wurden nicht hinzugefügt.'
+        : '');
+    } catch (err) {
+      setError(err.message || 'Datei konnte nicht gelesen werden.');
+    }
+  }
+
+  function removeSupportFile(id) {
+    setFiles((prev) => prev.filter((file) => file.id !== id));
+  }
+
+  async function handleSubmit(event) {
+    event.preventDefault();
+    setError('');
+    setSent(false);
+
+    if (!form.subject.trim() || form.message.trim().length < 20) {
+      setError('Bitte geben Sie einen Betreff und eine Nachricht mit mindestens 20 Zeichen an.');
       return;
     }
 
     setSending(true);
     try {
       const session = readStoredSession();
-      const response = await fetch('/api/contact', {
+      const response = await fetch(apiUrl('/api/contact'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
         },
         body: JSON.stringify({
-          name: user?.fullName || user?.email || '',
+          name: display,
           email: user?.email || '',
+          phone: form.phone,
+          company,
+          customerNumber,
+          userId: user?.id || '',
           category: form.category,
+          priority: form.priority,
           subject: form.subject,
           message: form.message,
+          leadRef: form.leadRef,
+          pageUrl: typeof window !== 'undefined' ? window.location.href : '',
+          userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : '',
+          attachments: files.map((file) => ({
+            name: file.name,
+            type: file.type,
+            data: file.data,
+          })),
         }),
       });
 
+      const data = await response.json().catch(() => ({}));
       if (!response.ok) {
-        const data = await response.json();
         throw new Error(data.error || 'Nachricht konnte nicht gesendet werden.');
       }
 
-      showToast('Ihre Nachricht wurde erfolgreich gesendet.');
-      setForm({ subject: '', message: '', category: 'general' });
+      setSent(true);
+      setFiles([]);
+      setForm((prev) => ({ ...prev, subject: '', message: '', leadRef: '' }));
+      showToast('Ihre Nachricht wurde gesendet.');
     } catch (err) {
       setError(err.message || 'Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.');
     } finally {
@@ -2633,92 +2999,239 @@ export function BeraterSupport() {
     }
   }
 
+  const messageLen = form.message.trim().length;
+
   return (
     <div className="broker-page">
       <div className="broker-heading">
         <div>
           <div className="eyebrow">Support</div>
           <h1>Hilfe & <em>Kontakt</em></h1>
-          <p className="lede">Fragen zum Bestand, zur Abrechnung oder zum Konto — wir helfen weiter.</p>
+          <p className="lede">Fragen zum Bestand, zur Abrechnung oder zum Konto — wir antworten werktags.</p>
         </div>
       </div>
 
-      <section className="broker-panel">
-        <div className="broker-panel-header">
-          <div>
-            <h2>VANTARO Support</h2>
-            <p>Schreiben Sie uns, wir antworten werktags.</p>
+      <div className="broker-support-layout">
+        <section className="broker-panel">
+          <div className="broker-panel-header">
+            <div>
+              <h2>Nachricht an VANTARO</h2>
+              <p>Anliegen beschreiben — wir erhalten Ihre Kontodaten automatisch.</p>
+            </div>
           </div>
-        </div>
-        <div className="broker-panel-body">
-          <form onSubmit={handleSubmit} className="support-form">
-            {error && (
-              <div className="support-form-error">
-                <AlertCircle size={16} />
-                <span>{error}</span>
+          <div className="broker-panel-body">
+            {sent ? (
+              <div className="broker-support-success" role="status">
+                <span className="broker-support-success-icon" aria-hidden="true">
+                  <CheckCircle2 size={22} />
+                </span>
+                <div>
+                  <strong>Anfrage gesendet</strong>
+                  <p>Wir haben Ihre Nachricht erhalten und eine Bestätigung an {user?.email} geschickt.</p>
+                </div>
               </div>
-            )}
+            ) : null}
 
-            <div className="support-form-group">
-              <label htmlFor="category">Kategorie</label>
-              <select
-                id="category"
-                value={form.category}
-                onChange={(e) => setForm({ ...form, category: e.target.value })}
-                disabled={sending}
+            <form onSubmit={handleSubmit} className="broker-support-form">
+              {error ? (
+                <div className="broker-alert" role="alert">
+                  <AlertCircle size={16} />
+                  <span>{error}</span>
+                </div>
+              ) : null}
+
+              <div className="broker-support-fieldset">
+                <span className="broker-support-label">Priorität</span>
+                <div className="broker-support-priority" role="radiogroup" aria-label="Priorität">
+                  <button
+                    type="button"
+                    role="radio"
+                    aria-checked={form.priority === 'normal'}
+                    className={form.priority === 'normal' ? 'is-active' : undefined}
+                    disabled={sending}
+                    onClick={() => updateField('priority', 'normal')}
+                  >
+                    Normal
+                  </button>
+                  <button
+                    type="button"
+                    role="radio"
+                    aria-checked={form.priority === 'urgent'}
+                    className={`is-urgent${form.priority === 'urgent' ? ' is-active' : ''}`}
+                    disabled={sending}
+                    onClick={() => updateField('priority', 'urgent')}
+                  >
+                    <Flag size={14} />
+                    Dringend
+                  </button>
+                </div>
+              </div>
+
+              <div className="broker-form-grid">
+                <label className="is-full">
+                  Betreff
+                  <input
+                    value={form.subject}
+                    onChange={(event) => updateField('subject', event.target.value)}
+                    placeholder="z. B. Rechnung vom März oder Termin-Erinnerung"
+                    maxLength={140}
+                    disabled={sending}
+                    required
+                  />
+                </label>
+                <label>
+                  Rückrufnummer
+                  <input
+                    type="tel"
+                    value={form.phone}
+                    onChange={(event) => updateField('phone', event.target.value)}
+                    placeholder="Optional"
+                    disabled={sending}
+                  />
+                </label>
+                <label>
+                  Lead-Bezug
+                  <input
+                    value={form.leadRef}
+                    onChange={(event) => updateField('leadRef', event.target.value)}
+                    placeholder="Name oder ID, optional"
+                    disabled={sending}
+                  />
+                </label>
+                <label className="is-full">
+                  Nachricht
+                  <textarea
+                    className="broker-support-message"
+                    value={form.message}
+                    onChange={(event) => updateField('message', event.target.value)}
+                    placeholder="Was ist passiert, was erwarten Sie, und seit wann besteht das Thema?"
+                    rows={7}
+                    maxLength={4000}
+                    disabled={sending}
+                    required
+                  />
+                  <span className={`broker-support-count${messageLen < 20 ? ' is-short' : ''}`}>
+                    {messageLen} / 4000 · mindestens 20 Zeichen
+                  </span>
+                </label>
+              </div>
+
+              <div
+                className={`broker-support-upload${dragOver ? ' is-over' : ''}${files.length >= SUPPORT_ATTACH_MAX ? ' is-full' : ''}`}
+                onDragOver={(event) => {
+                  event.preventDefault();
+                  if (!sending && files.length < SUPPORT_ATTACH_MAX) setDragOver(true);
+                }}
+                onDragLeave={(event) => {
+                  if (!event.currentTarget.contains(event.relatedTarget)) setDragOver(false);
+                }}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  setDragOver(false);
+                  if (!sending) addSupportFiles(event.dataTransfer.files);
+                }}
               >
-                {categories.map((cat) => (
-                  <option key={cat.value} value={cat.value}>
-                    {cat.label}
-                  </option>
-                ))}
-              </select>
-            </div>
+                <span className="broker-support-label">Anhang</span>
+                <label className="broker-support-drop">
+                  <Paperclip size={18} aria-hidden="true" />
+                  <span>
+                    <strong>Dateien oder Bilder anhängen</strong>
+                    <small>PDF, JPG, PNG, WebP · max. 3 · 1,2 MB je Datei</small>
+                  </span>
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/gif,application/pdf"
+                    multiple
+                    disabled={sending || files.length >= SUPPORT_ATTACH_MAX}
+                    onChange={(event) => {
+                      addSupportFiles(event.target.files);
+                      event.target.value = '';
+                    }}
+                  />
+                </label>
+                {files.length ? (
+                  <ul className="broker-support-files">
+                    {files.map((file) => (
+                      <li key={file.id}>
+                        {file.type.startsWith('image/') ? (
+                          <img src={file.data} alt="" />
+                        ) : (
+                          <span className="broker-support-file-icon" aria-hidden="true">
+                            <FileCheck2 size={22} />
+                          </span>
+                        )}
+                        <span title={file.name}>{file.name}</span>
+                        <button
+                          type="button"
+                          onClick={() => removeSupportFile(file.id)}
+                          disabled={sending}
+                          aria-label={`${file.name} entfernen`}
+                        >
+                          <X size={14} />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </div>
 
-            <div className="support-form-group">
-              <label htmlFor="subject">Betreff *</label>
-              <input
-                id="subject"
-                type="text"
-                value={form.subject}
-                onChange={(e) => setForm({ ...form, subject: e.target.value })}
-                placeholder="z.B. Frage zur Abrechnung"
-                disabled={sending}
-                required
-              />
-            </div>
+              <div className="broker-support-actions">
+                <button type="submit" className="btn btn-primary" disabled={sending}>
+                  {sending ? 'Wird gesendet…' : (
+                    <>
+                      <Send size={16} />
+                      Nachricht senden
+                    </>
+                  )}
+                </button>
+                <p>Antwort an {user?.email || 'Ihre Konto-E-Mail'}.</p>
+              </div>
+            </form>
+          </div>
+        </section>
 
-            <div className="support-form-group">
-              <label htmlFor="message">Nachricht *</label>
-              <textarea
-                id="message"
-                value={form.message}
-                onChange={(e) => setForm({ ...form, message: e.target.value })}
-                placeholder="Beschreiben Sie Ihr Anliegen möglichst detailliert..."
-                rows={6}
-                disabled={sending}
-                required
-              />
+        <aside className="broker-support-aside">
+          <section className="broker-panel">
+            <div className="broker-panel-header">
+              <div>
+                <h2>Erreichbarkeit</h2>
+                <p>Montag bis Freitag, außer Feiertage.</p>
+              </div>
             </div>
+            <div className="broker-support-hours">
+              <div className="broker-support-hours-item">
+                <strong>Zeiten</strong>
+                <span>09:00 – 17:00 Uhr</span>
+              </div>
+              <a className="broker-support-card" href="mailto:info@vantaro.io">
+                <span className="broker-support-icon" aria-hidden="true">
+                  <Mail size={18} />
+                </span>
+                <div>
+                  <strong>E-Mail</strong>
+                  <span>info@vantaro.io</span>
+                </div>
+              </a>
+            </div>
+          </section>
 
-            <div className="support-form-actions">
-              <button type="submit" className="support-form-submit" disabled={sending}>
-                {sending ? (
-                  <>
-                    <span className="support-form-spinner" />
-                    Wird gesendet...
-                  </>
-                ) : (
-                  <>
-                    <MessageCircle size={18} />
-                    Nachricht senden
-                  </>
-                )}
-              </button>
+          <section className="broker-panel">
+            <div className="broker-panel-header">
+              <div>
+                <h2>Häufige Fragen</h2>
+              </div>
             </div>
-          </form>
-        </div>
-      </section>
+            <div className="broker-faq-list">
+              {faqs.map((item) => (
+                <details key={item.q} className="broker-faq-item">
+                  <summary>{item.q}</summary>
+                  <p>{item.a}</p>
+                </details>
+              ))}
+            </div>
+          </section>
+        </aside>
+      </div>
     </div>
   );
 }
@@ -2735,6 +3248,7 @@ export function BeraterLeadDetail() {
   const [draftStatus, setDraftStatus] = useState('');
   const [savingSchedule, setSavingSchedule] = useState(false);
   const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [outcomeOpen, setOutcomeOpen] = useState(false);
   const savingNotesRef = useRef(false);
 
   async function load() {
@@ -2781,6 +3295,7 @@ export function BeraterLeadDetail() {
     const payload = await updateLead(lead.id, contactUpdatePayload(statusId, {
       followUpAt: times.followUpAt,
       appointmentAt: times.appointmentAt,
+      closeOutcome: times.closeOutcome,
     }));
     setLead((current) => ({ ...current, ...payload.lead, complaint: current?.complaint }));
     setLeadStatus(lead.id, statusId);
@@ -2793,6 +3308,11 @@ export function BeraterLeadDetail() {
     if (statusId === 'wiedervorlage' || statusId === 'termin') {
       setDraftStatus(statusId);
       setScheduleOpen(true);
+      return;
+    }
+    if (statusId === 'abgeschlossen') {
+      setDraftStatus(statusId);
+      setOutcomeOpen(true);
       return;
     }
     setSavingSchedule(true);
@@ -2838,6 +3358,32 @@ export function BeraterLeadDetail() {
     }
   }
 
+  async function saveOutcome(outcomeId) {
+    setSavingSchedule(true);
+    setError('');
+    try {
+      await persistContact('abgeschlossen', { closeOutcome: outcomeId });
+      setOutcomeOpen(false);
+      showToast(
+        outcomeId === 'erfolgreich'
+          ? 'Lead als erfolgreich gespeichert.'
+          : 'Lead als nicht erfolgreich gespeichert.',
+      );
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSavingSchedule(false);
+    }
+  }
+
+  function closeOutcomeModal() {
+    if (savingSchedule) return;
+    setOutcomeOpen(false);
+    if (lead && draftStatus && pipelineStatusOf(lead, leadStatuses) !== draftStatus) {
+      setDraftStatus('');
+    }
+  }
+
   if (loading) {
     return <BootScreen caption="Lead wird geladen" />;
   }
@@ -2859,6 +3405,7 @@ export function BeraterLeadDetail() {
   const employment = lead.employmentStatus === 'sonstiges' && lead.employmentOther
     ? lead.employmentOther
     : employmentLabel(lead.employmentStatus);
+  const outcome = closeOutcomeOf(lead);
 
   return (
     <div className="broker-page">
@@ -3015,6 +3562,35 @@ export function BeraterLeadDetail() {
             />
           ) : null}
 
+          {view.status === 'abgeschlossen' ? (
+            <div className={`broker-detail-side-block broker-detail-schedule-summary${outcome ? ' is-active' : ''}`}>
+              <div className="broker-detail-wiedervorlage-head">
+                <span className="broker-detail-wiedervorlage-icon" aria-hidden="true">
+                  {outcome === 'fehlgeschlagen' ? <CircleX size={18} /> : <CircleCheck size={18} />}
+                </span>
+                <div>
+                  <h3>Abschluss</h3>
+                  <p>
+                    {outcome
+                      ? closeOutcomeLabel(outcome)
+                      : 'Bitte wählen, ob der Lead Kunde wurde oder nicht.'}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="btn btn-outline broker-calendar-save"
+                disabled={notesLocked || savingSchedule}
+                onClick={() => {
+                  setDraftStatus('abgeschlossen');
+                  setOutcomeOpen(true);
+                }}
+              >
+                {outcome ? 'Ergebnis ändern' : 'Ergebnis wählen'}
+              </button>
+            </div>
+          ) : null}
+
           <div className="broker-detail-side-block">
             <div className="broker-detail-section-head">
               <span className="broker-detail-section-icon" aria-hidden="true">
@@ -3073,6 +3649,15 @@ export function BeraterLeadDetail() {
           onClose={closeScheduleModal}
         />
       ) : null}
+      {outcomeOpen ? (
+        <LeadCloseOutcomeModal
+          leadName={lead.fullName}
+          value={outcome}
+          saving={savingSchedule}
+          onSave={saveOutcome}
+          onClose={closeOutcomeModal}
+        />
+      ) : null}
     </div>
   );
 }
@@ -3087,6 +3672,7 @@ export function BeraterPayments() {
   const [checkout, setCheckout] = useState(null);
   const [paying, setPaying] = useState(false);
   const [syncingId, setSyncingId] = useState('');
+  const [invoiceBusyId, setInvoiceBusyId] = useState('');
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
 
@@ -3193,6 +3779,19 @@ export function BeraterPayments() {
       setError(err.message);
     } finally {
       setSyncingId('');
+    }
+  };
+
+  const runInvoiceAction = async (paymentId, action) => {
+    if (!paymentId || invoiceBusyId) return;
+    setInvoiceBusyId(paymentId);
+    setError('');
+    try {
+      await action(paymentId);
+    } catch (err) {
+      setError(err.message || 'Rechnung konnte nicht geladen werden.');
+    } finally {
+      setInvoiceBusyId('');
     }
   };
 
@@ -3416,16 +4015,22 @@ export function BeraterPayments() {
                   <th>Zahlung</th>
                   <th>Status</th>
                   <th style={{ textAlign: 'right' }}>Betrag</th>
+                  <th className="broker-invoice-actions-col">Aktion</th>
                 </tr>
               </thead>
               <tbody>
                 {payments.map((invoice) => (
                   <tr key={invoice.id}>
                     <td>
-                      <span className="broker-invoice-id">
+                      <button
+                        type="button"
+                        className="broker-invoice-id"
+                        disabled={Boolean(invoiceBusyId)}
+                        onClick={() => runInvoiceAction(invoice.id, openPaymentInvoice)}
+                      >
                         <FileText size={14} />
                         {invoice.invoiceNumber}
-                      </span>
+                      </button>
                     </td>
                     <td>{formatDateTime(invoice.paidAt || invoice.createdAt)}</td>
                     <td>
@@ -3436,8 +4041,8 @@ export function BeraterPayments() {
                       <span>{formatCardMask(invoice)}</span>
                     </td>
                     <td>
-                      <span className={`broker-invoice-status${invoice.status === 'paid' ? ' is-paid' : ''}`}>
-                        {paymentStatusLabel(invoice.status)}
+                      <span className={`broker-invoice-status ${invoice.status === 'paid' ? 'is-paid' : 'is-unpaid'}`}>
+                        {invoice.status === 'paid' ? 'Bezahlt' : paymentStatusLabel(invoice.status)}
                       </span>
                       {invoice.status === 'pending' ? (
                         <button
@@ -3453,6 +4058,30 @@ export function BeraterPayments() {
                     </td>
                     <td style={{ textAlign: 'right' }}>
                       <strong className="broker-inv-amount">{formatEuroExact(invoice.netCents || invoice.grossCents)}</strong>
+                    </td>
+                    <td>
+                      <div className="broker-invoice-actions">
+                        <button
+                          type="button"
+                          className="broker-invoice-action"
+                          title="Rechnung öffnen"
+                          aria-label={`Rechnung ${invoice.invoiceNumber} öffnen`}
+                          disabled={Boolean(invoiceBusyId)}
+                          onClick={() => runInvoiceAction(invoice.id, openPaymentInvoice)}
+                        >
+                          <FileText size={15} />
+                        </button>
+                        <button
+                          type="button"
+                          className="broker-invoice-action"
+                          title="Rechnung herunterladen"
+                          aria-label={`Rechnung ${invoice.invoiceNumber} herunterladen`}
+                          disabled={Boolean(invoiceBusyId)}
+                          onClick={() => runInvoiceAction(invoice.id, downloadPaymentInvoice)}
+                        >
+                          <Download size={15} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -3493,6 +4122,7 @@ function ProfileNav({ active }) {
     { id: 'profil', to: hrefFor('profil', '/dashboard/profil'), label: 'Profil', icon: User },
     { id: 'unternehmen', to: hrefFor('unternehmen', '/dashboard/unternehmen'), label: 'Unternehmen', icon: Building2 },
     { id: 'sicherheit', to: '/dashboard/sicherheit', label: 'Sicherheit', icon: Shield },
+    { id: 'einstellungen', to: '/dashboard/einstellungen', label: 'Einstellungen', icon: Settings },
   ];
 
   return (
@@ -3514,6 +4144,7 @@ function ProfileNav({ active }) {
           </Link>
         );
       })}
+      <ThemeMode variant="nav" />
     </nav>
   );
 }
@@ -3840,7 +4471,7 @@ export function BeraterProfile() {
   useEffect(() => {
     setForm(personalForm(user));
     setAvatarName('');
-  }, [user]);
+  }, [user?.id, user?.firstName, user?.lastName, user?.phone, user?.avatarUrl]);
 
   const previewInitials = initials({
     firstName: form.firstName,
@@ -3898,7 +4529,7 @@ export function BeraterProfile() {
   return (
     <SettingsShell
       active="profil"
-      title={<>Pro<em>fil</em></>}
+      title="Profil"
       lede="So erscheinen Sie im Portal — Bild, Name und Erreichbarkeit."
     >
       <form className="broker-panel broker-settings broker-settings--wide broker-settings--profile" onSubmit={save}>
@@ -4389,6 +5020,262 @@ export function BeraterSecurity() {
       </section>
 
       <ChangePasswordModal open={modalOpen} onClose={() => setModalOpen(false)} />
+    </SettingsShell>
+  );
+}
+
+function SettingSwitch({ id, checked, onChange, disabled, label, hint }) {
+  return (
+    <label className={`broker-setting-row${disabled ? ' is-disabled' : ''}`} htmlFor={id}>
+      <span>
+        <strong>{label}</strong>
+        {hint ? <small>{hint}</small> : null}
+      </span>
+      <span className="cookie-switch">
+        <input
+          id={id}
+          type="checkbox"
+          checked={checked}
+          disabled={disabled}
+          onChange={(event) => onChange(event.target.checked)}
+        />
+        <i />
+      </span>
+    </label>
+  );
+}
+
+function writeCookiePrefs(prefs) {
+  const payload = {
+    ...DEFAULT_PREFS,
+    ...prefs,
+    necessary: true,
+    updatedAt: new Date().toISOString(),
+  };
+  try {
+    localStorage.setItem(CONSENT_STORAGE_KEY, JSON.stringify(payload));
+  } catch {
+    /* ignore */
+  }
+  applyConsent(payload);
+  window.dispatchEvent(new CustomEvent('vantaro:consent', { detail: payload }));
+  return payload;
+}
+
+export function BeraterSettings() {
+  const { user, updateProfile } = useAuth();
+  const { showToast } = useBroker();
+  const [prefs, setPrefs] = useState(readBrokerSettings);
+  const [cookies, setCookies] = useState(() => readStoredConsent() || DEFAULT_PREFS);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [browserNote, setBrowserNote] = useState('');
+
+  useEffect(() => subscribeBrokerSettings(setPrefs), []);
+
+  useEffect(() => {
+    if (user?.settings) setPrefs(writeBrokerSettings(user.settings));
+  }, [user?.id]);
+
+  useEffect(() => {
+    const saved = readStoredConsent();
+    if (saved) setCookies(saved);
+    function onConsent(event) {
+      if (event.detail) setCookies({ ...DEFAULT_PREFS, ...event.detail, necessary: true });
+    }
+    window.addEventListener('vantaro:consent', onConsent);
+    return () => window.removeEventListener('vantaro:consent', onConsent);
+  }, []);
+
+  async function applyPrefs(partial) {
+    const next = writeBrokerSettings(partial);
+    setPrefs(next);
+    setError('');
+    setSaving(true);
+    try {
+      await updateProfile({ settings: next });
+      return true;
+    } catch (err) {
+      setError(err.message || 'Einstellungen konnten nicht gespeichert werden.');
+      return false;
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function toggleBrowserAlerts(next) {
+    setBrowserNote('');
+    if (next) {
+      if (typeof Notification === 'undefined') {
+        setBrowserNote('Dieser Browser unterstützt keine Desktop-Benachrichtigungen.');
+        return;
+      }
+      let permission = Notification.permission;
+      if (permission === 'default') {
+        permission = await Notification.requestPermission();
+      }
+      if (permission !== 'granted') {
+        setBrowserNote('Bitte Benachrichtigungen in den Browser-Einstellungen zulassen.');
+        await applyPrefs({ browserAlerts: false });
+        return;
+      }
+    }
+    await applyPrefs({ browserAlerts: next });
+    if (next) showToast('Browser-Benachrichtigungen sind aktiv.');
+  }
+
+  function toggleCookie(key, value) {
+    const next = writeCookiePrefs({ ...cookies, [key]: value });
+    setCookies(next);
+  }
+
+  return (
+    <SettingsShell
+      active="einstellungen"
+      title="Einstellungen"
+      lede="Hinweise, Kalender und Datenschutz — so steuern Sie Ihr Portal."
+    >
+      <div className="broker-panel broker-settings broker-settings--wide">
+        {error ? (
+          <div className="broker-alert" role="alert">
+            <AlertCircle size={16} />
+            <span>{error}</span>
+          </div>
+        ) : null}
+
+        <section className="broker-settings-section">
+          <header>
+            <h3>
+              <span className="broker-settings-section__icon" aria-hidden="true">
+                <Bell size={16} strokeWidth={2.2} />
+              </span>
+              Benachrichtigungen
+            </h3>
+            <p>Legen Sie fest, wofür Sie Hinweise bekommen — oder schalten Sie sie komplett aus.</p>
+          </header>
+          <div className="broker-setting-rows">
+            <SettingSwitch
+              id="setting-termin"
+              checked={prefs.terminAlerts}
+              disabled={saving}
+              onChange={(checked) => applyPrefs({ terminAlerts: checked })}
+              label="Neue Termine"
+              hint="Mail, Glocke und Kalender, wenn ein Termin gelegt wird oder näher rückt."
+            />
+            <SettingSwitch
+              id="setting-wiedervorlage"
+              checked={prefs.wiedervorlageAlerts}
+              disabled={saving}
+              onChange={(checked) => applyPrefs({ wiedervorlageAlerts: checked })}
+              label="Neue Wiedervorlagen"
+              hint="Mail, Glocke und Kalender, wenn eine Wiedervorlage gelegt wird oder näher rückt."
+            />
+            <SettingSwitch
+              id="setting-toast"
+              checked={prefs.toastAlerts}
+              disabled={saving}
+              onChange={(checked) => applyPrefs({ toastAlerts: checked })}
+              label="Hinweise in der Glocke"
+              hint="Rote Markierung und Kurzhinweis im Portal, wenn ein Termin näher rückt."
+            />
+            <SettingSwitch
+              id="setting-browser"
+              checked={prefs.browserAlerts}
+              disabled={saving}
+              onChange={toggleBrowserAlerts}
+              label="Browser-Benachrichtigungen"
+              hint="Meldung auf dem Rechner, auch wenn das Portal im Hintergrund liegt."
+            />
+            {browserNote ? <p className="broker-setting-note">{browserNote}</p> : null}
+            <SettingSwitch
+              id="setting-email"
+              checked={prefs.emailReminders}
+              disabled={saving}
+              onChange={(checked) => applyPrefs({ emailReminders: checked })}
+              label="E-Mail-Erinnerungen"
+              hint="Eine Mail 1 Stunde vorher, eine weitere 15 Minuten vorher."
+            />
+          </div>
+        </section>
+
+        <section className="broker-settings-section">
+          <header>
+            <h3>
+              <span className="broker-settings-section__icon" aria-hidden="true">
+                <CalendarClock size={16} strokeWidth={2.2} />
+              </span>
+              Google Kalender
+            </h3>
+            <p>
+              Termine und Wiedervorlagen gehen als Kalendereinladung an Ihre Konto-E-Mail und erscheinen in Google Kalender. Trennen Sie die Verbindung, wenn das nicht mehr geschehen soll.
+            </p>
+          </header>
+          <div className="broker-setting-connect">
+            <div>
+              <span className={`broker-setting-status${prefs.googleCalendar ? ' is-on' : ''}`}>
+                {prefs.googleCalendar ? 'Verbunden' : 'Nicht verbunden'}
+              </span>
+              <p>
+                {prefs.googleCalendar
+                  ? `Einladungen gehen an ${user?.email || 'Ihre Konto-E-Mail'}. Speichern Sie einen Termin oder eine Wiedervorlage erneut, damit der Eintrag im Kalender erscheint.`
+                  : 'Nicht verbunden. Termine bleiben nur im Portal — ohne Einladung an Google Kalender.'}
+              </p>
+            </div>
+            <button
+              type="button"
+              className={prefs.googleCalendar ? 'btn btn-outline' : 'btn btn-primary'}
+              disabled={saving}
+              onClick={async () => {
+                const next = !prefs.googleCalendar;
+                const ok = await applyPrefs({ googleCalendar: next });
+                if (ok) {
+                  showToast(next
+                    ? 'Google Kalender ist verbunden.'
+                    : 'Google Kalender wurde getrennt.');
+                }
+              }}
+            >
+              {prefs.googleCalendar ? 'Verbindung trennen' : 'Google Kalender verbinden'}
+            </button>
+          </div>
+        </section>
+
+        <section className="broker-settings-section">
+          <header>
+            <h3>
+              <span className="broker-settings-section__icon" aria-hidden="true">
+                <Cookie size={16} strokeWidth={2.2} />
+              </span>
+              Datenschutz
+            </h3>
+            <p>Notwendige Cookies bleiben immer aktiv. Statistik und Marketing können Sie abwählen.</p>
+          </header>
+          <div className="broker-setting-rows">
+            <SettingSwitch
+              id="setting-cookie-necessary"
+              checked
+              disabled
+              onChange={() => {}}
+              label="Notwendig"
+              hint="Anmeldung, Sicherheit und grundlegende Funktionen."
+            />
+            <SettingSwitch
+              id="setting-cookie-analytics"
+              checked={Boolean(cookies.analytics)}
+              onChange={(checked) => toggleCookie('analytics', checked)}
+              label="Statistik"
+              hint="Hilft uns zu verstehen, wie das Portal genutzt wird."
+            />
+            <SettingSwitch
+              id="setting-cookie-marketing"
+              checked={Boolean(cookies.marketing)}
+              onChange={(checked) => toggleCookie('marketing', checked)}
+              label="Marketing"
+              hint="Optional für eingebettete Inhalte und Messung."
+            />
+          </div>
+        </section>
+      </div>
     </SettingsShell>
   );
 }

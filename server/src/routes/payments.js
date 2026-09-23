@@ -4,11 +4,13 @@ import { ROLES } from '../lib/roles.js';
 import {
   checkoutLeadPackage,
   completePaymentReturn,
+  getPaymentForViewer,
   listAllPayments,
   listMyPayments,
   paymentTableMissing,
   syncMyPayment,
 } from '../lib/payments.js';
+import { buildInvoicePdf, invoiceDownloadName } from '../lib/invoice.js';
 import { handleLeadError, tableMissingResponse } from '../lib/leads.js';
 
 const router = Router();
@@ -59,6 +61,21 @@ router.get('/mine', async (req, res) => {
     }
     const payments = await listMyPayments(req.user.id);
     res.json({ payments });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+router.get('/:id/invoice', async (req, res) => {
+  try {
+    const payment = await getPaymentForViewer(req.user, req.params.id);
+    const download = ['1', 'true', 'download'].includes(String(req.query.download || '').toLowerCase());
+    const filename = invoiceDownloadName(payment);
+    const pdf = buildInvoicePdf(payment);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `${download ? 'attachment' : 'inline'}; filename="${filename}"`);
+    res.setHeader('Cache-Control', 'private, no-store');
+    res.send(pdf);
   } catch (error) {
     handleError(res, error);
   }

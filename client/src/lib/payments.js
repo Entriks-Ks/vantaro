@@ -37,6 +37,66 @@ export async function checkoutLeadPackage(payload) {
   return parseResponse(response);
 }
 
+async function fetchPaymentInvoice(paymentId, { download = false } = {}) {
+  const qs = download ? '?download=1' : '';
+  const response = await fetch(
+    apiUrl(`/api/payments/${encodeURIComponent(paymentId)}/invoice${qs}`),
+    { headers: authHeaders() },
+  );
+  const type = response.headers.get('content-type') || '';
+  if (!response.ok) {
+    const payload = type.includes('json') ? await response.json().catch(() => ({})) : {};
+    throw new Error(payload.error || 'Rechnung konnte nicht geladen werden.');
+  }
+  const blob = await response.blob();
+  const disposition = response.headers.get('content-disposition') || '';
+  const match = disposition.match(/filename="?([^"]+)"?/i);
+  return {
+    blob,
+    filename: match?.[1] || 'Rechnung.pdf',
+  };
+}
+
+function revokeLater(url) {
+  window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
+
+/** Open the invoice PDF in a new tab. Falls back to download if the popup is blocked. */
+export async function openPaymentInvoice(paymentId) {
+  const preview = window.open('', '_blank');
+  try {
+    const { blob, filename } = await fetchPaymentInvoice(paymentId);
+    const url = URL.createObjectURL(blob);
+    if (preview) {
+      preview.location.replace(url);
+    } else {
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    }
+    revokeLater(url);
+  } catch (error) {
+    preview?.close();
+    throw error;
+  }
+}
+
+/** Download the invoice PDF to the user's device. */
+export async function downloadPaymentInvoice(paymentId) {
+  const { blob, filename } = await fetchPaymentInvoice(paymentId, { download: true });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  revokeLater(url);
+}
+
 /** Re-check a pending payment with the gateway (e.g. after closing the bank tab). */
 export async function syncMyPayment(paymentId) {
   const response = await fetch(apiUrl(`/api/payments/${encodeURIComponent(paymentId)}/sync`), {

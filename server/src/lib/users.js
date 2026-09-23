@@ -284,6 +284,10 @@ export function toDirectoryUser(user) {
     verified: isEmailVerified(user),
     onboardingComplete: metadata.onboarding_complete === true,
     createdAt: user.created_at || null,
+    emailReminders: metadata.settings?.emailReminders !== false,
+    googleCalendar: metadata.settings?.googleCalendar !== false,
+    terminAlerts: metadata.settings?.terminAlerts !== false,
+    wiedervorlageAlerts: metadata.settings?.wiedervorlageAlerts !== false,
   };
 }
 

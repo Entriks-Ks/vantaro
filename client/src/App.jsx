@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useLayoutEffect } from 'react';
 import { BrowserRouter, Navigate, Routes, Route, useLocation } from 'react-router-dom';
 import Header from './components/Header';
 import Hero from './components/Hero';
@@ -20,10 +20,24 @@ import { AuthProvider, useAuth } from './hooks/useAuth';
 import useSectionReveal from './hooks/useSectionReveal';
 import Preloader from './components/Preloader';
 import { documentTitle } from './pages/dashboard/helpers';
+import { applyTheme, readThemePreference, setThemeAudience, subscribeTheme, writeThemePreference } from './lib/theme';
+
+function ThemeSync() {
+  const { user, loading, isAdmin } = useAuth();
+
+  useEffect(() => subscribeTheme(() => {}), []);
+
+  useEffect(() => {
+    if (loading || !user || isAdmin || !user.settings?.appearance) return;
+    writeThemePreference(user.settings.appearance);
+  }, [loading, isAdmin, user, user?.id, user?.settings?.appearance]);
+
+  return null;
+}
 
 function AppContent() {
   const location = useLocation();
-  const { isAdmin } = useAuth();
+  const { isAdmin, loading } = useAuth();
   const isImpressum = location.hash === '#impressum' || location.pathname === '/impressum';
   const isDatenschutz = location.hash === '#datenschutz' || location.pathname === '/datenschutz';
   const isLogin = location.pathname === '/login';
@@ -36,6 +50,13 @@ function AppContent() {
   const isLegal = isImpressum || isDatenschutz;
   const isAuth = isLogin || isAuthCallback || isRegister || isForgotPassword || isResetPassword || isVerifyEmail;
   const isAppShell = isAuth || isDashboard;
+
+  useLayoutEffect(() => {
+    if (loading) setThemeAudience('pending');
+    else if (isAdmin) setThemeAudience('admin');
+    else setThemeAudience('app');
+    applyTheme(readThemePreference());
+  }, [loading, isAdmin, location.pathname, location.hash]);
 
   useSectionReveal([location.pathname, location.hash, isLegal]);
 
@@ -64,6 +85,7 @@ function AppContent() {
 
   return (
     <>
+      <ThemeSync />
       <Preloader />
       {!isAppShell && <Header solid={isLegal} />}
       <Routes>
