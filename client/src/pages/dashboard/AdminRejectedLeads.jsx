@@ -96,7 +96,7 @@ function InvalidLeadDrawer({ complaint, saving, onRestoreRequest, onClose, from 
             ) : null}
           </div>
 
-          <p className="dash-complaint-reason">{complaintReasonLabel(complaint.reason)}</p>
+          <p className="dash-complaint-reason">{complaintReasonLabel(complaint.reason, lead?.vertical)}</p>
 
           {complaint.comment ? (
             <blockquote className="dash-complaint-quote">
@@ -288,7 +288,7 @@ export function AdminRejectedLeads() {
                     <strong>{lead?.fullName || 'Lead'}</strong>
                     <span className="dash-lead-row-sub">{beraterName(complaint)}</span>
                     <span className="dash-lead-row-tags">
-                      {complaintReasonLabel(complaint.reason)}
+                      {complaintReasonLabel(complaint.reason, lead?.vertical)}
                       {complaint.replacementLead?.fullName
                         ? ` · Ersatz: ${complaint.replacementLead.fullName}`
                         : ''}

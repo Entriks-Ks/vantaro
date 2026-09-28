@@ -1,56 +1,67 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Check, ChevronRight, Flag, KeyRound, Mail, UserPlus, X } from 'lucide-react';
-import { useAuth } from '../../hooks/useAuth';
-import { COMPLAINT_COMMENT_MIN } from '../../lib/complaints';
+import { Link } from 'react-router-dom';
 import {
-  ENERGY_COMPLAINT_REASONS,
-  ENERGY_COMPLAINT_STATUS,
+  KeyRound,
+  Mail,
+  UserPlus,
+  Users,
+  X,
+} from 'lucide-react';
+import { useAuth } from '../../hooks/useAuth';
+import {
   ENERGY_DEFAULT_PAGE_IDS,
   ENERGY_PAGE_OPTIONS,
   ENERGY_ROLE_LABELS,
-  ENERGY_STATUS_LABELS,
   assignEnergyHolder,
   createEnergyPartner,
-  decideEnergyComplaint,
-  fetchEnergyBilling,
-  fetchEnergyComplaints,
   fetchEnergyPartners,
-  invoiceEnergyLines,
-  openEnergyComplaint,
-  saveEnergyBilling,
-  setEnergyOutcome,
   updateEnergyPartner,
 } from '../../lib/energy';
-import { energyTypeLabel, energyLeadTypeOf } from '../../lib/vertical';
-import { formatDate, formatDateTime, initials } from './helpers';
-
-function money(value) {
-  if (value == null || Number.isNaN(Number(value))) return 'nicht hinterlegt';
-  return `${Number(value).toLocaleString('de-DE', { minimumFractionDigits: 2 })} €`;
-}
+import { initials } from './helpers';
 
 export function EnergyLeadActions({ lead, onChange }) {
   const { user, isAdmin } = useAuth();
   const role = user?.energyRole || 'main';
+  const canAssign = role === 'main' || role === 'dispatcher' || isAdmin;
   const [partners, setPartners] = useState([]);
+  const [partnersState, setPartnersState] = useState(canAssign ? 'loading' : 'idle');
+  const [partnersError, setPartnersError] = useState('');
   const [holderId, setHolderId] = useState(lead.energyHolderId || '');
-  const [when, setWhen] = useState('');
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => {
-    if (role !== 'main' && role !== 'dispatcher' && !isAdmin) return undefined;
-    fetchEnergyPartners().then((payload) => setPartners(payload.partners || [])).catch(() => {});
-    return undefined;
-  }, [role, isAdmin]);
+  const loadPartners = () => {
+    setPartnersState('loading');
+    setPartnersError('');
+    fetchEnergyPartners()
+      .then((payload) => {
+        setPartners(payload.partners || []);
+        setPartnersState('ready');
+      })
+      .catch((err) => {
+        setPartnersError(err.message || 'Partner konnten nicht geladen werden.');
+        setPartnersState('error');
+      });
+  };
 
-  const run = async (task) => {
+  useEffect(() => {
+    if (canAssign) loadPartners();
+  }, [canAssign]);
+
+  useEffect(() => {
+    setHolderId(lead.energyHolderId || '');
+  }, [lead.energyHolderId]);
+
+  const run = async (task, successMessage) => {
     setError('');
+    setNotice('');
     setBusy(true);
     try {
       const payload = await task();
       if (payload?.lead) onChange(payload.lead);
+      if (successMessage) setNotice(successMessage);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -58,301 +69,83 @@ export function EnergyLeadActions({ lead, onChange }) {
     }
   };
 
-  const canAssign = role === 'main' || role === 'dispatcher' || isAdmin;
-  const canOutcome = role === 'field_rep' || role === 'sub_partner' || canAssign;
+  if (!canAssign) return null;
+
+  const assignable = partners.filter((partner) => partner.active !== false || partner.id === lead.energyHolderId);
+  const selected = partners.find((partner) => partner.id === holderId);
+  const holder = partners.find((partner) => partner.id === lead.energyHolderId);
+  const isAssigned = Boolean(lead.energyHolderId);
 
   return (
-    <section className="broker-panel broker-detail-section">
+    <div className="broker-detail-side-block energy-actions">
       <div className="broker-detail-section-head">
+        <span className="broker-detail-section-icon" aria-hidden="true"><Users size={18} /></span>
         <div>
-          <h2>Bearbeitung</h2>
-          <p>Zuweisen oder den Stand setzen</p>
+          <h2>Bearbeitung durch</h2>
+          <p>{isAssigned ? `Aktuell bei ${holder?.fullName || 'einem Partner'}` : 'Noch bei Ihrer Firma'}</p>
         </div>
       </div>
-      <p>Status: {ENERGY_STATUS_LABELS[lead.energyStatus] || 'Zugewiesen'}</p>
       {error ? <div className="broker-alert">{error}</div> : null}
-      {canAssign ? (
-        <form className="broker-form-grid" onSubmit={(event) => {
-          event.preventDefault();
-          run(() => assignEnergyHolder(lead.id, holderId));
-        }}>
-          <label>
-            An Unterpartner oder Außendienst
-            <select value={holderId} onChange={(event) => setHolderId(event.target.value)} required>
-              <option value="">Bitte wählen</option>
-              {partners.filter((partner) => partner.active !== false).map((partner) => (
+      {notice ? <div className="broker-alert broker-alert--ok">{notice}</div> : null}
+
+      <form className="energy-actions__group" onSubmit={(event) => {
+        event.preventDefault();
+        if (!holderId || holderId === lead.energyHolderId) return;
+        run(
+          () => assignEnergyHolder(lead.id, holderId),
+          `${isAssigned ? 'Neu zugewiesen' : 'Zugewiesen'} an ${selected?.fullName || 'Partner'}.`,
+        );
+      }}>
+        <label className="energy-actions__label" htmlFor={`energy-holder-${lead.id}`}>
+          {isAssigned ? 'Zuweisung ändern' : 'Zuweisen an'}
+        </label>
+        {partnersState === 'error' ? (
+          <div className="energy-actions__empty is-error">
+            <span>{partnersError}</span>
+            <button type="button" className="broker-text-btn" onClick={loadPartners}>Erneut laden</button>
+          </div>
+        ) : partnersState === 'ready' && assignable.length === 0 ? (
+          <div className="energy-actions__empty">
+            <span>Noch keine aktiven Unterpartner oder Außendienst-Zugänge.</span>
+            {role === 'main' ? <Link className="broker-text-btn" to="/dashboard/team">Partner anlegen</Link> : null}
+          </div>
+        ) : (
+          <div className="energy-actions__row energy-actions__row--inline">
+            <select
+              id={`energy-holder-${lead.id}`}
+              className="energy-actions__control"
+              value={holderId}
+              onChange={(event) => {
+                setHolderId(event.target.value);
+                setNotice('');
+              }}
+              disabled={busy || partnersState === 'loading'}
+              required
+            >
+              <option value="">
+                {partnersState === 'loading' ? 'Wird geladen…' : 'Partner wählen'}
+              </option>
+              {assignable.map((partner) => (
                 <option key={partner.id} value={partner.id}>
-                  {partner.fullName} · {ENERGY_ROLE_LABELS[partner.energyRole]}
+                  {partner.fullName} · {ENERGY_ROLE_LABELS[partner.energyRole] || partner.energyRole}
+                  {partner.id === lead.energyHolderId ? ' (aktuell)' : ''}
+                  {partner.active === false ? ' – inaktiv' : ''}
                 </option>
               ))}
             </select>
-          </label>
-          <button className="dash-btn" type="submit" disabled={busy}>Zuweisen</button>
-        </form>
-      ) : null}
-      {canOutcome ? (
-        <div className="energy-card-list">
-          {[
-            ['CONFIRMED', 'Start'],
-            ['COMPLETED', 'Abgeschlossen'],
-            ['NO_SHOW', 'Nicht erschienen'],
-            ['FOLLOW_UP', 'Wiedervorlage'],
-          ].map(([status, label]) => (
-            <button key={status} type="button" className="dash-btn dash-btn--ghost" disabled={busy} onClick={() => run(() => setEnergyOutcome(lead.id, { status }))}>
-              {label}
-            </button>
-          ))}
-          {canAssign ? (
-            <button type="button" className="dash-btn dash-btn--ghost" disabled={busy} onClick={() => run(() => setEnergyOutcome(lead.id, { status: 'CANCELLED' }))}>
-              Absagen
-            </button>
-          ) : null}
-        </div>
-      ) : null}
-      {lead.deliveryType === 'appointment' ? (
-        <form className="broker-form-grid" onSubmit={(event) => {
-          event.preventDefault();
-          run(() => setEnergyOutcome(lead.id, { status: 'FOLLOW_UP', appointmentAt: new Date(when).toISOString() }));
-        }}>
-          <label>
-            Termin verschieben
-            <input type="datetime-local" value={when} onChange={(event) => setWhen(event.target.value)} required />
-          </label>
-          <button className="dash-btn" type="submit" disabled={busy}>Verschieben</button>
-        </form>
-      ) : null}
-    </section>
-  );
-}
-
-function complaintTone(status) {
-  if (status === 'approved' || status === 'replacement') return 'gutgeschrieben';
-  if (status === 'partial') return 'teilweise';
-  if (status === 'rejected') return 'abgelehnt';
-  return 'in_pruefung';
-}
-
-function shortLeadId(id) {
-  const value = String(id || '');
-  return value ? value.slice(0, 8).toUpperCase() : '—';
-}
-
-export function EnergyLeadReport({ lead, onChange }) {
-  const { isAdmin } = useAuth();
-  const complaint = lead?.complaint;
-  const pending = complaint?.status === 'pending';
-  const [open, setOpen] = useState(false);
-  const [step, setStep] = useState(1);
-  const [reason, setReason] = useState('');
-  const [comment, setComment] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
-  const detailRef = useRef(null);
-  const selected = ENERGY_COMPLAINT_REASONS.find((item) => item.id === reason);
-  const detailLen = comment.trim().length;
-
-  const closeModal = () => {
-    setOpen(false);
-    setStep(1);
-    setReason('');
-    setComment('');
-    setError('');
-  };
-
-  const submit = async (event) => {
-    event.preventDefault();
-    if (step === 1) {
-      if (reason) setStep(2);
-      return;
-    }
-    if (detailLen < COMPLAINT_COMMENT_MIN) return;
-    setSaving(true);
-    setError('');
-    try {
-      await openEnergyComplaint(lead.id, { reason, comment: comment.trim() });
-      const { fetchLead } = await import('../../lib/leads');
-      const payload = await fetchLead(lead.id);
-      if (payload.lead) onChange?.(payload.lead);
-      closeModal();
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const decide = async (status) => {
-    if (!complaint || saving) return;
-    setSaving(true);
-    setError('');
-    try {
-      await decideEnergyComplaint(complaint.id, status);
-      const { fetchLead } = await import('../../lib/leads');
-      const payload = await fetchLead(lead.id);
-      if (payload.lead) onChange?.(payload.lead);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const modal = open ? (
-    <div className="broker-modal broker-report-modal-wrap" role="dialog" aria-modal="true" aria-labelledby={`energy-report-${lead.id}`}>
-      <button type="button" className="broker-modal__backdrop" aria-label="Schließen" onClick={saving ? undefined : closeModal} disabled={saving} />
-      <form className={`broker-modal__panel broker-report-modal${step === 2 ? ' is-step-2' : ''}`} onSubmit={submit}>
-        <div className="broker-report-modal__head">
-          <div className="broker-report-modal__intro">
-            <span className="broker-report-modal__badge">Reklamation</span>
-            <h2 id={`energy-report-${lead.id}`}>Reklamation einreichen</h2>
-            {lead.fullName ? <p className="broker-report-modal__lead">{lead.fullName}</p> : null}
-            <p className="broker-report-modal__hint">Nur bei den Energie-Gründen. VANTARO prüft den Fall und entscheidet über Gutschrift oder Ersatz.</p>
-            <div className="broker-report-progress" aria-label={`Schritt ${step} von 2`}>
-              <span className={step === 1 ? 'is-current' : 'is-done'}><span>1</span>Grund</span>
-              <span aria-hidden="true" className={`broker-report-progress__rail${step > 1 ? ' is-done' : ''}`} />
-              <span className={step === 2 ? 'is-current' : undefined}><span>2</span>Angaben</span>
-            </div>
-          </div>
-          <button type="button" className="broker-report-close" onClick={saving ? undefined : closeModal} aria-label="Schließen"><X size={18} /></button>
-        </div>
-        <div className="broker-report-modal__body">
-          {error ? <div className="broker-alert">{error}</div> : null}
-          {step === 1 ? (
-            <section className="broker-report-step">
-              <div className="broker-report-step__copy">
-                <h3>Grund wählen</h3>
-                <p>Akzeptierte Gründe für Photovoltaik und Wärmepumpe</p>
-              </div>
-              <div className="broker-report-reasons" role="radiogroup" aria-label="Grund der Reklamation">
-                {ENERGY_COMPLAINT_REASONS.map((option) => {
-                  const active = reason === option.id;
-                  return (
-                    <label key={option.id} className={active ? 'is-selected' : undefined}>
-                      <input
-                        type="radio"
-                        className="broker-report-reason-input"
-                        name={`energy-report-${lead.id}`}
-                        value={option.id}
-                        checked={active}
-                        disabled={saving}
-                        onChange={() => setReason(option.id)}
-                      />
-                      <span className="broker-report-reason-card">
-                        <span className="broker-report-reason-check" aria-hidden="true">{active ? <Check size={14} strokeWidth={2.5} /> : null}</span>
-                        <span className="broker-report-reason-copy">
-                          <strong>{option.label}</strong>
-                          <small>{option.hint}</small>
-                        </span>
-                      </span>
-                    </label>
-                  );
-                })}
-              </div>
-            </section>
-          ) : (
-            <section className="broker-report-step">
-              <div className="broker-report-step__copy">
-                <h3>Angaben zur Reklamation</h3>
-                <p>Diese Lead-Daten werden automatisch mitgeschickt. Ergänzen Sie eine kurze Begründung.</p>
-              </div>
-              {selected ? (
-                <button type="button" className="broker-report-chosen" onClick={() => setStep(1)} disabled={saving}>
-                  <span><small>Gewählter Grund</small><strong>{selected.label}</strong></span>
-                  <em>Ändern</em>
-                </button>
-              ) : null}
-              <dl className="broker-report-facts">
-                <div><dt>Lead-ID</dt><dd>{shortLeadId(lead.id)}</dd></div>
-                <div><dt>Paket</dt><dd>{energyTypeLabel(energyLeadTypeOf(lead))}</dd></div>
-                <div><dt>Übergabe</dt><dd>{formatDateTime(lead.assignedAt)}</dd></div>
-                <div><dt>Art</dt><dd>{lead.deliveryType === 'appointment' ? 'Termin' : 'Lead'}</dd></div>
-                <div className="is-wide"><dt>Adresse</dt><dd>{[lead.street, lead.houseNumber, lead.zip, lead.city, lead.state].filter(Boolean).join(', ') || 'Keine Adresse'}</dd></div>
-                {lead.appointmentAt ? <div className="is-wide"><dt>Termin</dt><dd>{formatDateTime(lead.appointmentAt)}</dd></div> : null}
-              </dl>
-              <label className="broker-report-detail-field" htmlFor={`energy-report-detail-${lead.id}`}>
-                <span>Kurze Begründung</span>
-                <textarea
-                  ref={detailRef}
-                  id={`energy-report-detail-${lead.id}`}
-                  className="broker-report-detail"
-                  value={comment}
-                  onChange={(event) => setComment(event.target.value)}
-                  placeholder={selected?.placeholder || 'Beschreiben Sie den Mangel möglichst konkret…'}
-                  rows={5}
-                  disabled={saving}
-                  required
-                />
-                <span className={`broker-report-detail-meta${detailLen < COMPLAINT_COMMENT_MIN ? ' is-short' : ' is-ok'}`}>
-                  <strong>{detailLen}</strong><span>/</span><span>{COMPLAINT_COMMENT_MIN}</span><em>Zeichen min.</em>
-                </span>
-              </label>
-            </section>
-          )}
-        </div>
-        <div className="broker-report-modal__footer">
-          <div className={`broker-report-actions${step === 2 ? ' is-split' : ''}`}>
-            <button type="button" className="btn btn-outline" disabled={saving} onClick={step === 1 ? closeModal : () => setStep(1)}>
-              {step === 1 ? 'Abbrechen' : 'Zurück'}
-            </button>
-            <button type="submit" className="btn btn-primary" disabled={saving || (step === 1 ? !reason : detailLen < COMPLAINT_COMMENT_MIN)}>
-              {step === 1 ? 'Weiter' : (saving ? 'Wird gesendet…' : 'Reklamation einreichen')}
+            <button
+              className="btn btn-primary energy-actions__submit"
+              type="submit"
+              disabled={busy || !holderId || holderId === lead.energyHolderId}
+              title={isAssigned ? 'Neu zuweisen' : 'Zuweisen'}
+            >
+              <UserPlus size={16} aria-hidden="true" />
+              {busy ? '…' : 'Zuweisen'}
             </button>
           </div>
-        </div>
+        )}
       </form>
     </div>
-  ) : null;
-  const host = typeof document !== 'undefined' ? document.querySelector('.broker') || document.querySelector('.dash') : null;
-  const portal = modal && host ? createPortal(modal, host) : modal;
-
-  if (complaint) {
-    const reasonLabel = ENERGY_COMPLAINT_REASONS.find((item) => item.id === complaint.reason)?.label || complaint.reason;
-    return (
-      <div className="broker-detail-side-block broker-detail-report-block is-submitted">
-        {error ? <div className="broker-alert">{error}</div> : null}
-        <div className={`broker-detail-report-done broker-detail-report-done--${complaintTone(complaint.status)}`}>
-          <span className="broker-detail-report-done-icon" aria-hidden="true"><Flag size={16} /></span>
-          <div className="broker-detail-report-done-body">
-            <strong>{ENERGY_COMPLAINT_STATUS[complaint.status] || complaint.status}</strong>
-            <span>{reasonLabel}</span>
-            {complaint.comment ? <em>Reklamation: {complaint.comment}</em> : null}
-            <small>{formatDate(complaint.createdAt)}</small>
-          </div>
-        </div>
-        {pending ? <p className="broker-muted-note">VANTARO prüft den Fall. Sie sehen das Ergebnis hier.</p> : (
-          <button type="button" className="broker-detail-report-again" onClick={() => setOpen(true)}>Erneut reklamieren</button>
-        )}
-        {isAdmin && pending ? (
-          <div className="broker-detail-notes-actions">
-            {[
-              ['approved', 'Genehmigen'],
-              ['partial', 'Teilgutschrift'],
-              ['replacement', 'Ersatz'],
-              ['rejected', 'Ablehnen'],
-            ].map(([status, label]) => (
-              <button key={status} type="button" className="btn btn-outline" disabled={saving} onClick={() => decide(status)}>{label}</button>
-            ))}
-          </div>
-        ) : null}
-        {portal}
-      </div>
-    );
-  }
-
-  return (
-    <>
-      <div className="broker-detail-side-block broker-detail-report-block">
-        <button type="button" className="broker-report-trigger" onClick={() => setOpen(true)}>
-          <span className="broker-report-trigger-icon" aria-hidden="true"><Flag size={18} /></span>
-          <span className="broker-report-trigger-copy">
-            <strong>Reklamation einreichen</strong>
-            <small>Grund und Begründung zu diesem Lead</small>
-          </span>
-          <ChevronRight size={16} className="broker-report-trigger-caret" aria-hidden="true" />
-        </button>
-      </div>
-      {portal}
-    </>
   );
 }
 
@@ -773,175 +566,6 @@ export function EnergyPartners() {
 
       {createModal ? createPortal(createModal, document.body) : null}
       {accessModal ? createPortal(accessModal, document.body) : null}
-    </div>
-  );
-}
-
-export function EnergyBilling() {
-  const { isAdmin } = useAuth();
-  const [companyId, setCompanyId] = useState('');
-  const [view, setView] = useState(null);
-  const [error, setError] = useState('');
-  const [invoiceId, setInvoiceId] = useState('');
-  const [profile, setProfile] = useState({
-    model: 'MONTHLY',
-    pricePvLead: '',
-    pricePvAppointment: '',
-    priceHpLead: '',
-    priceHpAppointment: '',
-    complaintPeriodDays: '',
-    thresholdQuantity: '',
-    thresholdAmount: '',
-    creditLimit: '',
-    invoiceDay: '',
-    paymentTermDays: '',
-    complaintBlocksInvoice: false,
-  });
-
-  const load = (id) => fetchEnergyBilling(id).then((payload) => {
-    setView(payload);
-    if (payload.profile) {
-      setProfile({
-        model: payload.profile.model,
-        pricePvLead: payload.profile.pricePvLead ?? '',
-        pricePvAppointment: payload.profile.pricePvAppointment ?? '',
-        priceHpLead: payload.profile.priceHpLead ?? '',
-        priceHpAppointment: payload.profile.priceHpAppointment ?? '',
-        complaintPeriodDays: payload.profile.complaintPeriodDays ?? '',
-        thresholdQuantity: payload.profile.thresholdQuantity ?? '',
-        thresholdAmount: payload.profile.thresholdAmount ?? '',
-        creditLimit: payload.profile.creditLimit ?? '',
-        invoiceDay: payload.profile.invoiceDay ?? '',
-        paymentTermDays: payload.profile.paymentTermDays ?? '',
-        complaintBlocksInvoice: payload.profile.complaintBlocksInvoice === true,
-      });
-    }
-  }).catch((err) => setError(err.message));
-
-  useEffect(() => { if (!isAdmin) load(); }, [isAdmin]);
-
-  return (
-    <div className="broker-page">
-      <div className="broker-heading">
-        <div>
-          <div className="eyebrow">Energie</div>
-          <h1>Abrechnung</h1>
-          <p className="lede">Preise und Modell gelten je Hauptfirma. Jede Lieferung erzeugt eine offene Position.</p>
-        </div>
-      </div>
-      {error ? <div className="broker-alert">{error}</div> : null}
-      {isAdmin ? (
-        <form className="broker-form-grid" onSubmit={(event) => { event.preventDefault(); load(companyId); }}>
-          <label>Hauptfirma Benutzer-ID<input value={companyId} onChange={(event) => setCompanyId(event.target.value)} required /></label>
-          <button className="dash-btn" type="submit">Laden</button>
-        </form>
-      ) : null}
-      {view ? (
-        <>
-          <div className="broker-home-metrics">
-            <article className="broker-home-metric"><div><span>Offen</span><strong>{view.openCount}</strong></div></article>
-            <article className="broker-home-metric"><div><span>Offener Betrag</span><strong>{money(view.openAmount)}</strong></div></article>
-            <article className="broker-home-metric"><div><span>Modell</span><strong>{view.profile?.model || 'nicht hinterlegt'}</strong></div></article>
-          </div>
-          {isAdmin && companyId ? (
-            <form className="broker-settings-section broker-form-grid" onSubmit={async (event) => {
-              event.preventDefault();
-              setError('');
-              try {
-                await saveEnergyBilling(companyId, profile);
-                await load(companyId);
-              } catch (err) {
-                setError(err.message);
-              }
-            }}>
-              <label>Modell
-                <select value={profile.model} onChange={(event) => setProfile({ ...profile, model: event.target.value })}>
-                  <option value="PREPAID">Vorauszahlung</option>
-                  <option value="MONTHLY">Monatsrechnung</option>
-                  <option value="THRESHOLD">Schwelle</option>
-                  <option value="CUSTOM">Individuell</option>
-                </select>
-              </label>
-              <label>Preis PV-Lead<input value={profile.pricePvLead} onChange={(event) => setProfile({ ...profile, pricePvLead: event.target.value })} /></label>
-              <label>Preis PV-Termin<input value={profile.pricePvAppointment} onChange={(event) => setProfile({ ...profile, pricePvAppointment: event.target.value })} /></label>
-              <label>Preis WP-Lead<input value={profile.priceHpLead} onChange={(event) => setProfile({ ...profile, priceHpLead: event.target.value })} /></label>
-              <label>Preis WP-Termin<input value={profile.priceHpAppointment} onChange={(event) => setProfile({ ...profile, priceHpAppointment: event.target.value })} /></label>
-              <label>Reklamationsfrist Tage<input value={profile.complaintPeriodDays} onChange={(event) => setProfile({ ...profile, complaintPeriodDays: event.target.value })} /></label>
-              <label>Schwelle Menge<input value={profile.thresholdQuantity} onChange={(event) => setProfile({ ...profile, thresholdQuantity: event.target.value })} /></label>
-              <label>Schwelle Betrag<input value={profile.thresholdAmount} onChange={(event) => setProfile({ ...profile, thresholdAmount: event.target.value })} /></label>
-              <label>Kreditlimit<input value={profile.creditLimit} onChange={(event) => setProfile({ ...profile, creditLimit: event.target.value })} /></label>
-              <label>Rechnungstag<input value={profile.invoiceDay} onChange={(event) => setProfile({ ...profile, invoiceDay: event.target.value })} /></label>
-              <label>Zahlungsziel Tage<input value={profile.paymentTermDays} onChange={(event) => setProfile({ ...profile, paymentTermDays: event.target.value })} /></label>
-              <label>Offene Reklamation blockiert Rechnung
-                <input type="checkbox" checked={profile.complaintBlocksInvoice} onChange={(event) => setProfile({ ...profile, complaintBlocksInvoice: event.target.checked })} />
-              </label>
-              <button className="dash-btn" type="submit">Profil speichern</button>
-            </form>
-          ) : null}
-          {isAdmin && companyId ? (
-            <form className="broker-form-grid" onSubmit={async (event) => {
-              event.preventDefault();
-              try {
-                await invoiceEnergyLines(companyId, invoiceId);
-                setInvoiceId('');
-                await load(companyId);
-              } catch (err) {
-                setError(err.message);
-              }
-            }}>
-              <label>Rechnungsnummer<input value={invoiceId} onChange={(event) => setInvoiceId(event.target.value)} required /></label>
-              <button className="dash-btn" type="submit">Offene Positionen fakturieren</button>
-            </form>
-          ) : null}
-          <div className="energy-card-list">
-            {view.lines.map((line) => (
-              <article key={line.id} className="broker-lead-card">
-                <strong>{energyTypeLabel(line.productType)}</strong>
-                <span>{money(line.unitPrice)} · {line.status}{line.invoiceId ? ` · ${line.invoiceId}` : ''}</span>
-              </article>
-            ))}
-          </div>
-        </>
-      ) : null}
-    </div>
-  );
-}
-
-export function EnergyComplaints() {
-  const { isAdmin } = useAuth();
-  const [items, setItems] = useState([]);
-  const [error, setError] = useState('');
-  const load = () => fetchEnergyComplaints().then((payload) => setItems(payload.complaints || [])).catch((err) => setError(err.message));
-  useEffect(() => { load(); }, []);
-  return (
-    <div className="broker-page">
-      <div className="broker-heading"><div><div className="eyebrow">Energie</div><h1>Reklamationen</h1></div></div>
-      {error ? <div className="broker-alert">{error}</div> : null}
-      <div className="energy-card-list">
-        {items.map((item) => (
-          <article key={item.id} className="broker-lead-card">
-            <div>
-              <strong>{ENERGY_COMPLAINT_REASONS.find((reason) => reason.id === item.reason)?.label || item.reason}</strong>
-              <span>{item.comment || 'Kein Kommentar'} · {item.status}</span>
-            </div>
-            {isAdmin && item.status === 'pending' ? (
-              <div>
-                {[
-                  ['approved', 'Genehmigt'],
-                  ['rejected', 'Abgelehnt'],
-                  ['partial', 'Teilgutschrift'],
-                  ['replacement', 'Ersatz'],
-                ].map(([status, label]) => (
-                  <button key={status} type="button" className="dash-btn dash-btn--ghost" onClick={async () => {
-                    await decideEnergyComplaint(item.id, status);
-                    await load();
-                  }}>{label}</button>
-                ))}
-              </div>
-            ) : null}
-          </article>
-        ))}
-      </div>
     </div>
   );
 }

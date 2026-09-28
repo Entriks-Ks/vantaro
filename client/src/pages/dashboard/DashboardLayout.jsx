@@ -16,7 +16,6 @@ import {
   MessageCircle,
   PanelLeftClose,
   PanelLeftOpen,
-  SunMedium,
 } from 'lucide-react';
 import Brand from '../../components/Brand';
 import { useAuth } from '../../hooks/useAuth';
@@ -56,7 +55,6 @@ function energyLinks(role, allowedPages) {
       { divider: true },
       { to: '/dashboard/paket', match: 'paket', label: 'Meine Pakete', icon: CreditCard },
       { to: '/dashboard/team', match: 'team', label: 'Partner', icon: Handshake },
-      { to: '/dashboard/abrechnung', match: 'abrechnung', label: 'Abrechnung', icon: Landmark },
       { to: '/dashboard/academy', match: 'academy', label: 'Akademie', icon: GraduationCap },
       { to: '/dashboard/support', match: 'support', label: 'Support', icon: MessageCircle },
     );
@@ -104,7 +102,6 @@ function isBeraterNavActive(match, pathname) {
   if (match === 'support') return pathname.startsWith('/dashboard/support');
   if (match === 'bestellung') return pathname.startsWith('/dashboard/bestellung');
   if (match === 'team') return pathname.startsWith('/dashboard/team');
-  if (match === 'abrechnung') return pathname.startsWith('/dashboard/abrechnung');
   if (match === 'reklamationen') return pathname.startsWith('/dashboard/reklamationen');
   return false;
 }
@@ -144,7 +141,6 @@ const ADMIN_NAV = [
     links: [
       { to: '/dashboard/leads', end: true, label: 'Leads', icon: ListChecks },
       { to: '/dashboard/berater', label: 'Berater', icon: UserRound },
-      { to: '/dashboard/energie', label: 'Energie', icon: SunMedium },
       { to: '/dashboard/nutzer', label: 'Nutzer', icon: Users },
     ],
   },
@@ -165,9 +161,6 @@ function adminPageCopy(pathname, user) {
   }
   if (pathname.startsWith('/dashboard/berater')) {
     return { kicker: 'Bestand', title: 'Berater', subtitle: 'Konten und Stammdaten der Berater.' };
-  }
-  if (pathname.startsWith('/dashboard/energie')) {
-    return { kicker: 'Bestand', title: 'Energie', subtitle: 'Preise, Abrechnungsmodell und offene Lieferpositionen je Hauptfirma.' };
   }
   if (/^\/dashboard\/anfordern\/[^/]+/.test(pathname) || /^\/dashboard\/anfragen\/[^/]+/.test(pathname)) {
     return { kicker: 'Workflow', title: 'Anforderung', subtitle: 'Fortschritt prüfen, Leads senden und den Auftrag steuern.' };

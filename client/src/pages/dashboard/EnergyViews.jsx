@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
-  ArrowLeft,
   ArrowRight,
   CalendarClock,
   Check,
@@ -17,17 +16,13 @@ import {
   Mail,
   MessageCircle,
   Phone,
-  Save,
   Sparkles,
-  StickyNote,
-  SunMedium,
-  User,
   UserPlus,
   Users,
   X,
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
-import { fetchLead, fetchMyLeads, updateLead } from '../../lib/leads';
+import { fetchMyLeads } from '../../lib/leads';
 import { formatAddress } from '../../lib/profile';
 import {
   checkoutLeadPackage,
@@ -53,19 +48,11 @@ import { displayName, formatDateTime, formatEuroExact } from './helpers';
 import {
   LEAD_STATUSES,
   VIEW_MODES,
-  closeOutcomeOf,
-  contactUpdatePayload,
   pipelineStatusOf,
   statusLabel,
 } from './leads';
-import { EnergyLeadActions, EnergyLeadReport } from './EnergyOps';
 import { TEST_PACKAGE_PRICE_CENTS } from './packages';
 import { useBroker } from '../../hooks/useBroker';
-import {
-  LeadCloseOutcomeModal,
-  LeadScheduleModal,
-  LeadStatusDropdown,
-} from './BeraterViews';
 
 const MIN_LEADS = 10;
 const LEAD_STEP = 5;
@@ -106,16 +93,6 @@ function leadInitials(lead) {
   const parts = source.trim().split(/\s+/).filter(Boolean);
   if (!parts.length) return '—';
   return parts.slice(0, 2).map((part) => part[0]).join('').toUpperCase();
-}
-
-function DetailFact({ label, children, wide = false }) {
-  const empty = children == null || children === '' || children === '—';
-  return (
-    <div className={`broker-detail-fact${wide ? ' is-wide' : ''}${empty ? ' is-empty' : ''}`}>
-      <span>{label}</span>
-      <strong>{empty ? 'Nicht hinterlegt' : children}</strong>
-    </div>
-  );
 }
 
 function StatusMark({ status, complaint }) {
@@ -505,326 +482,6 @@ export function EnergyLeads() {
           })}
         </div>
       )}
-    </div>
-  );
-}
-
-export function EnergyLeadDetail() {
-  const { leadId } = useParams();
-  const navigate = useNavigate();
-  const { leadStatuses, setLeadStatus, showToast } = useBroker();
-  const [lead, setLead] = useState(null);
-  const [notes, setNotes] = useState('');
-  const [savingNotes, setSavingNotes] = useState(false);
-  const [savingStatus, setSavingStatus] = useState(false);
-  const [draftStatus, setDraftStatus] = useState('');
-  const [scheduleOpen, setScheduleOpen] = useState(false);
-  const [outcomeOpen, setOutcomeOpen] = useState(false);
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    let active = true;
-    fetchLead(leadId)
-      .then((payload) => {
-        if (!active || !payload.lead) return;
-        setLead(presentLead(payload.lead));
-        setNotes(payload.lead.brokerNotes || '');
-        setDraftStatus('');
-      })
-      .catch((err) => {
-        if (active) setError(err.message);
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
-    return () => {
-      active = false;
-    };
-  }, [leadId]);
-
-  async function persistContact(statusId, times = {}) {
-    const payload = await updateLead(lead.id, contactUpdatePayload(statusId, {
-      followUpAt: times.followUpAt,
-      appointmentAt: times.appointmentAt,
-      closeOutcome: times.closeOutcome,
-    }));
-    setLead(presentLead({ ...lead, ...payload.lead, complaint: lead.complaint }));
-    setLeadStatus(lead.id, statusId);
-    setDraftStatus('');
-    return payload.lead;
-  }
-
-  async function handleStatusClick(statusId) {
-    if (!lead || lead.refundedAt || savingStatus) return;
-    if (statusId === 'wiedervorlage' || statusId === 'termin') {
-      setDraftStatus(statusId);
-      setScheduleOpen(true);
-      return;
-    }
-    if (statusId === 'abgeschlossen') {
-      setDraftStatus(statusId);
-      setOutcomeOpen(true);
-      return;
-    }
-    setSavingStatus(true);
-    setError('');
-    try {
-      await persistContact(statusId, {
-        followUpAt: lead.followUpAt,
-        appointmentAt: lead.appointmentAt,
-      });
-      showToast(`Status: ${statusLabel(statusId)}`);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setSavingStatus(false);
-    }
-  }
-
-  async function saveSchedule(iso) {
-    const statusId = draftStatus || pipelineStatusOf(lead, leadStatuses);
-    if (statusId !== 'termin' && statusId !== 'wiedervorlage') return;
-    setSavingStatus(true);
-    setError('');
-    try {
-      await persistContact(statusId, {
-        followUpAt: statusId === 'wiedervorlage' ? iso : null,
-        appointmentAt: statusId === 'termin' ? iso : null,
-      });
-      setScheduleOpen(false);
-      showToast(statusId === 'termin' ? 'Termin gespeichert.' : 'Wiedervorlage gespeichert.');
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setSavingStatus(false);
-    }
-  }
-
-  async function saveOutcome(outcomeId) {
-    setSavingStatus(true);
-    setError('');
-    try {
-      await persistContact('abgeschlossen', { closeOutcome: outcomeId });
-      setOutcomeOpen(false);
-      showToast(outcomeId === 'erfolgreich' ? 'Lead als erfolgreich gespeichert.' : 'Lead als nicht erfolgreich gespeichert.');
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setSavingStatus(false);
-    }
-  }
-
-  if (loading) return <div className="broker-page"><p>Wird geladen…</p></div>;
-  if (!lead) {
-    return (
-      <div className="broker-page">
-        <div className="broker-alert">{error || 'Lead wurde nicht gefunden.'}</div>
-      </div>
-    );
-  }
-
-  const status = draftStatus || pipelineStatusOf(lead, leadStatuses);
-  const scheduleKind = draftStatus === 'termin' || draftStatus === 'wiedervorlage'
-    ? draftStatus
-    : (status === 'termin' || status === 'wiedervorlage' ? status : 'wiedervorlage');
-  const phoneHref = lead.phone ? `tel:${String(lead.phone).replace(/\s/g, '')}` : '';
-  const maps = lead.address && lead.address !== '—'
-    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(lead.address)}`
-    : '';
-
-  return (
-    <div className="broker-page">
-      <button type="button" className="broker-back" onClick={() => navigate('/dashboard/leads')}>
-        <ArrowLeft size={16} />
-        Zurück zu Ihren Leads
-      </button>
-      {error ? <div className="broker-alert">{error}</div> : null}
-      <div className="broker-heading broker-detail-heading">
-        <span className="broker-detail-avatar" aria-hidden="true">{leadInitials(lead)}</span>
-        <div className="broker-detail-heading-main">
-          <div className="eyebrow">Ihr Gespräch</div>
-          <h1>{lead.name}</h1>
-          <p className="lede">{[lead.packageLabel, lead.address !== '—' ? lead.address : ''].filter(Boolean).join(' · ')}</p>
-        </div>
-        <LeadStatusDropdown
-          lead={{ ...lead, status }}
-          status={status}
-          disabled={Boolean(lead.refundedAt) || savingStatus}
-          saving={savingStatus}
-          onSelectStatus={handleStatusClick}
-        />
-      </div>
-      <div className="broker-detail-actions">
-        {phoneHref ? (
-          <a className="btn btn-primary" href={phoneHref}>
-            <Phone size={16} aria-hidden="true" />
-            Anrufen · {lead.phone}
-          </a>
-        ) : (
-          <span className="broker-detail-action-missing">Keine Telefonnummer</span>
-        )}
-        {lead.email ? (
-          <a className="btn btn-outline" href={`mailto:${lead.email}`}>
-            <Mail size={16} aria-hidden="true" />
-            E-Mail schreiben
-          </a>
-        ) : null}
-        {maps ? (
-          <a className="btn btn-outline" href={maps} target="_blank" rel="noreferrer">Navigation</a>
-        ) : null}
-      </div>
-      <div className="broker-detail-grid">
-        <div className="broker-detail-sections">
-          <section className="broker-panel broker-detail-section">
-            <div className="broker-detail-section-head">
-              <span className="broker-detail-section-icon" aria-hidden="true"><User size={18} /></span>
-              <div>
-                <h2>Kontakt</h2>
-                <p>Zum Anrufen und Schreiben</p>
-              </div>
-            </div>
-            <div className="broker-detail-facts">
-              <DetailFact label="Telefon">{lead.phone ? <a href={phoneHref}>{lead.phone}</a> : null}</DetailFact>
-              <DetailFact label="E-Mail">{lead.email ? <a href={`mailto:${lead.email}`}>{lead.email}</a> : null}</DetailFact>
-              <DetailFact label="Adresse" wide>{lead.address !== '—' ? lead.address : null}</DetailFact>
-              <DetailFact label="Bundesland">{lead.state}</DetailFact>
-            </div>
-          </section>
-          <section className="broker-panel broker-detail-section">
-            <div className="broker-detail-section-head">
-              <span className="broker-detail-section-icon" aria-hidden="true"><SunMedium size={18} /></span>
-              <div>
-                <h2>Paket &amp; Qualifikation</h2>
-                <p>Worum es im Gespräch geht</p>
-              </div>
-            </div>
-            <div className="broker-detail-facts">
-              <DetailFact label="Paket" wide>{lead.packageLabel}</DetailFact>
-              <DetailFact label="Art">{lead.deliveryType === 'appointment' ? 'Termin' : 'Lead'}</DetailFact>
-              <DetailFact label="Eigentümerstatus">{lead.ownerStatus}</DetailFact>
-              <DetailFact label="Bedarf" wide>{lead.energyNeed}</DetailFact>
-              <DetailFact label="Zeitrahmen">{lead.timeframe}</DetailFact>
-              <DetailFact label="Gespräch" wide>{lead.callSummary}</DetailFact>
-              <DetailFact label="Jahresstromverbrauch">{lead.annualConsumption}</DetailFact>
-              <DetailFact label="Bestehende PV-Anlage">
-                {lead.existingPv === 'yes' ? 'Ja' : lead.existingPv === 'no' ? 'Nein' : lead.existingPv === 'unknown' ? 'Unbekannt' : ''}
-              </DetailFact>
-              <DetailFact label="Dach / Gebäude" wide>{lead.roofNotes}</DetailFact>
-              <DetailFact label="Aktuelle Heizung">{lead.heatingSystem}</DetailFact>
-              <DetailFact label="Energieträger">{lead.energySource}</DetailFact>
-              <DetailFact label="Baujahr">{lead.constructionYear}</DetailFact>
-              <DetailFact label="Austauschzeitraum">{lead.replacementTimeframe}</DetailFact>
-            </div>
-          </section>
-          <EnergyLeadActions lead={lead} onChange={(next) => setLead(presentLead({ ...lead, ...next, complaint: next.complaint ?? lead.complaint }))} />
-        </div>
-        <aside className="broker-panel broker-detail-side">
-          {status === 'termin' || lead.deliveryType === 'appointment' ? (
-            <div className="broker-detail-side-block broker-detail-schedule-summary is-active">
-              <div className="broker-detail-wiedervorlage-head">
-                <span className="broker-detail-wiedervorlage-icon" aria-hidden="true"><CalendarClock size={18} /></span>
-                <div>
-                  <h3>Termin</h3>
-                  <p>{lead.appointmentAt ? new Date(lead.appointmentAt).toLocaleString('de-DE') : 'Noch kein Zeitpunkt — Status Termin wählen'}</p>
-                </div>
-              </div>
-              <button type="button" className="broker-text-btn" onClick={() => { setDraftStatus('termin'); setScheduleOpen(true); }}>
-                Termin ändern
-              </button>
-            </div>
-          ) : null}
-          {status === 'wiedervorlage' ? (
-            <div className="broker-detail-side-block broker-detail-schedule-summary is-active">
-              <div className="broker-detail-wiedervorlage-head">
-                <span className="broker-detail-wiedervorlage-icon" aria-hidden="true"><Clock size={18} /></span>
-                <div>
-                  <h3>Wiedervorlage</h3>
-                  <p>{lead.followUpAt ? new Date(lead.followUpAt).toLocaleString('de-DE') : 'Noch kein Zeitpunkt'}</p>
-                </div>
-              </div>
-              <button type="button" className="broker-text-btn" onClick={() => { setDraftStatus('wiedervorlage'); setScheduleOpen(true); }}>
-                Datum ändern
-              </button>
-            </div>
-          ) : null}
-          <div className="broker-detail-side-block">
-            <div className="broker-detail-section-head">
-              <span className="broker-detail-section-icon" aria-hidden="true"><StickyNote size={18} /></span>
-              <div>
-                <h2>Ihre Notizen</h2>
-                <p>Zum Gespräch — nicht die Reklamation</p>
-              </div>
-            </div>
-            <textarea
-              className="broker-detail-notes"
-              value={notes}
-              onChange={(event) => setNotes(event.target.value)}
-              placeholder="z. B. Rückruf vereinbart, offene Fragen…"
-              rows={5}
-              disabled={savingNotes}
-            />
-            <div className="broker-detail-notes-actions">
-              <button
-                type="button"
-                className="btn btn-primary"
-                disabled={savingNotes || notes === (lead.brokerNotes || '')}
-                onClick={async () => {
-                  setSavingNotes(true);
-                  setError('');
-                  try {
-                    const payload = await updateLead(lead.id, { brokerNotes: notes });
-                    setLead(presentLead({ ...lead, ...payload.lead, complaint: lead.complaint }));
-                    showToast('Notizen gespeichert.');
-                  } catch (err) {
-                    setError(err.message);
-                  } finally {
-                    setSavingNotes(false);
-                  }
-                }}
-              >
-                <Save size={16} aria-hidden="true" />
-                {savingNotes ? 'Wird gespeichert…' : 'Notiz speichern'}
-              </button>
-            </div>
-            <p className="broker-detail-notes-hint">Persönliche Gesprächsnotiz zu diesem Lead. Eine Reklamation senden Sie darunter extra.</p>
-          </div>
-          <EnergyLeadReport
-            lead={lead}
-            onChange={(next) => setLead(presentLead({ ...lead, ...next }))}
-          />
-        </aside>
-      </div>
-      {scheduleOpen ? (
-        <LeadScheduleModal
-          kind={scheduleKind}
-          value={scheduleKind === 'termin' ? lead.appointmentAt : lead.followUpAt}
-          saving={savingStatus}
-          locked={false}
-          leadName={lead.name}
-          onSave={saveSchedule}
-          onClose={() => {
-            if (!savingStatus) {
-              setScheduleOpen(false);
-              setDraftStatus('');
-            }
-          }}
-        />
-      ) : null}
-      {outcomeOpen ? (
-        <LeadCloseOutcomeModal
-          leadName={lead.name}
-          value={closeOutcomeOf(lead)}
-          saving={savingStatus}
-          onSave={saveOutcome}
-          onClose={() => {
-            if (!savingStatus) {
-              setOutcomeOpen(false);
-              setDraftStatus('');
-            }
-          }}
-        />
-      ) : null}
     </div>
   );
 }

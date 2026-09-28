@@ -4,19 +4,9 @@ import { publicUser, normalizeEnergyPages } from './auth.js';
 import { getApiOrigin, getClientOrigin } from './clientOrigin.js';
 import { hasCustomMailer } from './mailer.js';
 import { ROLES } from './roles.js';
-import { energyLeadTypeOf, verticalOrInsurance } from './vertical.js';
+import { verticalOrInsurance } from './vertical.js';
 
 const PARTNER_ROLES = ['dispatcher', 'sub_partner', 'field_rep'];
-const FIELD_OUTCOMES = ['CONFIRMED', 'COMPLETED', 'NO_SHOW', 'FOLLOW_UP'];
-const COMPANY_OUTCOMES = ['CANCELLED', 'RESCHEDULE_REQUESTED'];
-const COMPLAINT_REASONS = ['invalid_phone', 'wrong_territory', 'customer_unaware', 'duplicate', 'appointment_not_attended'];
-const BILLING_MODELS = ['PREPAID', 'MONTHLY', 'THRESHOLD', 'CUSTOM'];
-const PRICE_FIELDS = {
-  PV_LEAD: 'price_pv_lead',
-  PV_APPOINTMENT: 'price_pv_appointment',
-  HP_LEAD: 'price_hp_lead',
-  HP_APPOINTMENT: 'price_hp_appointment',
-};
 
 function fail(message, status = 400) {
   const error = new Error(message);
@@ -26,7 +16,7 @@ function fail(message, status = 400) {
 
 function schemaMissing(error) {
   const message = String(error?.message || error?.code || '');
-  return /energy_holder_id|energy_status|energy_billing|energy_delivery|energy_complaints|energy_calendar/i.test(message)
+  return /energy_holder_id|google_event_id|calendar_sync_status|energy_calendar/i.test(message)
     && (/column|relation|schema cache/i.test(message) || error?.code === '42P01' || error?.code === 'PGRST205' || error?.code === 'PGRST204' || error?.code === '42703');
 }
 
@@ -252,12 +242,19 @@ export async function assignEnergyHolder(actor, leadId, holderId) {
     throw fail('Dieser Zugang gehört nicht zur Hauptfirma.');
   }
   if (!PARTNER_ROLES.includes(mapped.energyRole)) throw fail('Dieser Zugang kann keine Leads erhalten.');
-  const nextStatus = mapped.energyRole === 'field_rep' && lead.delivery_type === 'appointment'
-    ? 'CALENDAR_PENDING'
-    : 'ASSIGNED';
+  if (mapped.energyActive === false) throw fail('Dieser Zugang ist deaktiviert.');
+  const previousHolderId = lead.energy_holder_id;
+  const reassigned = Boolean(previousHolderId) && previousHolderId !== holderId;
+  if (reassigned && lead.google_event_id) {
+    await syncGoogleEvent(lead, previousHolderId, 'delete').catch((err) => {
+      console.error('Energy calendar cleanup failed:', err.message);
+    });
+  }
+  const patch = { energy_holder_id: holderId };
+  if (reassigned) patch.google_event_id = null;
   const { data, error } = await supabase
     .from('leads')
-    .update({ energy_holder_id: holderId, energy_status: nextStatus })
+    .update(patch)
     .eq('id', leadId)
     .select('*')
     .single();
@@ -265,320 +262,11 @@ export async function assignEnergyHolder(actor, leadId, holderId) {
     if (schemaMissing(error)) throw energySchemaError();
     throw error;
   }
-  if (mapped.energyRole === 'field_rep' && data.delivery_type === 'appointment') {
-    await syncGoogleEvent(data, holderId, 'insert').catch((err) => {
-      console.error('Energy calendar sync failed:', err.message);
-    });
-  }
+  await syncLeadCalendar(reassigned ? { ...lead, appointment_at: null, google_event_id: null } : lead, data).catch((err) => {
+    console.error('Energy calendar sync failed:', err.message);
+  });
   notifyEnergyAssignment(mapped, data).catch(() => {});
   return withAssignee(data);
-}
-
-export async function setEnergyOutcome(actor, leadId, { status, appointmentAt } = {}) {
-  const { getLeadById, withAssignee } = await import('./leads.js');
-  const current = await assertCompanyLead(actor, await getLeadById(leadId));
-  const role = actor.energyRole || 'main';
-  const next = String(status || '').trim();
-  const allowed = role === 'field_rep' || role === 'sub_partner'
-    ? FIELD_OUTCOMES
-    : [...FIELD_OUTCOMES, ...COMPANY_OUTCOMES];
-  if ((role === 'field_rep' || role === 'sub_partner') && current.energy_holder_id !== actor.id) {
-    throw fail('Keine Berechtigung.', 403);
-  }
-  if (!allowed.includes(next)) throw fail('Status ist ungültig.');
-  const patch = { energy_status: appointmentAt ? 'RESCHEDULED' : next };
-  if (appointmentAt) {
-    const when = new Date(appointmentAt);
-    if (Number.isNaN(when.getTime())) throw fail('Termin ist ungültig.');
-    patch.appointment_at = when.toISOString();
-  }
-  const { data, error } = await supabase.from('leads').update(patch).eq('id', leadId).select('*').single();
-  if (error) {
-    if (schemaMissing(error)) throw energySchemaError();
-    throw error;
-  }
-  if (data.delivery_type === 'appointment' && data.energy_holder_id) {
-    const mode = next === 'CANCELLED' ? 'delete' : (data.google_event_id ? 'update' : 'insert');
-    await syncGoogleEvent(data, data.energy_holder_id, mode).catch((err) => {
-      console.error('Energy calendar sync failed:', err.message);
-    });
-  }
-  return withAssignee(data);
-}
-
-function priceFor(profile, productType) {
-  if (!profile) return null;
-  const value = profile?.[PRICE_FIELDS[productType]];
-  return value == null || value === '' ? null : Number(value);
-}
-
-export async function recordEnergyDelivery(row) {
-  if (verticalOrInsurance(row?.vertical) !== 'energy' || !row.assigned_to) return null;
-  const productType = energyLeadTypeOf(row);
-  if (!productType) return null;
-  const profile = await getBillingProfile(row.assigned_to);
-  const isAppointment = row.delivery_type === 'appointment'
-    || productType === 'PV_APPOINTMENT'
-    || productType === 'HP_APPOINTMENT';
-
-  const { error: statusError } = await supabase
-    .from('leads')
-    .update({ energy_status: 'ASSIGNED' })
-    .eq('id', row.id)
-    .is('energy_status', null);
-  if (statusError && !schemaMissing(statusError)) console.error('Energy status skipped:', statusError.message);
-
-  // Seed berater pipeline only when unset — Termine landen in Termin, Leads in Neu
-  if (row.contact_status == null) {
-    const { error: contactError } = await supabase
-      .from('leads')
-      .update({ contact_status: isAppointment ? 'termin' : 'neu' })
-      .eq('id', row.id)
-      .is('contact_status', null);
-    if (contactError && !schemaMissing(contactError)) {
-      console.error('Energy contact status skipped:', contactError.message);
-    }
-  }
-
-  const { error } = await supabase.from('energy_delivery_lines').insert({
-    company_id: row.assigned_to,
-    product_type: productType,
-    lead_id: row.id,
-    unit_price: priceFor(profile, productType),
-    billing_model: profile?.model || null,
-    status: 'OPEN',
-    delivered_at: new Date().toISOString(),
-  });
-  if (error && !/duplicate key|unique/i.test(error.message || '') && !schemaMissing(error)) {
-    console.error('Energy delivery line skipped:', error.message);
-  }
-  return null;
-}
-
-export async function getBillingProfile(companyId) {
-  const { data, error } = await supabase.from('energy_billing_profiles').select('*').eq('company_id', companyId).maybeSingle();
-  if (error) {
-    if (schemaMissing(error)) return null;
-    throw error;
-  }
-  return data;
-}
-
-function publicProfile(row) {
-  if (!row) return null;
-  const num = (value) => (value == null ? null : Number(value));
-  return {
-    companyId: row.company_id,
-    model: row.model,
-    thresholdQuantity: row.threshold_quantity,
-    thresholdAmount: num(row.threshold_amount),
-    invoiceDay: row.invoice_day,
-    paymentTermDays: row.payment_term_days,
-    creditLimit: num(row.credit_limit),
-    pricePvLead: num(row.price_pv_lead),
-    pricePvAppointment: num(row.price_pv_appointment),
-    priceHpLead: num(row.price_hp_lead),
-    priceHpAppointment: num(row.price_hp_appointment),
-    complaintPeriodDays: row.complaint_period_days,
-    complaintBlocksInvoice: row.complaint_blocks_invoice === true,
-  };
-}
-
-function publicLine(row) {
-  return {
-    id: row.id,
-    companyId: row.company_id,
-    productType: row.product_type,
-    leadId: row.lead_id,
-    unitPrice: row.unit_price == null ? null : Number(row.unit_price),
-    billingModel: row.billing_model,
-    status: row.status,
-    deliveredAt: row.delivered_at,
-    invoiceId: row.invoice_id,
-    complaintStatus: row.complaint_status,
-  };
-}
-
-export async function billingView(actor, companyId) {
-  const company = companyId || energyCompanyId(actor);
-  if (actor.role !== 'admin' && (actor.energyRole || 'main') !== 'main') throw fail('Abrechnung sieht nur die Hauptfirma.', 403);
-  if (actor.role !== 'admin' && company !== energyCompanyId(actor)) throw fail('Keine Berechtigung.', 403);
-  const profile = await getBillingProfile(company);
-  const { data, error } = await supabase.from('energy_delivery_lines').select('*').eq('company_id', company).order('delivered_at', { ascending: false });
-  if (error) {
-    if (schemaMissing(error)) throw energySchemaError();
-    throw error;
-  }
-  const lines = data || [];
-  const open = lines.filter((line) => line.status === 'OPEN' && !(profile?.complaint_blocks_invoice && line.complaint_status === 'pending'));
-  return {
-    profile: publicProfile(profile),
-    lines: lines.map(publicLine),
-    openAmount: open.reduce((sum, line) => sum + (Number(line.unit_price) || 0), 0),
-    openCount: open.length,
-  };
-}
-
-function numOrNull(value) {
-  if (value == null || value === '') return null;
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
-export async function saveBillingProfile(companyId, body) {
-  const model = String(body.model || 'MONTHLY').trim();
-  if (!BILLING_MODELS.includes(model)) throw fail('Abrechnungsmodell ist ungültig.');
-  const row = {
-    company_id: companyId,
-    model,
-    threshold_quantity: numOrNull(body.thresholdQuantity),
-    threshold_amount: numOrNull(body.thresholdAmount),
-    invoice_day: numOrNull(body.invoiceDay),
-    payment_term_days: numOrNull(body.paymentTermDays),
-    credit_limit: numOrNull(body.creditLimit),
-    price_pv_lead: numOrNull(body.pricePvLead),
-    price_pv_appointment: numOrNull(body.pricePvAppointment),
-    price_hp_lead: numOrNull(body.priceHpLead),
-    price_hp_appointment: numOrNull(body.priceHpAppointment),
-    complaint_period_days: numOrNull(body.complaintPeriodDays),
-    complaint_blocks_invoice: body.complaintBlocksInvoice === true,
-    updated_at: new Date().toISOString(),
-  };
-  const { data, error } = await supabase.from('energy_billing_profiles').upsert(row).select('*').single();
-  if (error) {
-    if (schemaMissing(error)) throw energySchemaError();
-    throw error;
-  }
-  return publicProfile(data);
-}
-
-export async function invoiceOpenLines(companyId, invoiceId) {
-  const id = String(invoiceId || '').trim();
-  if (!id) throw fail('Rechnungsnummer ist erforderlich.');
-  const profile = await getBillingProfile(companyId);
-  const { data, error } = await supabase.from('energy_delivery_lines').select('*').eq('company_id', companyId).eq('status', 'OPEN');
-  if (error) throw error;
-  const ids = (data || [])
-    .filter((line) => !(profile?.complaint_blocks_invoice && line.complaint_status === 'pending'))
-    .map((line) => line.id);
-  if (!ids.length) return [];
-  const { data: updated, error: updateError } = await supabase
-    .from('energy_delivery_lines')
-    .update({ status: 'INVOICED', invoice_id: id })
-    .in('id', ids)
-    .select('*');
-  if (updateError) throw updateError;
-  return (updated || []).map(publicLine);
-}
-
-function publicComplaint(row) {
-  return {
-    id: row.id,
-    leadId: row.lead_id,
-    companyId: row.company_id,
-    openedBy: row.opened_by,
-    reason: row.reason,
-    comment: row.comment,
-    status: row.status,
-    createdAt: row.created_at,
-    decidedAt: row.decided_at,
-  };
-}
-
-export async function openEnergyComplaint(actor, leadId, { reason, comment }) {
-  const { getLeadById } = await import('./leads.js');
-  const lead = await assertCompanyLead(actor, await getLeadById(leadId));
-  const why = String(reason || '').trim();
-  const text = String(comment || '').trim();
-  if (!COMPLAINT_REASONS.includes(why)) throw fail('Reklamationsgrund ist ungültig.');
-  if (text.length < 20) throw fail('Die Begründung braucht mindestens 20 Zeichen.');
-  const profile = await getBillingProfile(lead.assigned_to);
-  if (profile?.complaint_period_days) {
-    const { data: line } = await supabase.from('energy_delivery_lines').select('delivered_at').eq('lead_id', leadId).maybeSingle();
-    const start = new Date(line?.delivered_at || lead.assigned_at || lead.created_at);
-    if (Date.now() > start.getTime() + profile.complaint_period_days * 86400000) {
-      throw fail('Die Reklamationsfrist ist abgelaufen.');
-    }
-  }
-  const { data, error } = await supabase.from('energy_complaints').insert({
-    lead_id: leadId,
-    company_id: lead.assigned_to,
-    opened_by: actor.id,
-    reason: why,
-    comment: text,
-  }).select('*').single();
-  if (error) {
-    if (schemaMissing(error)) throw energySchemaError();
-    throw error;
-  }
-  await supabase.from('leads').update({ energy_status: 'COMPLAINT_OPENED' }).eq('id', leadId);
-  await supabase.from('energy_delivery_lines').update({ complaint_status: 'pending' }).eq('lead_id', leadId);
-  return publicComplaint(data);
-}
-
-export async function listEnergyComplaints(actor) {
-  let query = supabase.from('energy_complaints').select('*').order('created_at', { ascending: false });
-  const role = actor.energyRole || 'main';
-  if (actor.role !== 'admin') query = query.eq('company_id', energyCompanyId(actor));
-  const { data, error } = await query;
-  if (error) {
-    if (schemaMissing(error)) throw energySchemaError();
-    throw error;
-  }
-  let rows = data || [];
-  if (actor.role !== 'admin' && (role === 'sub_partner' || role === 'field_rep')) {
-    const leadIds = [...new Set(rows.map((row) => row.lead_id).filter(Boolean))];
-    if (!leadIds.length) return [];
-    const { data: leads, error: leadError } = await supabase
-      .from('leads')
-      .select('id')
-      .in('id', leadIds)
-      .eq('energy_holder_id', actor.id);
-    if (leadError) throw leadError;
-    const allowed = new Set((leads || []).map((lead) => lead.id));
-    rows = rows.filter((row) => allowed.has(row.lead_id));
-  }
-  return rows.map(publicComplaint);
-}
-
-export async function attachEnergyComplaints(leads) {
-  const list = Array.isArray(leads) ? leads : [leads];
-  const ids = list.map((lead) => lead?.id).filter(Boolean);
-  if (!ids.length) return list;
-  const { data, error } = await supabase
-    .from('energy_complaints')
-    .select('*')
-    .in('lead_id', ids)
-    .order('created_at', { ascending: false });
-  if (error) {
-    if (schemaMissing(error)) return list.map((lead) => ({ ...lead, complaint: lead.complaint || null }));
-    throw error;
-  }
-  const map = new Map();
-  (data || []).forEach((row) => {
-    if (!map.has(row.lead_id)) map.set(row.lead_id, publicComplaint(row));
-  });
-  return list.map((lead) => ({ ...lead, complaint: map.get(lead.id) || null }));
-}
-
-export async function decideEnergyComplaint(actorId, complaintId, status) {
-  const next = String(status || '').trim();
-  if (!['approved', 'rejected', 'partial', 'replacement'].includes(next)) throw fail('Entscheidung ist ungültig.');
-  const { data: current, error } = await supabase.from('energy_complaints').select('*').eq('id', complaintId).maybeSingle();
-  if (error) throw error;
-  if (!current) throw fail('Reklamation wurde nicht gefunden.', 404);
-  const { data, error: updateError } = await supabase.from('energy_complaints').update({
-    status: next,
-    decided_at: new Date().toISOString(),
-    decided_by: actorId,
-  }).eq('id', complaintId).select('*').single();
-  if (updateError) throw updateError;
-  if (next === 'approved' || next === 'partial') {
-    await supabase.from('energy_delivery_lines').update({ status: 'CREDITED', complaint_status: next }).eq('lead_id', current.lead_id);
-  } else {
-    await supabase.from('energy_delivery_lines').update({ complaint_status: next }).eq('lead_id', current.lead_id);
-  }
-  return publicComplaint(data);
 }
 
 function googleConfigured() {
@@ -739,11 +427,28 @@ export async function disconnectCalendar(userId) {
   return { syncStatus: 'disconnected' };
 }
 
+export async function syncLeadCalendar(previous, next) {
+  if (!next?.energy_holder_id) return;
+  const holderId = next.energy_holder_id;
+  const scheduled = next.contact_status === 'termin' && next.appointment_at;
+  if (!scheduled) {
+    if (previous?.google_event_id) {
+      await syncGoogleEvent({ ...next, google_event_id: previous.google_event_id }, holderId, 'delete');
+    }
+    return;
+  }
+  const before = previous?.appointment_at ? new Date(previous.appointment_at).toISOString() : '';
+  const after = new Date(next.appointment_at).toISOString();
+  if (before === after && next.google_event_id) return;
+  await syncGoogleEvent(next, holderId, next.google_event_id ? 'update' : 'insert');
+}
+
 async function syncGoogleEvent(lead, holderId, mode) {
+  if (mode !== 'delete' && !lead.appointment_at) return;
   const connection = await connectionFor(holderId);
   if (!connection) {
-    if (lead.delivery_type === 'appointment') {
-      await supabase.from('leads').update({ calendar_sync_status: 'pending', energy_status: 'CALENDAR_PENDING' }).eq('id', lead.id);
+    if (lead.delivery_type === 'appointment' && mode !== 'delete') {
+      await supabase.from('leads').update({ calendar_sync_status: 'pending' }).eq('id', lead.id);
     }
     return;
   }
@@ -794,7 +499,6 @@ async function syncGoogleEvent(lead, holderId, mode) {
     google_event_id: event.id,
     google_event_etag: event.etag || null,
     calendar_sync_status: 'connected',
-    energy_status: 'CALENDAR_SYNCED',
   }).eq('id', lead.id);
   await supabase.from('energy_calendar_connections').update({
     sync_status: 'connected',

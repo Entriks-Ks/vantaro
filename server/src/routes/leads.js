@@ -23,7 +23,7 @@ import {
 } from '../lib/complaints.js';
 import { assignLeadToBerater, requestTableMissing } from '../lib/leadRequests.js';
 import { notifyScheduleCancelled, notifyScheduleSaved } from '../lib/followUpReminders.js';
-import { attachEnergyComplaints, canReadEnergyLead, listVisibleEnergyLeads } from '../lib/energy.js';
+import { canReadEnergyLead, listVisibleEnergyLeads, syncLeadCalendar } from '../lib/energy.js';
 import { normalizeVertical, verticalOrInsurance } from '../lib/vertical.js';
 
 const router = Router();
@@ -37,9 +37,11 @@ function hideBrokerNotes(lead) {
 
 router.get('/mine', requireAuth, async (req, res) => {
   try {
-    const leads = req.user.vertical === 'energy'
-      ? await attachEnergyComplaints(await listVisibleEnergyLeads(req.user))
-      : await attachComplaints(await listMyLeads(req.user.id, { vertical: req.user.vertical }));
+    const leads = await attachComplaints(
+      req.user.vertical === 'energy'
+        ? await listVisibleEnergyLeads(req.user)
+        : await listMyLeads(req.user.id, { vertical: req.user.vertical }),
+    );
     res.json({ leads });
   } catch (error) {
     if (complaintTableMissing(error)) {
@@ -60,7 +62,12 @@ router.post('/:id/report', requireAuth, async (req, res) => {
     if (req.user.role !== ROLES.BERATER) {
       return res.status(403).json({ error: 'Nur Berater können Leads reklamieren.' });
     }
-    const complaint = await reportLead(req.params.id, req.user.id, {
+    let reporterId = req.user.id;
+    if (req.user.vertical === 'energy') {
+      const row = await getLeadById(req.params.id);
+      if (row && canReadEnergyLead(req.user, row)) reporterId = row.assigned_to;
+    }
+    const complaint = await reportLead(req.params.id, reporterId, {
       reason: req.body?.reason,
       comment: req.body?.comment,
       proofName: req.body?.proofName ?? req.body?.proof_name,
@@ -146,10 +153,7 @@ router.get('/:id', requireAuth, async (req, res) => {
         return res.status(404).json({ error: 'Lead wurde nicht gefunden.' });
       }
     }
-    let [lead] = await attachComplaints([await withAssignee(row)]);
-    if (verticalOrInsurance(row.vertical) === 'energy') {
-      [lead] = await attachEnergyComplaints([lead]);
-    }
+    const [lead] = await attachComplaints([await withAssignee(row)]);
     res.json({
       lead: req.user.role === ROLES.ADMIN ? hideBrokerNotes(lead) : lead,
     });
@@ -185,16 +189,10 @@ router.patch('/:id', requireAuth, async (req, res) => {
       return res.json({ lead: hideBrokerNotes(lead) });
     }
 
+    const owner = current.assigned_to === req.user.id;
     const energyReader = req.user.vertical === 'energy' && canReadEnergyLead(req.user, current);
-    if (req.user.role !== ROLES.BERATER || (!energyReader && current.assigned_to !== req.user.id)) {
+    if (req.user.role !== ROLES.BERATER || (!owner && !energyReader)) {
       return res.status(403).json({ error: 'Keine Berechtigung.' });
-    }
-    if (energyReader && current.assigned_to !== req.user.id) {
-      const notes = req.body?.brokerNotes ?? req.body?.broker_notes;
-      if (notes == null) return res.status(403).json({ error: 'Keine Berechtigung.' });
-      const noted = await updateLead(req.params.id, { brokerNotes: notes }, { bypassDeliveryLock: true });
-      const [withEnergyComplaint] = await attachEnergyComplaints([noted]);
-      return res.json({ lead: withEnergyComplaint });
     }
     if (verticalOrInsurance(current.vertical) !== req.user.vertical) {
       return res.status(404).json({ error: 'Lead wurde nicht gefunden.' });
@@ -204,7 +202,7 @@ router.patch('/:id', requireAuth, async (req, res) => {
     }
 
     const payload = {};
-    if (req.body?.status != null) payload.status = req.body.status;
+    if (owner && req.body?.status != null) payload.status = req.body.status;
     if (req.body?.brokerNotes != null || req.body?.broker_notes != null) {
       payload.brokerNotes = req.body.brokerNotes ?? req.body.broker_notes;
     }
@@ -250,10 +248,12 @@ router.patch('/:id', requireAuth, async (req, res) => {
         console.error('Schedule cancel failed:', error.message);
       });
     }
-    let [withComplaint] = await attachComplaints([lead]);
-    if (verticalOrInsurance(current.vertical) === 'energy') {
-      [withComplaint] = await attachEnergyComplaints([withComplaint]);
+    if (verticalOrInsurance(current.vertical) === 'energy' && current.energy_holder_id) {
+      getLeadById(req.params.id)
+        .then((next) => syncLeadCalendar(current, next))
+        .catch((error) => console.error('Energy calendar sync failed:', error.message));
     }
+    const [withComplaint] = await attachComplaints([lead]);
     res.json({ lead: withComplaint });
   } catch (error) {
     if (complaintTableMissing(error)) {

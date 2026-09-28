@@ -97,7 +97,7 @@ export function formatLeadDate(value) {
 }
 
 export function formatLeadAddress(lead) {
-  const street = String(lead?.street || '').trim();
+  const street = [lead?.street, lead?.houseNumber].map((part) => String(part || '').trim()).filter(Boolean).join(' ');
   const zip = String(lead?.zip || '').trim();
   const city = String(lead?.city || '').trim();
   const locality = [zip, city].filter(Boolean).join(' ');

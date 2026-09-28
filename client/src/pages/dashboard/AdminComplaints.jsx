@@ -12,6 +12,7 @@ import {
 } from '../../lib/complaints';
 import { employmentLabel, fetchLeads, formatLeadAddress, listLabels } from '../../lib/leads';
 import { DEFAULT_LEAD_SCOPE, leadScopeLabel } from '../../lib/scopes';
+import { energyLeadTypeOf, energyTypeLabel, verticalLabel, verticalOrInsurance } from '../../lib/vertical';
 import { useDashboard } from '../../hooks/useDashboard';
 import { leadPurchaseCents } from './packages';
 import { DashSeg } from './DashboardLayout';
@@ -77,6 +78,10 @@ function complaintScope(complaint) {
   return complaint?.request?.scope || complaint?.lead?.scope || '';
 }
 
+function complaintVertical(complaint) {
+  return verticalOrInsurance(complaint?.lead?.vertical || complaint?.snapshot?.vertical);
+}
+
 function snapshotEmployment(snapshot) {
   if (!snapshot) return '';
   if (snapshot.employmentStatus === 'sonstiges' && snapshot.employmentOther) {
@@ -111,12 +116,20 @@ function ComplaintEvidence({ complaint }) {
   const insurance = listLabels(snapshot?.insuranceStatus, 'insurance');
   const concerns = listLabels(snapshot?.mainConcerns, 'concern');
   const coverage = listLabels(snapshot?.coverageCircle, 'coverage');
-  const talk = [
-    snapshot?.phone,
-    snapshot?.email,
-    snapshotEmployment(snapshot),
-    insurance !== '—' ? insurance : '',
-  ].filter(Boolean).join(' · ') || 'Keine Gesprächsdaten hinterlegt';
+  const energy = complaintVertical(complaint) === 'energy';
+  const talk = (energy
+    ? [
+      snapshot?.phone,
+      snapshot?.email,
+      snapshot?.address,
+      snapshot?.appointmentAt ? `Termin ${formatDateTime(snapshot.appointmentAt)}` : '',
+    ]
+    : [
+      snapshot?.phone,
+      snapshot?.email,
+      snapshotEmployment(snapshot),
+      insurance !== '—' ? insurance : '',
+    ]).filter(Boolean).join(' · ') || 'Keine Gesprächsdaten hinterlegt';
 
   const hasSnapshot = Boolean(snapshot);
   const hasProof = Boolean(proofData || proofName);
@@ -137,10 +150,16 @@ function ComplaintEvidence({ complaint }) {
         <div className="dash-complaint-snapshot">
           <p className="dash-complaint-snapshot__label">Snapshot bei Einreichung</p>
           <p className="dash-complaint-snapshot__talk">{talk}</p>
-          {concerns && concerns !== '—' ? (
+          {energy && snapshot?.energyProduct ? (
+            <p className="dash-complaint-snapshot__meta">
+              <span>Paket</span>
+              {energyTypeLabel(energyLeadTypeOf(snapshot))}
+            </p>
+          ) : null}
+          {!energy && concerns && concerns !== '—' ? (
             <p className="dash-complaint-snapshot__meta"><span>Anliegen</span>{concerns}</p>
           ) : null}
-          {coverage && coverage !== '—' ? (
+          {!energy && coverage && coverage !== '—' ? (
             <p className="dash-complaint-snapshot__meta"><span>Absicherung</span>{coverage}</p>
           ) : null}
           <p className="dash-complaint-snapshot__notes">
@@ -201,10 +220,18 @@ function ComplaintDrawer({
 }) {
   const lead = complaint.lead;
   const decidable = complaint.status === 'pending' || complaint.status === 'info_needed';
+  const vertical = complaintVertical(complaint);
+  const energy = vertical === 'energy';
   const requiredScope = complaintScope(complaint) || DEFAULT_LEAD_SCOPE;
+  const requiredEnergyType = energy ? energyLeadTypeOf(lead) : '';
   const scopedPool = useMemo(() => {
-    return pool.filter((item) => (item.scope || DEFAULT_LEAD_SCOPE) === requiredScope);
-  }, [pool, requiredScope]);
+    return pool.filter((item) => {
+      if (verticalOrInsurance(item.vertical) !== vertical) return false;
+      if (energy) return !requiredEnergyType || energyLeadTypeOf(item) === requiredEnergyType;
+      return (item.scope || DEFAULT_LEAD_SCOPE) === requiredScope;
+    });
+  }, [pool, vertical, energy, requiredEnergyType, requiredScope]);
+  const poolLabel = energy ? energyTypeLabel(requiredEnergyType) : `Scope ${leadScopeLabel(requiredScope)}`;
   const canReplace = Boolean(complaint.requestId) && scopedPool.length > 0
     && (complaint.request?.status === 'active' || complaint.request?.status === 'completed' || !complaint.request);
   const replacements = scopedPool.slice(0, 5);
@@ -263,12 +290,16 @@ function ComplaintDrawer({
                 Gutschrift {formatEuroExact(complaint.refundCents)}
               </span>
             ) : null}
-            {requiredScope ? (
+            <span className="dash-badge dash-badge--muted">{verticalLabel(vertical)}</span>
+            {energy && requiredEnergyType ? (
+              <span className="dash-badge dash-badge--muted">{energyTypeLabel(requiredEnergyType)}</span>
+            ) : null}
+            {!energy && requiredScope ? (
               <span className="dash-badge dash-badge--muted">{leadScopeLabel(requiredScope)}</span>
             ) : null}
           </div>
 
-          <p className="dash-complaint-reason">{complaintReasonLabel(complaint.reason)}</p>
+          <p className="dash-complaint-reason">{complaintReasonLabel(complaint.reason, vertical)}</p>
 
           {complaint.comment ? (
             <blockquote className="dash-complaint-quote">
@@ -309,7 +340,7 @@ function ComplaintDrawer({
                 {canReplace ? (
                   <div className="dash-replace-block">
                     <p className="dash-panel-note">
-                      Scope {leadScopeLabel(requiredScope)} · max. 5 freie Leads hier.
+                      {poolLabel} · max. 5 freie Leads hier.
                       Anderen Ersatz über Leads wählen.
                     </p>
                     <div className="dash-pick-list dash-pick-list--drawer">
@@ -325,7 +356,7 @@ function ComplaintDrawer({
                           <span>
                             <strong>{item.fullName}</strong>
                             <small>
-                              {[formatLeadAddress(item), listLabels(item.insuranceStatus, 'insurance')]
+                              {[formatLeadAddress(item), energy ? energyTypeLabel(energyLeadTypeOf(item)) : listLabels(item.insuranceStatus, 'insurance')]
                                 .filter((value) => value && value !== '—')
                                 .join(' · ')}
                             </small>
@@ -341,7 +372,7 @@ function ComplaintDrawer({
                   </div>
                 ) : (
                   <p className="dash-panel-note">
-                    Kein freier Lead mit Scope {leadScopeLabel(requiredScope)}.
+                    Kein freier Lead für {poolLabel}.
                     Ersatz können Sie nach der Erstattung über Leads senden.
                   </p>
                 )}
@@ -494,6 +525,7 @@ export function AdminComplaints() {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState(location.state?.notice || '');
   const [filter, setFilter] = useState('pending');
+  const [verticalFilter, setVerticalFilter] = useState('all');
   const [selectedId, setSelectedId] = useState('');
   const [adminNote, setAdminNote] = useState('');
   const [replaceId, setReplaceId] = useState('');
@@ -546,20 +578,31 @@ export function AdminComplaints() {
     };
   }, [selectedId]);
 
+  const verticalCounts = useMemo(() => ({
+    insurance: complaints.filter((entry) => complaintVertical(entry) === 'insurance').length,
+    energy: complaints.filter((entry) => complaintVertical(entry) === 'energy').length,
+  }), [complaints]);
+
+  const scoped = useMemo(() => (
+    verticalFilter === 'all'
+      ? complaints
+      : complaints.filter((entry) => complaintVertical(entry) === verticalFilter)
+  ), [complaints, verticalFilter]);
+
   const visible = useMemo(() => {
-    if (filter === 'all') return complaints;
+    if (filter === 'all') return scoped;
     if (filter === 'credited') {
-      return complaints.filter((entry) => entry.status === 'approved' || entry.status === 'partial');
+      return scoped.filter((entry) => entry.status === 'approved' || entry.status === 'partial');
     }
-    return complaints.filter((entry) => entry.status === filter);
-  }, [complaints, filter]);
+    return scoped.filter((entry) => entry.status === filter);
+  }, [scoped, filter]);
 
   const counts = useMemo(() => ({
-    pending: complaints.filter((entry) => entry.status === 'pending').length,
-    info_needed: complaints.filter((entry) => entry.status === 'info_needed').length,
-    credited: complaints.filter((entry) => entry.status === 'approved' || entry.status === 'partial').length,
-    declined: complaints.filter((entry) => entry.status === 'declined').length,
-  }), [complaints]);
+    pending: scoped.filter((entry) => entry.status === 'pending').length,
+    info_needed: scoped.filter((entry) => entry.status === 'info_needed').length,
+    credited: scoped.filter((entry) => entry.status === 'approved' || entry.status === 'partial').length,
+    declined: scoped.filter((entry) => entry.status === 'declined').length,
+  }), [scoped]);
 
   const selected = complaints.find((entry) => entry.id === selectedId) || null;
   const drawerOpen = Boolean(selected);
@@ -634,7 +677,16 @@ export function AdminComplaints() {
               { id: 'info_needed', label: 'Infos nötig', count: loading ? null : counts.info_needed },
               { id: 'credited', label: 'Erstattet', count: loading ? null : counts.credited },
               { id: 'declined', label: 'Abgelehnt', count: loading ? null : counts.declined },
-              { id: 'all', label: 'Alle', count: loading ? null : complaints.length },
+              { id: 'all', label: 'Alle', count: loading ? null : scoped.length },
+            ]}
+          />
+          <DashSeg
+            value={verticalFilter}
+            onChange={setVerticalFilter}
+            options={[
+              { id: 'all', label: 'Alle Bereiche', count: loading ? null : complaints.length },
+              { id: 'insurance', label: 'Versicherung', count: loading ? null : verticalCounts.insurance },
+              { id: 'energy', label: 'Energie', count: loading ? null : verticalCounts.energy },
             ]}
           />
           <Link className="dash-btn dash-btn--ghost" to="/dashboard/leads/ungueltig">
@@ -673,7 +725,8 @@ export function AdminComplaints() {
                       {entry.berater?.company ? ` · ${entry.berater.company}` : ''}
                     </span>
                     <span className="dash-lead-row-tags">
-                      {complaintReasonLabel(entry.reason)}
+                      {complaintVertical(entry) === 'energy' ? 'Energie · ' : ''}
+                      {complaintReasonLabel(entry.reason, complaintVertical(entry))}
                       {entry.proofData || entry.proofName ? ' · Nachweis' : ''}
                       {entry.contactStatus ? ` · ${contactStatusLabel(entry.contactStatus)}` : ''}
                     </span>

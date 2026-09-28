@@ -48,6 +48,43 @@ export const COMPLAINT_REASON_OPTIONS = [
   },
 ];
 
+export const ENERGY_COMPLAINT_REASONS = [
+  {
+    id: 'invalid_phone',
+    label: 'Telefon ungültig oder nicht erreichbar',
+    hint: 'Die Nummer ist falsch, unvollständig oder dauerhaft nicht erreichbar.',
+    placeholder: 'z. B. Nummer nicht vergeben, Ansage „kein Anschluss unter dieser Nummer“…',
+  },
+  {
+    id: 'wrong_territory',
+    label: 'Adresse außerhalb des Gebiets',
+    hint: 'Die Adresse liegt nicht im gebuchten Gebiet.',
+    placeholder: 'z. B. PLZ gehört nicht zum bestellten Gebiet…',
+  },
+  {
+    id: 'customer_unaware',
+    label: 'Kunde weiß von nichts',
+    hint: 'Die Person kennt die Anfrage oder den Termin nicht.',
+    placeholder: 'z. B. Person kennt die Anfrage nicht, kein Einverständnis…',
+  },
+  {
+    id: 'duplicate',
+    label: 'Doppelte Übermittlung desselben Leads',
+    hint: 'Derselbe Kontakt wurde bereits geliefert.',
+    placeholder: 'z. B. gleicher Kontakt schon am … erhalten, gleiche Telefonnummer…',
+  },
+  {
+    id: 'appointment_not_attended',
+    label: 'Termin nicht wahrgenommen',
+    hint: 'Der feste Termin wurde nicht eingehalten.',
+    placeholder: 'z. B. Kunde war nicht vor Ort, Termin wurde nicht wahrgenommen…',
+  },
+];
+
+export function complaintReasonsFor(vertical) {
+  return vertical === 'energy' ? ENERGY_COMPLAINT_REASONS : COMPLAINT_REASON_OPTIONS;
+}
+
 const LEGACY_REASON_LABELS = {
   invalid: 'Falscher / ungültiger Lead',
   contact: 'Falsche Kontaktdaten',
@@ -72,8 +109,10 @@ const CONTACT_STATUS_LABELS = {
   abgeschlossen: 'Abgeschlossen',
 };
 
-export function complaintReasonLabel(id) {
-  return COMPLAINT_REASON_OPTIONS.find((option) => option.id === id)?.label
+export function complaintReasonLabel(id, vertical) {
+  return complaintReasonsFor(vertical).find((option) => option.id === id)?.label
+    || COMPLAINT_REASON_OPTIONS.find((option) => option.id === id)?.label
+    || ENERGY_COMPLAINT_REASONS.find((option) => option.id === id)?.label
     || LEGACY_REASON_LABELS[id]
     || id
     || '—';

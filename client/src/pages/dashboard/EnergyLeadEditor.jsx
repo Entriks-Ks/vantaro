@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import { complaintReasonLabel, complaintStatusLabel } from '../../lib/complaints';
 import { createLead, fetchLead, updateLead } from '../../lib/leads';
-import { EnergyLeadReport } from './EnergyOps';
 import {
   ENERGY_PACKAGES,
   ENERGY_STATES,
@@ -232,10 +232,11 @@ export default function EnergyLeadEditor() {
         </div>
         <button type="submit" className="dash-btn" disabled={saving}>{saving ? 'Wird gespeichert…' : 'Speichern'}</button>
       </form>
-      {!isNew && lead ? (
-        <aside className="broker-panel broker-detail-side">
-          <EnergyLeadReport lead={lead} onChange={setLead} />
-        </aside>
+      {!isNew && lead?.complaint ? (
+        <div className="broker-alert">
+          Reklamation: {complaintStatusLabel(lead.complaint.status)} · {complaintReasonLabel(lead.complaint.reason, 'energy')}.{' '}
+          <Link to="/dashboard/reklamationen">Zu den Reklamationen</Link>
+        </div>
       ) : null}
       <p><Link to="/dashboard/leads">Zurück zu den Leads</Link></p>
     </div>

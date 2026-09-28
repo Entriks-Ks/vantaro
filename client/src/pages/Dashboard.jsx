@@ -33,13 +33,9 @@ import { AdminRejectedLeads } from './dashboard/AdminRejectedLeads';
 import EnergyLeadEditor from './dashboard/EnergyLeadEditor';
 import {
   EnergyHome,
-  EnergyLeadDetail,
   EnergyOrders,
 } from './dashboard/EnergyViews';
-import {
-  EnergyBilling,
-  EnergyPartners,
-} from './dashboard/EnergyOps';
+import { EnergyPartners } from './dashboard/EnergyOps';
 import VerticalChoice from './VerticalChoice';
 
 function RedirectAnfordernDetail() {
@@ -92,7 +88,7 @@ export default function Dashboard() {
                 <Route path="leads/ungueltig" element={<AdminRejectedLeads />} />
                 <Route path="leads/abgelehnt" element={<Navigate to="/dashboard/leads/ungueltig" replace />} />
                 <Route path="leads/:id" element={<AdminLeadEditor />} />
-                <Route path="energie" element={<EnergyBilling />} />
+                <Route path="energie" element={<Navigate to="/dashboard/leads" replace />} />
                 <Route path="zahlung" element={<AdminPayment />} />
                 <Route path="profil" element={<AdminProfile />} />
                 <Route path="unternehmen" element={<Navigate to="/dashboard/profil" replace />} />
@@ -104,11 +100,11 @@ export default function Dashboard() {
             ) : (
               <>
                 <Route path="leads" element={canEnergyPage('leads') ? <BeraterLeads /> : <Navigate to="/dashboard" replace />} />
-                <Route path="leads/:leadId" element={canEnergyPage('leads') ? (energy ? <EnergyLeadDetail /> : <BeraterLeadDetail />) : <Navigate to="/dashboard" replace />} />
+                <Route path="leads/:leadId" element={canEnergyPage('leads') ? <BeraterLeadDetail /> : <Navigate to="/dashboard" replace />} />
                 <Route path="kalender" element={canEnergyPage('kalender') ? <BeraterCalendar /> : <Navigate to="/dashboard" replace />} />
                 <Route path="bestellung" element={<Navigate to="/dashboard/paket" replace />} />
                 <Route path="team" element={energyMain ? <EnergyPartners /> : <Navigate to="/dashboard" replace />} />
-                <Route path="abrechnung" element={energyMain ? <EnergyBilling /> : <Navigate to="/dashboard" replace />} />
+                <Route path="abrechnung" element={<Navigate to="/dashboard/paket" replace />} />
                 <Route path="reklamationen" element={energy ? <Navigate to="/dashboard/leads" replace /> : <Navigate to="/dashboard" replace />} />
                 <Route path="paket" element={
                   energy

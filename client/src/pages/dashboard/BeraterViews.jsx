@@ -16,8 +16,8 @@ import {
 } from '../../lib/berater';
 import {
   COMPLAINT_COMMENT_MIN,
-  COMPLAINT_REASON_OPTIONS,
   canAmendComplaint,
+  complaintReasonsFor,
   complaintReasonLabel,
   complaintStatusLabel,
   contactStatusLabel,
@@ -41,7 +41,9 @@ import { ENERGY_PACKAGES, energyLeadTypeOf, energyTypeLabel, verticalOrInsurance
 import ThemeMode from '../../components/ThemeMode';
 import { accountSetupGaps, displayName, firstName, formatDate, formatDateTime, formatEuroExact, initials } from './helpers';
 import { MIN_LEAD_PACK, PACKAGES, packageById, packTotalCents } from './packages';
-import { connectEnergyCalendar, disconnectEnergyCalendar, fetchCalendarStatus, setEnergyOutcome } from '../../lib/energy';
+import { connectEnergyCalendar, disconnectEnergyCalendar, fetchCalendarStatus } from '../../lib/energy';
+import { CopyableAction, EnergyLeadFacts } from './EnergyLeadFacts';
+import { EnergyLeadActions } from './EnergyOps';
 import {
   checkoutLeadPackage,
   collectBrowserPaymentMeta,
@@ -83,6 +85,12 @@ function leadProduct(lead) {
   const filter = PRODUCT_FILTERS.find((option) => option.id === code);
   return filter?.label || code;
 }
+
+const DELIVERY_FILTERS = [
+  { id: 'all', label: 'Alle' },
+  { id: 'lead', label: 'Leads' },
+  { id: 'appointment', label: 'Termine' },
+];
 
 function withPipeline(lead, leadStatuses) {
   const status = pipelineStatusOf(lead, leadStatuses);
@@ -898,12 +906,20 @@ function ComplaintFacts({ lead, notes, contactStatus }) {
   const employment = lead?.employmentStatus === 'sonstiges' && lead?.employmentOther
     ? lead.employmentOther
     : employmentLabel(lead?.employmentStatus);
-  const talk = [
-    lead?.phone,
-    lead?.email,
-    employment,
-    brief.insurance,
-  ].filter((value) => value && value !== '—').join(' · ') || 'Keine Gesprächsdaten hinterlegt';
+  const energy = verticalOrInsurance(lead?.vertical) === 'energy';
+  const talk = (energy
+    ? [
+      lead?.phone,
+      lead?.email,
+      formatLeadAddress(lead),
+      lead?.appointmentAt ? `Termin ${formatDateTime(lead.appointmentAt)}` : '',
+    ]
+    : [
+      lead?.phone,
+      lead?.email,
+      employment,
+      brief.insurance,
+    ]).filter((value) => value && value !== '—').join(' · ') || 'Keine Gesprächsdaten hinterlegt';
   const brokerNotes = String(notes || lead?.brokerNotes || '').trim();
   const stockNotes = String(lead?.notes || '').trim();
 
@@ -1066,7 +1082,7 @@ function LeadReportPanel({ lead, notes, contactStatus, onReported }) {
           </span>
           <div className="broker-detail-report-done-body">
             <strong>{complaintStatusLabel(complaint.status)}</strong>
-            <span>{complaintReasonLabel(complaint.reason)}</span>
+            <span>{complaintReasonLabel(complaint.reason, verticalOrInsurance(lead.vertical))}</span>
             {complaint.refundCents != null ? (
               <span>Gutschrift: {formatEuroExact(complaint.refundCents)}</span>
             ) : null}
@@ -1134,7 +1150,8 @@ function ReportModal({
   panelRef,
   detailRef,
 }) {
-  const selectedReason = COMPLAINT_REASON_OPTIONS.find((option) => option.id === reason);
+  const reasons = complaintReasonsFor(verticalOrInsurance(lead.vertical));
+  const selectedReason = reasons.find((option) => option.id === reason);
   const detailLen = comment.trim().length;
   const canContinue = Boolean(reason);
   const canSubmit = Boolean(reason && detailLen >= COMPLAINT_COMMENT_MIN);
@@ -1183,7 +1200,7 @@ function ReportModal({
                 <p>Akzeptierte Stornierungsgründe laut Vantaro-Richtlinie</p>
               </div>
               <div className="broker-report-reasons" role="radiogroup" aria-label="Grund der Reklamation">
-                {COMPLAINT_REASON_OPTIONS.map((option) => {
+                {reasons.map((option) => {
                   const selected = reason === option.id;
                   return (
                     <label
@@ -1727,6 +1744,7 @@ export function BeraterLeads() {
   const [error, setError] = useState('');
   const [insurance, setInsurance] = useState([]);
   const [packages, setPackages] = useState([]);
+  const [delivery, setDelivery] = useState('all');
   const [view, setView] = useState('kanban');
   const [page, setPage] = useState(1);
   const [draggingId, setDraggingId] = useState('');
@@ -1764,7 +1782,17 @@ export function BeraterLeads() {
       ))
   ), [leads, leadStatuses, insurance, packages, energy]);
 
-  const visible = pipeline;
+  const deliveryCounts = useMemo(() => ({
+    all: pipeline.length,
+    lead: pipeline.filter((lead) => (lead.deliveryType || 'lead') === 'lead').length,
+    appointment: pipeline.filter((lead) => lead.deliveryType === 'appointment').length,
+  }), [pipeline]);
+
+  const visible = useMemo(() => (
+    energy && delivery !== 'all'
+      ? pipeline.filter((lead) => (lead.deliveryType || 'lead') === delivery)
+      : pipeline
+  ), [pipeline, energy, delivery]);
   const nonAbgeschlossenCount = useMemo(() => (
     visible.filter((lead) => lead.status !== 'abgeschlossen' && lead.contactStatus !== 'abgeschlossen').length
   ), [visible]);
@@ -1772,7 +1800,7 @@ export function BeraterLeads() {
 
   useEffect(() => {
     setPage(1);
-  }, [insurance, packages, view]);
+  }, [insurance, packages, delivery, view]);
 
   useEffect(() => {
     setPage((current) => Math.min(current, totalPages));
@@ -1916,7 +1944,7 @@ export function BeraterLeads() {
     },
   };
 
-  const filterActive = energy ? packages.length : insurance.length;
+  const filterActive = energy ? packages.length || delivery !== 'all' : insurance.length;
 
   return (
     <div className="broker-page broker-page--wide">
@@ -1978,6 +2006,22 @@ export function BeraterLeads() {
         )}
 
         <div className="broker-filterbar-end">
+          {energy ? (
+            <div className="broker-pills broker-pills--view" role="tablist" aria-label="Leads oder Termine">
+              {DELIVERY_FILTERS.map((option) => (
+                <button
+                  key={option.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={delivery === option.id}
+                  className={delivery === option.id ? 'is-active' : undefined}
+                  onClick={() => setDelivery(option.id)}
+                >
+                  <span>{option.label}{loading ? '' : ` · ${deliveryCounts[option.id]}`}</span>
+                </button>
+              ))}
+            </div>
+          ) : null}
           <div className="broker-pills broker-pills--view" role="tablist" aria-label="Ansicht">
             {VIEW_MODES.map((mode) => (
               <button
@@ -2012,7 +2056,7 @@ export function BeraterLeads() {
           <p>
             {filterActive
               ? (energy
-                ? 'Anderes Paket wählen — oder alle Häkchen entfernen, um den gesamten Bestand zu sehen.'
+                ? 'Anderes Paket oder „Alle“ wählen, um den gesamten Bestand zu sehen.'
                 : 'Andere Versicherungsstatus wählen — oder alle Häkchen entfernen, um den gesamten Bestand zu sehen.')
               : 'Sobald wir Ihnen Chancen zuteilen, erscheinen sie hier.'}
           </p>
@@ -2280,7 +2324,7 @@ export function BeraterCalendar() {
         list.push({
           id: `${lead.id}-termin`,
           lead,
-          kind: energy && lead.energyStatus === 'FOLLOW_UP' ? 'wiedervorlage' : 'termin',
+          kind: 'termin',
           at,
           dateKey: toDateKey(d),
           timeStr: d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) + ' Uhr',
@@ -2293,7 +2337,7 @@ export function BeraterCalendar() {
           product,
         });
       }
-      if (lead.followUpAt && !(energy && lead.appointmentAt)) {
+      if (lead.followUpAt) {
         const at = lead.followUpAt;
         const d = new Date(at);
         list.push({
@@ -2410,18 +2454,6 @@ export function BeraterCalendar() {
     setSavingSchedule(true);
     setError('');
     try {
-      if (energy) {
-        const payload = await setEnergyOutcome(lead.id, {
-          status: kind === 'wiedervorlage' ? 'FOLLOW_UP' : 'CONFIRMED',
-          appointmentAt: iso,
-        });
-        setLeads((prev) =>
-          prev.map((l) => (String(l.id) === String(lead.id) ? { ...l, ...payload.lead, complaint: l.complaint } : l)),
-        );
-        setScheduleTarget(null);
-        if (showToast) showToast('Termin erfolgreich aktualisiert.');
-        return;
-      }
       const payload = await updateLead(lead.id, contactUpdatePayload(kind, {
         followUpAt: kind === 'wiedervorlage' ? iso : null,
         appointmentAt: kind === 'termin' ? iso : null,
@@ -3525,6 +3557,11 @@ export function BeraterLeadDetail() {
     ? lead.employmentOther
     : employmentLabel(lead.employmentStatus);
   const outcome = closeOutcomeOf(lead);
+  const energy = verticalOrInsurance(lead.vertical) === 'energy';
+  const hasAddress = view.address !== '—';
+  const mapsHref = energy && hasAddress
+    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(view.address)}`
+    : '';
 
   return (
     <div className="broker-page">
@@ -3538,10 +3575,10 @@ export function BeraterLeadDetail() {
       <div className="broker-heading broker-detail-heading">
         <span className="broker-detail-avatar" aria-hidden="true">{leadInitials(lead)}</span>
         <div className="broker-detail-heading-main">
-          <div className="eyebrow">Ihr Gespräch</div>
+          <div className="eyebrow">{energy && lead.deliveryType === 'appointment' ? 'Ihr Termin' : 'Ihr Gespräch'}</div>
           <h1>{view.name || 'Ohne Namen'}</h1>
           <p className="lede">
-            {[view.address !== '—' ? view.address : '', distance ? `${distance} entfernt` : '']
+            {[energy ? view.product : '', hasAddress ? view.address : '', distance ? `${distance} entfernt` : '']
               .filter(Boolean)
               .join(' · ') || 'Keine Adresse hinterlegt'}
           </p>
@@ -3557,106 +3594,157 @@ export function BeraterLeadDetail() {
 
       <div className="broker-detail-actions">
         {phoneHref ? (
-          <a className="btn btn-primary" href={phoneHref}>
-            <Phone size={16} aria-hidden="true" />
-            Anrufen{lead.phone ? ` · ${lead.phone}` : ''}
-          </a>
+          <CopyableAction value={lead.phone} label="Telefonnummer" onCopied={showToast}>
+            <a className="btn btn-primary" href={phoneHref}>
+              <Phone size={16} aria-hidden="true" />
+              Anrufen · {lead.phone}
+            </a>
+          </CopyableAction>
         ) : (
           <span className="broker-detail-action-missing">Keine Telefonnummer</span>
         )}
         {lead.email ? (
-          <a className="btn btn-outline" href={`mailto:${lead.email}`}>
-            <Mail size={16} aria-hidden="true" />
-            E-Mail schreiben
-          </a>
+          <CopyableAction value={lead.email} label="E-Mail-Adresse" onCopied={showToast}>
+            <a className="btn btn-outline" href={`mailto:${lead.email}`}>
+              <Mail size={16} aria-hidden="true" />
+              E-Mail schreiben
+            </a>
+          </CopyableAction>
+        ) : null}
+        {mapsHref ? (
+          <CopyableAction value={view.address} label="Adresse" onCopied={showToast}>
+            <a className="btn btn-outline" href={mapsHref} target="_blank" rel="noreferrer">
+              <MapPin size={16} aria-hidden="true" />
+              Navigation
+            </a>
+          </CopyableAction>
         ) : null}
       </div>
 
       <div className="broker-detail-grid">
         <div className="broker-detail-sections">
-          <section className="broker-panel broker-detail-section">
-            <div className="broker-detail-section-head">
-              <span className="broker-detail-section-icon" aria-hidden="true">
-                <User size={18} />
-              </span>
-              <div>
-                <h2>Kontakt</h2>
-                <p>Zum Anrufen und Schreiben</p>
-              </div>
-            </div>
-            <div className="broker-detail-facts">
-              <DetailFact label="Telefon">
-                {lead.phone ? <a href={phoneHref}>{lead.phone}</a> : null}
-              </DetailFact>
-              <DetailFact label="E-Mail">
-                {lead.email ? <a href={`mailto:${lead.email}`}>{lead.email}</a> : null}
-              </DetailFact>
-              <DetailFact label="Adresse" wide>
-                {view.address !== '—' ? view.address : null}
-              </DetailFact>
-              <DetailFact label="Alter">
-                {brief.age || null}
-              </DetailFact>
-              <DetailFact label="Geburtsdatum">
-                {formatLeadDate(lead.dateOfBirth) !== '—' ? formatLeadDate(lead.dateOfBirth) : null}
-              </DetailFact>
-              <DetailFact label="Beruf / Situation" wide>
-                {employment || null}
-              </DetailFact>
-            </div>
-          </section>
+          {energy ? (
+            <>
+              <section className="broker-panel broker-detail-section">
+                <div className="broker-detail-section-head">
+                  <span className="broker-detail-section-icon" aria-hidden="true">
+                    <User size={18} />
+                  </span>
+                  <div>
+                    <h2>Kontakt</h2>
+                    <p>Zum Anrufen, Schreiben und Hinfahren</p>
+                  </div>
+                </div>
+                <div className="broker-detail-facts">
+                  <DetailFact label="Telefon">
+                    {lead.phone ? <a href={phoneHref}>{lead.phone}</a> : null}
+                  </DetailFact>
+                  <DetailFact label="E-Mail">
+                    {lead.email ? <a href={`mailto:${lead.email}`}>{lead.email}</a> : null}
+                  </DetailFact>
+                  <DetailFact label="Adresse" wide>
+                    {hasAddress ? view.address : null}
+                  </DetailFact>
+                </div>
+              </section>
+              <EnergyLeadFacts lead={lead} />
+            </>
+          ) : (
+            <>
+              <section className="broker-panel broker-detail-section">
+                <div className="broker-detail-section-head">
+                  <span className="broker-detail-section-icon" aria-hidden="true">
+                    <User size={18} />
+                  </span>
+                  <div>
+                    <h2>Kontakt</h2>
+                    <p>Zum Anrufen und Schreiben</p>
+                  </div>
+                </div>
+                <div className="broker-detail-facts">
+                  <DetailFact label="Telefon">
+                    {lead.phone ? <a href={phoneHref}>{lead.phone}</a> : null}
+                  </DetailFact>
+                  <DetailFact label="E-Mail">
+                    {lead.email ? <a href={`mailto:${lead.email}`}>{lead.email}</a> : null}
+                  </DetailFact>
+                  <DetailFact label="Adresse" wide>
+                    {view.address !== '—' ? view.address : null}
+                  </DetailFact>
+                  <DetailFact label="Alter">
+                    {brief.age || null}
+                  </DetailFact>
+                  <DetailFact label="Geburtsdatum">
+                    {formatLeadDate(lead.dateOfBirth) !== '—' ? formatLeadDate(lead.dateOfBirth) : null}
+                  </DetailFact>
+                  <DetailFact label="Beruf / Situation" wide>
+                    {employment || null}
+                  </DetailFact>
+                </div>
+              </section>
 
-          <section className="broker-panel broker-detail-section">
-            <div className="broker-detail-section-head">
-              <span className="broker-detail-section-icon" aria-hidden="true">
-                <Shield size={18} />
-              </span>
-              <div>
-                <h2>Versicherung & Anliegen</h2>
-                <p>Worum es im Gespräch geht</p>
-              </div>
-            </div>
-            <div className="broker-detail-facts">
-              <DetailFact label="Anliegen" wide>
-                {brief.concerns || listLabels(lead.mainConcerns, 'concern')}
-              </DetailFact>
-              <DetailFact label="Aktuelle Gesellschaft">
-                {brief.insurer}
-              </DetailFact>
-              <DetailFact label="Beitrag / Monat">
-                {brief.premium}
-              </DetailFact>
-              <DetailFact label="Versicherungsstatus">
-                {brief.insurance}
-              </DetailFact>
-              <DetailFact label="Personenkreis">
-                {brief.coverage}
-              </DetailFact>
-              <DetailFact label="Produkt" wide>
-                {view.product}
-              </DetailFact>
-            </div>
-          </section>
+              <section className="broker-panel broker-detail-section">
+                <div className="broker-detail-section-head">
+                  <span className="broker-detail-section-icon" aria-hidden="true">
+                    <Shield size={18} />
+                  </span>
+                  <div>
+                    <h2>Versicherung & Anliegen</h2>
+                    <p>Worum es im Gespräch geht</p>
+                  </div>
+                </div>
+                <div className="broker-detail-facts">
+                  <DetailFact label="Anliegen" wide>
+                    {brief.concerns || listLabels(lead.mainConcerns, 'concern')}
+                  </DetailFact>
+                  <DetailFact label="Aktuelle Gesellschaft">
+                    {brief.insurer}
+                  </DetailFact>
+                  <DetailFact label="Beitrag / Monat">
+                    {brief.premium}
+                  </DetailFact>
+                  <DetailFact label="Versicherungsstatus">
+                    {brief.insurance}
+                  </DetailFact>
+                  <DetailFact label="Personenkreis">
+                    {brief.coverage}
+                  </DetailFact>
+                  <DetailFact label="Produkt" wide>
+                    {view.product}
+                  </DetailFact>
+                </div>
+              </section>
+            </>
+          )}
 
-          <section className="broker-panel broker-detail-section">
-            <div className="broker-detail-section-head">
-              <span className="broker-detail-section-icon" aria-hidden="true">
-                <FileText size={18} />
-              </span>
-              <div>
-                <h2>Hinweis zum Lead</h2>
-                <p>Vom Bestand — vor dem Anruf lesen</p>
+          {!energy || lead.notes ? (
+            <section className="broker-panel broker-detail-section">
+              <div className="broker-detail-section-head">
+                <span className="broker-detail-section-icon" aria-hidden="true">
+                  <FileText size={18} />
+                </span>
+                <div>
+                  <h2>Hinweis zum Lead</h2>
+                  <p>Vom Bestand — vor dem Anruf lesen</p>
+                </div>
               </div>
-            </div>
-            <div className="broker-detail-facts">
-              <DetailFact label="Hinweis" wide>
-                {lead.notes || null}
-              </DetailFact>
-            </div>
-          </section>
+              <div className="broker-detail-facts">
+                <DetailFact label="Hinweis" wide>
+                  {lead.notes || null}
+                </DetailFact>
+              </div>
+            </section>
+          ) : null}
         </div>
 
-        <aside className="broker-panel broker-detail-side">
+        <aside className={`broker-panel broker-detail-side${energy ? ' broker-detail-side--flow' : ''}`}>
+          {energy ? (
+            <EnergyLeadActions
+              lead={lead}
+              onChange={(next) => setLead((current) => ({ ...current, ...next, complaint: current?.complaint }))}
+            />
+          ) : null}
+
           {view.status === 'termin' ? (
             <LeadScheduleSummary
               kind="termin"

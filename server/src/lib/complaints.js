@@ -9,6 +9,7 @@ import {
   toPublicRequest,
 } from './leadRequests.js';
 import { leadPurchaseCents } from './packages.js';
+import { verticalOrInsurance } from './vertical.js';
 
 export const COMPLAINT_REASONS = [
   'invalid_phone',
@@ -19,6 +20,17 @@ export const COMPLAINT_REASONS = [
   'exclusivity',
   'tech_error',
 ];
+export const ENERGY_COMPLAINT_REASONS = [
+  'invalid_phone',
+  'wrong_territory',
+  'customer_unaware',
+  'duplicate',
+  'appointment_not_attended',
+];
+
+export function complaintReasonsFor(vertical) {
+  return verticalOrInsurance(vertical) === 'energy' ? ENERGY_COMPLAINT_REASONS : COMPLAINT_REASONS;
+}
 export const COMPLAINT_STATUSES = ['pending', 'approved', 'partial', 'declined', 'info_needed'];
 const COMPLAINT_COMMENT_MIN = 20;
 const PROOF_MAX_CHARS = 1_800_000;
@@ -68,6 +80,11 @@ function complaintSnapshot(lead, { contactStatus, notes } = {}) {
     notes: lead.notes || null,
     brokerNotes: String(notes || lead.broker_notes || '').trim() || null,
     contactStatus: contact,
+    vertical: verticalOrInsurance(lead.vertical),
+    energyProduct: lead.energy_product || null,
+    deliveryType: lead.delivery_type || 'lead',
+    address: [lead.street, lead.house_number, lead.zip, lead.city].filter(Boolean).join(' ') || null,
+    appointmentAt: lead.appointment_at || null,
   };
 }
 
@@ -166,7 +183,6 @@ export async function reportLead(leadId, beraterId, {
   notes,
 } = {}) {
   if (!isUuid(leadId)) throw fail('Lead ist ungültig.');
-  if (!COMPLAINT_REASONS.includes(reason)) throw fail('Bitte einen gültigen Grund wählen.');
   const note = String(comment || '').trim();
   if (note.length < COMPLAINT_COMMENT_MIN) {
     throw fail(`Bitte die Begründung mit mindestens ${COMPLAINT_COMMENT_MIN} Zeichen beschreiben.`);
@@ -176,6 +192,7 @@ export async function reportLead(leadId, beraterId, {
 
   const lead = await getLeadById(leadId);
   if (!lead) throw fail('Lead wurde nicht gefunden.', 404);
+  if (!complaintReasonsFor(lead.vertical).includes(reason)) throw fail('Bitte einen gültigen Grund wählen.');
   if (lead.assigned_to !== beraterId) throw fail('Sie können nur eigene Leads melden.', 403);
   if (lead.refunded_at) throw fail('Dieser Lead wurde bereits erstattet.');
 

@@ -291,7 +291,7 @@ function ReplacementFlowBanner({ complaint, loading, blocked, backTo }) {
         <article className="dash-replacement-flow__box dash-replacement-flow__box--from">
           <span className="dash-lead-kicker">Reklamiert</span>
           <strong>{rejectedLead?.fullName || 'Lead'}</strong>
-          <small>{complaintReasonLabel(complaint.reason)}</small>
+          <small>{complaintReasonLabel(complaint.reason, rejectedLead?.vertical)}</small>
           {complaintReplacementScope(complaint) ? (
             <small>{leadScopeLabel(complaintReplacementScope(complaint))}</small>
           ) : null}

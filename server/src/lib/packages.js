@@ -1,3 +1,5 @@
+import { energyLeadTypeOf, verticalOrInsurance } from './vertical.js';
+
 export const MIN_LEAD_PACK = 10;
 export const LEAD_PACK_STEP = 5;
 
@@ -87,7 +89,11 @@ export function leadPurchaseCents(lead) {
     const explicit = Number(lead.priceCents);
     if (Number.isFinite(explicit) && explicit > 0) return Math.round(explicit);
   }
+  if (verticalOrInsurance(lead?.vertical) === 'energy') {
+    const energyPkg = packageById(energyLeadTypeOf(lead));
+    if (energyPkg) return energyPkg.packCents || TEST_PACKAGE_PRICE_CENTS || 11900;
+  }
   const scope = lead?.scope === 'regional' ? 'regional' : 'deutschlandweit';
-  const pkg = PACKAGES.find((item) => item.scope === scope);
+  const pkg = PACKAGES.find((item) => item.scope === scope && !item.vertical);
   return pkg?.packCents || TEST_PACKAGE_PRICE_CENTS || 11900;
 }

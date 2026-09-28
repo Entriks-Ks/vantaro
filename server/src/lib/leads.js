@@ -348,8 +348,7 @@ export function toPublicLead(row, assignee = null) {
     houseNumber: row.house_number || null,
     state: row.state || null,
     energyProduct: row.energy_product || null,
-    deliveryType: row.delivery_type || null,
-    energyStatus: row.energy_status || null,
+    deliveryType: row.delivery_type || 'lead',
     energyHolderId: row.energy_holder_id || null,
     calendarSyncStatus: row.calendar_sync_status || null,
     ownerStatus: row.owner_status || null,
@@ -1127,15 +1126,39 @@ export async function assignLead(id, beraterId, { requestId } = {}) {
     throw error;
   }
 
-  const { data: activeRequests, error: activeError } = await supabase
+  const leadVertical = verticalOrInsurance(current.vertical);
+  const beraterMetadata = userData.user.user_metadata || {};
+  if (verticalOrInsurance(beraterMetadata.vertical) !== leadVertical) {
+    const error = new Error(
+      leadVertical === 'energy'
+        ? 'Energie-Leads können nur Berater im Bereich Energie erhalten.'
+        : 'Versicherungs-Leads können nur Berater im Bereich Versicherung erhalten.',
+    );
+    error.status = 400;
+    throw error;
+  }
+  if (
+    leadVertical === 'energy'
+    && beraterMetadata.energy_company_id
+    && beraterMetadata.energy_company_id !== beraterId
+  ) {
+    const error = new Error('Unterpartner erhalten Leads über ihre Hauptfirma.');
+    error.status = 400;
+    throw error;
+  }
+
+  const { data: requestRows, error: activeError } = await supabase
     .from('lead_requests')
-    .select('id, berater_id, status, code')
+    .select('id, berater_id, status, code, vertical')
     .eq('berater_id', beraterId)
     .eq('status', 'active')
     .order('created_at', { ascending: false });
   if (activeError) throw activeError;
-  if (!activeRequests?.length) {
-    const error = new Error('Nur Berater mit aktivem Auftrag können Leads erhalten.');
+  const activeRequests = (requestRows || []).filter(
+    (entry) => verticalOrInsurance(entry.vertical) === leadVertical,
+  );
+  if (!activeRequests.length) {
+    const error = new Error('Nur Berater mit aktivem Auftrag in diesem Bereich können Leads erhalten.');
     error.status = 400;
     throw error;
   }
@@ -1166,13 +1189,8 @@ export async function assignLead(id, beraterId, { requestId } = {}) {
     request_id: resolvedRequestId,
   };
 
-  // Energie-Termine erscheinen beim Berater direkt in der Termin-Spalte
-  if (
-    verticalOrInsurance(current.vertical) === 'energy'
-    && (current.delivery_type === 'appointment' || current.deliveryType === 'appointment')
-    && !current.contact_status
-  ) {
-    patch.contact_status = 'termin';
+  if (!current.contact_status) {
+    patch.contact_status = current.delivery_type === 'appointment' ? 'termin' : 'neu';
   }
 
   const { data, error } = await supabase
@@ -1183,11 +1201,6 @@ export async function assignLead(id, beraterId, { requestId } = {}) {
     .single();
 
   if (error) throw error;
-  if (verticalOrInsurance(data.vertical) === 'energy') {
-    import('./energy.js')
-      .then(({ recordEnergyDelivery }) => recordEnergyDelivery(data))
-      .catch((err) => console.error('Energy delivery skipped:', err.message));
-  }
   return withAssignee(data);
 }
 
