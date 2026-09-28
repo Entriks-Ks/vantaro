@@ -35,6 +35,7 @@ import { complaintReasonLabel, fetchComplaints, sendComplaintReplacement } from 
 import { DashSeg } from './DashboardLayout';
 import { formatDate } from './helpers';
 import { DEFAULT_LEAD_SCOPE, LEAD_SCOPE_OPTIONS, leadScopeLabel } from '../../lib/scopes';
+import { energyLeadTypeOf, energyTypeLabel, territoryMatches, verticalLabel } from '../../lib/vertical';
 import { isReplacementPending } from './ComplaintReplacementStatus';
 
 function statusTone(status) {
@@ -90,11 +91,17 @@ export function LeadListItem({ lead }) {
   const assigned = lead.assignedToName || lead.assignedToEmail || 'Nicht zugewiesen';
   const insurance = listLabels(lead.insuranceStatus, 'insurance');
   const concerns = listLabels(lead.mainConcerns, 'concern');
-  const tags = [insurance !== '—' ? insurance : null, concerns !== '—' ? concerns : null].filter(Boolean);
+  const energyTag = lead.vertical === 'energy' ? energyTypeLabel(energyLeadTypeOf(lead)) : '';
+  const tags = lead.vertical === 'energy'
+    ? [energyTag !== '—' ? energyTag : null].filter(Boolean)
+    : [insurance !== '—' ? insurance : null, concerns !== '—' ? concerns : null].filter(Boolean);
   const from = `${location.pathname}${location.search}`;
+  const detailPath = lead.vertical === 'energy'
+    ? `/dashboard/leads/energy/${lead.id}`
+    : `/dashboard/leads/${lead.id}`;
 
   return (
-    <Link className="dash-lead-row" to={`/dashboard/leads/${lead.id}`} state={{ from }}>
+    <Link className="dash-lead-row" to={detailPath} state={{ from }}>
       <span className="dash-lead-avatar dash-lead-avatar--sm" aria-hidden="true">
         {leadInitials(lead)}
       </span>
@@ -107,7 +114,9 @@ export function LeadListItem({ lead }) {
       </div>
       <div className="dash-lead-row-side">
         <div className="dash-lead-row-side-badges">
-          <span className="dash-badge dash-badge--muted">{leadScopeLabel(lead.scope)}</span>
+          <span className="dash-badge dash-badge--muted">
+            {lead.vertical === 'energy' ? verticalLabel('energy') : leadScopeLabel(lead.scope)}
+          </span>
           <span className={`dash-badge dash-badge--${statusTone(lead.status)}`}>
             {statusLabel(lead.status)}
           </span>
@@ -200,7 +209,9 @@ function ReplacementLeadListItem({ lead, checked, onSelect, disabled }) {
       </div>
       <div className="dash-lead-row-side">
         <div className="dash-lead-row-side-badges">
-          <span className="dash-badge dash-badge--muted">{leadScopeLabel(lead.scope)}</span>
+          <span className="dash-badge dash-badge--muted">
+            {lead.vertical === 'energy' ? verticalLabel('energy') : leadScopeLabel(lead.scope)}
+          </span>
           <span className={`dash-badge dash-badge--${statusTone(lead.status)}`}>
             {statusLabel(lead.status)}
           </span>
@@ -441,6 +452,18 @@ function beraterLabel(user) {
 }
 
 function openRequestsForLead(berater, lead) {
+  const leadVertical = lead?.vertical === 'energy' ? 'energy' : 'insurance';
+  const beraterVertical = berater?.vertical === 'energy' ? 'energy' : 'insurance';
+  if (leadVertical !== beraterVertical) return [];
+  if (leadVertical === 'energy') {
+    const type = energyLeadTypeOf(lead);
+    return (berater?.requests || []).filter((request) => (
+      request.status === 'active'
+      && request.leadType === type
+      && territoryMatches(request.territory, lead)
+      && Number(request.remaining) > 0
+    ));
+  }
   const scope = leadScopeOrDefault(lead?.scope);
   return (berater?.requests || []).filter((request) => (
     request.status === 'active'
@@ -641,7 +664,9 @@ function LeadView({
               <span className={`dash-badge dash-badge--${statusTone(lead.status)}`}>
                 {statusLabel(lead.status)}
               </span>
-              <span className="dash-badge dash-badge--muted">{leadScopeLabel(lead.scope)}</span>
+              <span className="dash-badge dash-badge--muted">
+            {lead.vertical === 'energy' ? verticalLabel('energy') : leadScopeLabel(lead.scope)}
+          </span>
               <span className={`dash-lead-assign-pill${assigneeName ? ' is-assigned' : ''}`}>
                 <UserRound size={13} aria-hidden="true" />
                 {assigneeName || 'Nicht zugewiesen'}
@@ -934,6 +959,7 @@ export function AdminLeads() {
   const [assignedTo, setAssignedTo] = useState('');
   const [search, setSearch] = useState('');
   const [scope, setScope] = useState('');
+  const [vertical, setVertical] = useState('');
   const [importing, setImporting] = useState(false);
   const [replacementComplaint, setReplacementComplaint] = useState(null);
   const [replacementLoading, setReplacementLoading] = useState(replacementMode);
@@ -995,6 +1021,7 @@ export function AdminLeads() {
         assignedTo: nextAssigned,
         search: nextSearch,
         scope: nextScope,
+        vertical: next.vertical ?? vertical,
       });
       setLeads(payload.leads || []);
     } catch (err) {
@@ -1008,7 +1035,7 @@ export function AdminLeads() {
     if (replacementMode) return undefined;
     let active = true;
     setLoading(true);
-    fetchLeads({ status: 'neu' })
+    fetchLeads({ status: 'neu', vertical })
       .then((payload) => {
         if (active) setLeads(payload.leads || []);
       })
@@ -1021,7 +1048,7 @@ export function AdminLeads() {
     return () => {
       active = false;
     };
-  }, [replacementMode]);
+  }, [replacementMode, vertical]);
 
   useEffect(() => {
     if (!replacementMode || !replacementComplaint || !isReplacementPending(replacementComplaint)) {
@@ -1131,6 +1158,7 @@ export function AdminLeads() {
               <input type="file" accept=".csv,text/csv" onChange={onImport} disabled={importing} />
             </label>
             <Link className="dash-btn" to="/dashboard/leads/new">Neuer Lead</Link>
+            <Link className="dash-btn dash-btn--ghost" to="/dashboard/leads/energy/new">Energie-Lead</Link>
           </div>
         </div>
       )}
@@ -1171,6 +1199,20 @@ export function AdminLeads() {
           </label>
           {!replacementMode ? (
             <>
+              <label>
+                Bereich
+                <select
+                  value={vertical}
+                  onChange={(event) => {
+                    setVertical(event.target.value);
+                    load({ vertical: event.target.value });
+                  }}
+                >
+                  <option value="">Alle Bereiche</option>
+                  <option value="insurance">Versicherung</option>
+                  <option value="energy">Energie</option>
+                </select>
+              </label>
               <label>
                 Paket
                 <select

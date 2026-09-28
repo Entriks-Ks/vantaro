@@ -3,7 +3,6 @@ import { Link, NavLink, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
   Users,
-  LogOut,
   ListChecks,
   Landmark,
   UserRound,
@@ -17,6 +16,7 @@ import {
   MessageCircle,
   PanelLeftClose,
   PanelLeftOpen,
+  SunMedium,
 } from 'lucide-react';
 import Brand from '../../components/Brand';
 import { useAuth } from '../../hooks/useAuth';
@@ -45,6 +45,44 @@ export function DashSeg({ value, onChange, options }) {
   );
 }
 
+function energyLinks(role, allowedPages) {
+  const links = [
+    { to: '/dashboard', match: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { to: '/dashboard/leads', match: 'leads', label: 'Meine Leads', icon: ListChecks },
+    { to: '/dashboard/kalender', match: 'kalender', label: 'Kalender', icon: Calendar },
+  ];
+  if (role === 'main') {
+    links.push(
+      { divider: true },
+      { to: '/dashboard/paket', match: 'paket', label: 'Meine Pakete', icon: CreditCard },
+      { to: '/dashboard/team', match: 'team', label: 'Partner', icon: Handshake },
+      { to: '/dashboard/abrechnung', match: 'abrechnung', label: 'Abrechnung', icon: Landmark },
+      { to: '/dashboard/academy', match: 'academy', label: 'Akademie', icon: GraduationCap },
+      { to: '/dashboard/support', match: 'support', label: 'Support', icon: MessageCircle },
+    );
+  } else {
+    links.push(
+      { divider: true },
+      { to: '/dashboard/paket', match: 'paket', label: 'Meine Pakete', icon: CreditCard },
+      { to: '/dashboard/academy', match: 'academy', label: 'Akademie', icon: GraduationCap },
+      { to: '/dashboard/support', match: 'support', label: 'Support', icon: MessageCircle },
+    );
+  }
+
+  if (role === 'main' || !Array.isArray(allowedPages)) return links;
+
+  const filtered = [];
+  for (const link of links) {
+    if (link.divider) {
+      if (filtered.length && !filtered[filtered.length - 1].divider) filtered.push(link);
+      continue;
+    }
+    if (allowedPages.includes(link.match)) filtered.push(link);
+  }
+  while (filtered.length && filtered[filtered.length - 1].divider) filtered.pop();
+  return filtered.length ? filtered : links.filter((link) => link.match === 'dashboard');
+}
+
 const BERATER_LINKS = [
   { to: '/dashboard', match: 'home', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/dashboard/leads', match: 'leads', label: 'Meine Leads', icon: ListChecks },
@@ -52,18 +90,22 @@ const BERATER_LINKS = [
   { divider: true },
   { to: '/dashboard/paket', match: 'paket', label: 'Mein Paket', icon: CreditCard },
   { to: '/dashboard/partner', match: 'partner', label: 'Partner', icon: Handshake },
-  { to: '/dashboard/academy', match: 'academy', label: 'Academy', icon: GraduationCap },
+  { to: '/dashboard/academy', match: 'academy', label: 'Akademie', icon: GraduationCap },
   { to: '/dashboard/support', match: 'support', label: 'Support', icon: MessageCircle },
 ];
 
 function isBeraterNavActive(match, pathname) {
-  if (match === 'home') return pathname === '/dashboard' || pathname === '/dashboard/';
+  if (match === 'home' || match === 'dashboard') return pathname === '/dashboard' || pathname === '/dashboard/';
   if (match === 'leads') return pathname.startsWith('/dashboard/leads');
   if (match === 'kalender') return pathname.startsWith('/dashboard/kalender');
   if (match === 'paket') return pathname.startsWith('/dashboard/paket');
   if (match === 'partner') return pathname.startsWith('/dashboard/partner');
   if (match === 'academy') return pathname.startsWith('/dashboard/academy');
   if (match === 'support') return pathname.startsWith('/dashboard/support');
+  if (match === 'bestellung') return pathname.startsWith('/dashboard/bestellung');
+  if (match === 'team') return pathname.startsWith('/dashboard/team');
+  if (match === 'abrechnung') return pathname.startsWith('/dashboard/abrechnung');
+  if (match === 'reklamationen') return pathname.startsWith('/dashboard/reklamationen');
   return false;
 }
 
@@ -102,6 +144,7 @@ const ADMIN_NAV = [
     links: [
       { to: '/dashboard/leads', end: true, label: 'Leads', icon: ListChecks },
       { to: '/dashboard/berater', label: 'Berater', icon: UserRound },
+      { to: '/dashboard/energie', label: 'Energie', icon: SunMedium },
       { to: '/dashboard/nutzer', label: 'Nutzer', icon: Users },
     ],
   },
@@ -122,6 +165,9 @@ function adminPageCopy(pathname, user) {
   }
   if (pathname.startsWith('/dashboard/berater')) {
     return { kicker: 'Bestand', title: 'Berater', subtitle: 'Konten und Stammdaten der Berater.' };
+  }
+  if (pathname.startsWith('/dashboard/energie')) {
+    return { kicker: 'Bestand', title: 'Energie', subtitle: 'Preise, Abrechnungsmodell und offene Lieferpositionen je Hauptfirma.' };
   }
   if (/^\/dashboard\/anfordern\/[^/]+/.test(pathname) || /^\/dashboard\/anfragen\/[^/]+/.test(pathname)) {
     return { kicker: 'Workflow', title: 'Anforderung', subtitle: 'Fortschritt prüfen, Leads senden und den Auftrag steuern.' };
@@ -165,7 +211,7 @@ function readAdminSidebarCollapsed() {
   }
 }
 
-function AdminShell({ user, logout, children }) {
+function AdminShell({ user, children }) {
   const [collapsed, setCollapsed] = useState(readAdminSidebarCollapsed);
   const location = useLocation();
   const copy = adminPageCopy(location.pathname, user);
@@ -190,15 +236,8 @@ function AdminShell({ user, logout, children }) {
   return (
     <div className={`dash${collapsed ? ' is-collapsed' : ''}`}>
       <aside className="dash-sidebar">
-        <button
-          type="button"
-          className="dash-brand"
-          onClick={() => setCollapsed((value) => !value)}
-          aria-expanded={!collapsed}
-          aria-controls="dash-sidebar-nav"
-          aria-label={collapsed ? 'Seitenleiste öffnen' : 'Seitenleiste schließen'}
-          title={collapsed ? 'Seitenleiste öffnen' : 'Seitenleiste schließen'}
-        >
+        <div className="dash-sidebar-inner">
+        <div className="dash-brand">
           <img
             className="dash-brand-icon"
             src="/favicon.svg"
@@ -213,7 +252,7 @@ function AdminShell({ user, logout, children }) {
             width={148}
             height={16}
           />
-        </button>
+        </div>
         <nav className="dash-nav" id="dash-sidebar-nav" aria-label="Portal">
           {ADMIN_NAV.map((group) => (
             <div className="dash-nav-group" key={group.label}>
@@ -264,14 +303,17 @@ function AdminShell({ user, logout, children }) {
             </NavLink>
             <button
               type="button"
-              className="dash-account-logout"
-              onClick={() => logout()}
-              title="Abmelden"
-              aria-label="Abmelden"
+              className="dash-collapse-btn"
+              onClick={() => setCollapsed((value) => !value)}
+              aria-expanded={!collapsed}
+              aria-controls="dash-sidebar-nav"
+              aria-label={collapsed ? 'Seitenleiste öffnen' : 'Seitenleiste schließen'}
+              title={collapsed ? 'Seitenleiste öffnen' : 'Seitenleiste schließen'}
             >
-              <LogOut size={16} />
+              {collapsed ? <PanelLeftOpen size={14} /> : <PanelLeftClose size={14} />}
             </button>
           </div>
+        </div>
         </div>
       </aside>
       <div className="dash-main">
@@ -298,34 +340,39 @@ function readBeraterSidebarCollapsed() {
   }
 }
 
-function AccountMenu({ user, logout, compact = false }) {
+function AccountMenu({ user, compact = false, collapsed = false, onToggleSidebar }) {
   return (
     <div className="broker-account">
       <NavLink
         to="/dashboard/profil"
-        className={({ isActive }) => `broker-profile-chip${isActive ? ' is-active' : ''}${compact ? ' is-compact' : ''}`}
+        className={({ isActive }) => `broker-account-profile${isActive ? ' is-active' : ''}${compact ? ' is-compact' : ''}`}
         aria-label={compact ? `Profil, ${displayName(user)}` : undefined}
         title={compact ? displayName(user) : undefined}
       >
-        <span className="broker-avatar">
+        <span className="broker-avatar broker-avatar--foot">
           {user.avatarUrl ? <img src={user.avatarUrl} alt="" /> : initials(user)}
         </span>
-        <span className="broker-profile-name">{displayName(user)}</span>
+        <span className="broker-account-copy">
+          <strong className="broker-profile-name">{displayName(user)}</strong>
+          <small className="broker-account-role">{roleLabel(user.role)}</small>
+        </span>
       </NavLink>
       <button
         type="button"
-        className="broker-logout-btn"
-        onClick={() => logout()}
-        title="Abmelden"
-        aria-label="Abmelden"
+        className="broker-collapse-btn"
+        onClick={onToggleSidebar}
+        aria-expanded={!collapsed}
+        aria-controls="broker-sidebar-nav"
+        aria-label={collapsed ? 'Seitenleiste öffnen' : 'Seitenleiste schließen'}
+        title={collapsed ? 'Seitenleiste öffnen' : 'Seitenleiste schließen'}
       >
-        <LogOut size={16} />
+        {collapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
       </button>
     </div>
   );
 }
 
-function BeraterShell({ user, logout, children }) {
+function BeraterShell({ user, children }) {
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(readBeraterSidebarCollapsed);
@@ -368,22 +415,15 @@ function BeraterShell({ user, logout, children }) {
       </button>
 
       <aside className={`broker-sidebar${sidebarOpen ? ' is-open' : ''}`}>
+        <div className="broker-sidebar-inner">
         <div className="broker-brand">
           <Brand to="/dashboard" />
-          <button
-            type="button"
-            className="broker-collapse-btn"
-            onClick={() => setCollapsed((value) => !value)}
-            aria-expanded={!collapsed}
-            aria-controls="broker-sidebar-nav"
-            aria-label={collapsed ? 'Seitenleiste maximieren' : 'Seitenleiste minimieren'}
-            title={collapsed ? 'Seitenleiste maximieren' : 'Seitenleiste minimieren'}
-          >
-            {collapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
-          </button>
         </div>
         <nav className="broker-nav" id="broker-sidebar-nav" aria-label="Portal">
-          {BERATER_LINKS.map((link) => {
+          {(user?.vertical === 'energy'
+            ? energyLinks(user.energyRole || 'main', user.energyPages)
+            : BERATER_LINKS
+          ).map((link) => {
             if (link.divider) {
               return <div className="broker-nav-divider" key="divider" />;
             }
@@ -407,9 +447,11 @@ function BeraterShell({ user, logout, children }) {
         <div className="broker-sidebar-footer">
           <AccountMenu
             user={user}
-            logout={logout}
             compact={collapsed}
+            collapsed={collapsed}
+            onToggleSidebar={() => setCollapsed((value) => !value)}
           />
+        </div>
         </div>
       </aside>
 
@@ -425,18 +467,18 @@ function BeraterShell({ user, logout, children }) {
 }
 
 export default function DashboardLayout({ children }) {
-  const { user, isAdmin, logout } = useAuth();
+  const { user, isAdmin } = useAuth();
 
   if (isAdmin) {
     return (
-      <AdminShell user={user} logout={logout}>
+      <AdminShell user={user}>
         {children}
       </AdminShell>
     );
   }
 
   return (
-    <BeraterShell user={user} logout={logout}>
+    <BeraterShell user={user}>
       {children}
     </BeraterShell>
   );

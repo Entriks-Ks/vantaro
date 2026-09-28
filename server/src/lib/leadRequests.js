@@ -15,8 +15,16 @@ import {
 } from './leads.js';
 import { DEFAULT_LEAD_SCOPE, LEAD_SCOPES, leadScopeOrDefault, normalizeLeadScope } from './scopes.js';
 import { beraterBusinessAddress, sortLeadsByZipProximity } from './proximity.js';
+import {
+  energyLeadTypeOf,
+  energySchemaMissing,
+  leadTypesFor,
+  territoryMatches,
+  verticalColumnMissing,
+  verticalOrInsurance,
+} from './vertical.js';
 
-export const LEAD_TYPES = ['PKV', 'bAV', 'BU'];
+export const LEAD_TYPES = ['PKV', 'bAV', 'BU', 'PV_LEAD', 'PV_APPOINTMENT', 'HP_LEAD', 'HP_APPOINTMENT'];
 export const REQUEST_STATUSES = ['pending', 'active', 'completed', 'rejected', 'cancelled'];
 export const FULFILLMENT_MODES = ['manual', 'auto'];
 const PENDING_STATUSES = new Set(['pending', 'angefragt', 'angefordert']);
@@ -77,6 +85,9 @@ export function toPublicRequest(row, stats = {}) {
     code: row.code || null,
     beraterId: row.berater_id,
     leadType: row.lead_type || 'PKV',
+    vertical: verticalOrInsurance(row.vertical),
+    territory: row.territory || null,
+    desiredTimeframe: row.desired_timeframe || null,
     scope: leadScopeOrDefault(row.scope),
     requestedCount: requested,
     deliveredCount: delivered,
@@ -331,7 +342,10 @@ export async function listBeraterPipelines() {
   }
 
   return beraters.map((user) => {
-    const userRequests = byBerater.get(user.id) || [];
+    const userVertical = verticalOrInsurance(user.vertical);
+    const userRequests = (byBerater.get(user.id) || []).filter(
+      (entry) => verticalOrInsurance(entry.vertical) === userVertical,
+    );
     return {
       ...user,
       assignedCount: assigned.get(user.id) || 0,
@@ -364,8 +378,8 @@ export async function getBeraterPipeline(beraterId) {
   const requestIds = mapped.map((entry) => entry.id);
 
   const [sentLeads, availableLeads, requestLeads] = await Promise.all([
-    listMyLeads(beraterId),
-    listLeads({ assignedTo: 'unassigned' }),
+    listMyLeads(beraterId, { vertical: berater.vertical }),
+    listLeads({ assignedTo: 'unassigned', vertical: berater.vertical }),
     requestIds.length ? listLeadsForRequests(requestIds) : Promise.resolve([]),
   ]);
 
@@ -420,11 +434,23 @@ async function listLeadsForRequests(requestIds) {
 
 export async function listRequestsForBerater(beraterId) {
   requireDb();
-  const { data: requests, error } = await supabase
+  const berater = await requireBerater(beraterId);
+  let { data: requests, error } = await supabase
     .from('lead_requests')
     .select('*')
     .eq('berater_id', beraterId)
+    .eq('vertical', berater.vertical)
     .order('created_at', { ascending: false });
+  if (error && verticalColumnMissing(error)) {
+    if (berater.vertical === 'energy') {
+      throw fail('Energie-Bereich fehlt. Bitte server/supabase/vertical.sql im Supabase SQL Editor ausführen.', 503);
+    }
+    ({ data: requests, error } = await supabase
+      .from('lead_requests')
+      .select('*')
+      .eq('berater_id', beraterId)
+      .order('created_at', { ascending: false }));
+  }
   if (error) throw error;
   const { rows: requestRows, stats } = await hydrateRequestRows(requests || []);
   return requestRows.map((row) => toPublicRequest(row, stats.get(row.id)));
@@ -451,19 +477,30 @@ export async function createLeadRequest(beraterId, {
   notes,
   leadType = 'PKV',
   scope = DEFAULT_LEAD_SCOPE,
+  territory,
+  desiredTimeframe,
   createdBy,
   notifyAdmins = true,
 } = {}) {
   requireDb();
-  await requireBerater(beraterId);
+  const berater = await requireBerater(beraterId);
+  const vertical = berater.vertical;
   const count = Number(requestedCount);
   if (!Number.isInteger(count) || count < 1) {
     throw fail('Bitte eine Anzahl größer als 0 angeben.');
   }
-  const type = String(leadType || 'PKV').trim();
-  if (!LEAD_TYPES.includes(type)) throw fail('Lead-Typ ist ungültig.');
-  const packageScope = normalizeLeadScope(scope) || DEFAULT_LEAD_SCOPE;
+  const type = String(leadType || (vertical === 'energy' ? '' : 'PKV')).trim();
+  if (!leadTypesFor(vertical).includes(type)) throw fail('Lead-Typ ist ungültig.');
+  const packageScope = vertical === 'energy'
+    ? DEFAULT_LEAD_SCOPE
+    : (normalizeLeadScope(scope) || DEFAULT_LEAD_SCOPE);
   if (!LEAD_SCOPES.includes(packageScope)) throw fail('Paket muss deutschlandweit oder regional sein.');
+  const area = String(territory || '').trim();
+  const timeframe = String(desiredTimeframe || '').trim();
+  if (vertical === 'energy') {
+    if (!area) throw fail('Gebiet oder PLZ ist erforderlich.');
+    if (!timeframe) throw fail('Gewünschter Zeitraum ist erforderlich.');
+  }
 
   const now = new Date().toISOString();
   const seenAtCreate = notifyAdmins ? null : now;
@@ -474,6 +511,7 @@ export async function createLeadRequest(beraterId, {
       code: makeRequestCode(now),
       requested_count: count,
       lead_type: type,
+      vertical,
       scope: packageScope,
       notes: String(notes || '').trim() || null,
       status: 'active',
@@ -481,6 +519,10 @@ export async function createLeadRequest(beraterId, {
       activated_at: now,
       created_by: createdBy || beraterId,
     };
+    if (vertical === 'energy') {
+      insertRow.territory = area;
+      insertRow.desired_timeframe = timeframe;
+    }
     if (seenAtCreate) insertRow.admin_seen_at = seenAtCreate;
 
     const { data, error } = await supabase
@@ -499,6 +541,29 @@ export async function createLeadRequest(beraterId, {
       return request;
     }
     lastError = error;
+    if (vertical === 'energy' && (verticalColumnMissing(error) || energySchemaMissing(error))) {
+      throw fail('Energie-Bereich fehlt. Bitte server/supabase/vertical.sql im Supabase SQL Editor ausführen.', 503);
+    }
+    if (vertical !== 'energy' && verticalColumnMissing(error)) {
+      delete insertRow.vertical;
+      delete insertRow.territory;
+      delete insertRow.desired_timeframe;
+      const retryVertical = await supabase
+        .from('lead_requests')
+        .insert(insertRow)
+        .select('*')
+        .single();
+      if (!retryVertical.error) {
+        const request = toPublicRequest(retryVertical.data, {});
+        if (notifyAdmins) {
+          notifyAdminsOfLeadRequest(request).catch((mailError) => {
+            console.error('Admin Anforderung email failed:', mailError.message);
+          });
+        }
+        return request;
+      }
+      lastError = retryVertical.error;
+    }
     if (fulfillmentModeColumnMissing(error) && insertRow.fulfillment_mode) {
       delete insertRow.fulfillment_mode;
       const retry = await supabase
@@ -549,6 +614,10 @@ export async function cancelOwnRequest(id, beraterId) {
   const current = await getRequestById(id);
   if (!current) return null;
   if (current.berater_id !== beraterId) throw fail('Keine Berechtigung.', 403);
+  const owner = await requireBerater(beraterId);
+  if (verticalOrInsurance(current.vertical) !== owner.vertical) {
+    throw fail('Keine Berechtigung.', 403);
+  }
   const status = normalizeRequestStatus(current.status);
   if (status !== 'active' && status !== 'cancelled') {
     throw fail('Nur aktive oder pausierte Anforderungen können storniert werden.');
@@ -591,7 +660,7 @@ export async function updateLeadRequest(id, {
   if (notes !== undefined) patch.notes = String(notes || '').trim() || null;
 
   if (leadType) {
-    if (!LEAD_TYPES.includes(leadType)) throw fail('Lead-Typ ist ungültig.');
+    if (!leadTypesFor(current.vertical).includes(leadType)) throw fail('Lead-Typ ist ungültig.');
     patch.lead_type = leadType;
   }
 
@@ -712,11 +781,16 @@ export async function autoFillRequest(requestId) {
 
   const pipeline = await getBeraterPipeline(current.berater_id);
   const requestScope = leadScopeOrDefault(current.scope);
-  const scoped = (pipeline.availableLeads || []).filter(
-    (lead) => leadScopeOrDefault(lead.scope) === requestScope
-      && lead.status !== 'erledigt'
-      && !lead.refundedAt,
-  );
+  const requestVertical = verticalOrInsurance(current.vertical);
+  const scoped = (pipeline.availableLeads || []).filter((lead) => {
+    if (verticalOrInsurance(lead.vertical) !== requestVertical) return false;
+    if (lead.status === 'erledigt' || lead.refundedAt) return false;
+    if (requestVertical === 'energy') {
+      return energyLeadTypeOf(lead) === current.lead_type
+        && territoryMatches(current.territory, lead);
+    }
+    return leadScopeOrDefault(lead.scope) === requestScope;
+  });
 
   const origin = beraterBusinessAddress(pipeline.berater);
   const { leads: ordered, sorted, mode } = sortLeadsByZipProximity(scoped, origin);
@@ -793,11 +867,16 @@ export async function autoFillOpenAutoRequests({ limit = 40 } = {}) {
 
 function matchingOpenRequests(requests, lead) {
   const leadScope = leadScopeOrDefault(lead?.scope);
-  return (requests || []).filter((entry) => (
-    entry.status === 'active'
-    && leadScopeOrDefault(entry.scope) === leadScope
-    && Number(entry.remaining) > 0
-  ));
+  const leadVertical = verticalOrInsurance(lead?.vertical);
+  return (requests || []).filter((entry) => {
+    if (entry.status !== 'active' || Number(entry.remaining) <= 0) return false;
+    if (verticalOrInsurance(entry.vertical) !== leadVertical) return false;
+    if (leadVertical === 'energy') {
+      return entry.leadType === energyLeadTypeOf(lead)
+        && territoryMatches(entry.territory, lead);
+    }
+    return leadScopeOrDefault(entry.scope) === leadScope;
+  });
 }
 
 export async function assignLeadToBerater(leadId, beraterId, { requestId } = {}) {
@@ -866,7 +945,17 @@ export async function sendLeadsToRequest(requestId, leadIds, { skipReplacementLi
   for (const leadId of ids) {
     const currentLead = await getLeadById(leadId);
     if (!currentLead) throw fail('Ein ausgewählter Lead wurde nicht gefunden.');
-    if (leadScopeOrDefault(currentLead.scope) !== requestScope) {
+    if (verticalOrInsurance(currentLead.vertical) !== verticalOrInsurance(current.vertical)) {
+      throw fail('Lead und Auftrag gehören zu unterschiedlichen Bereichen.');
+    }
+    if (verticalOrInsurance(current.vertical) === 'energy') {
+      if (energyLeadTypeOf(currentLead) !== current.lead_type) {
+        throw fail('Lead passt nicht zum bestellten Produkt.');
+      }
+      if (!territoryMatches(current.territory, currentLead)) {
+        throw fail('Lead liegt außerhalb des bestellten Gebiets.');
+      }
+    } else if (leadScopeOrDefault(currentLead.scope) !== requestScope) {
       throw fail(`Dieser Auftrag ist ${requestScope === 'regional' ? 'regional' : 'deutschlandweit'}. Bitte nur passende Leads senden.`);
     }
     const lead = await assignLead(leadId, current.berater_id, { requestId });

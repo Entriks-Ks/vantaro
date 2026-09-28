@@ -2,6 +2,16 @@ import { supabase, supabaseConfig } from './supabase.js';
 import { ROLES, getUserRole } from './roles.js';
 import { toDirectoryUser } from './users.js';
 import { DEFAULT_LEAD_SCOPE, LEAD_SCOPES, leadScopeOrDefault, normalizeLeadScope } from './scopes.js';
+import {
+  ENERGY_DELIVERY_TYPES,
+  ENERGY_PRODUCTS,
+  ENERGY_STATES,
+  EXISTING_PV,
+  energySchemaMissing,
+  normalizeVertical,
+  verticalColumnMissing,
+  verticalOrInsurance,
+} from './vertical.js';
 
 export const EMPLOYMENT_STATUSES = ['selbststaendig', 'zusaetzlich_angestellt', 'sonstiges'];
 export const INSURANCE_STATUSES = ['gkv', 'pkv_voll', 'zusatz', 'unbekannt'];
@@ -334,6 +344,27 @@ export function toPublicLead(row, assignee = null) {
     refundedAt: row.refunded_at || null,
     reportedAt: row.reported_at || null,
     source: row.source,
+    vertical: verticalOrInsurance(row.vertical),
+    houseNumber: row.house_number || null,
+    state: row.state || null,
+    energyProduct: row.energy_product || null,
+    deliveryType: row.delivery_type || null,
+    energyStatus: row.energy_status || null,
+    energyHolderId: row.energy_holder_id || null,
+    calendarSyncStatus: row.calendar_sync_status || null,
+    ownerStatus: row.owner_status || null,
+    energyNeed: row.energy_need || null,
+    timeframe: row.timeframe || null,
+    callSummary: row.call_summary || null,
+    consentStatus: row.consent_status || null,
+    evidenceSource: row.evidence_source || null,
+    annualConsumption: row.annual_consumption || null,
+    existingPv: row.existing_pv || null,
+    roofNotes: row.roof_notes || null,
+    heatingSystem: row.heating_system || null,
+    energySource: row.energy_source || null,
+    constructionYear: row.construction_year || null,
+    replacementTimeframe: row.replacement_timeframe || null,
     externalSource: row.external_source || null,
     externalId: row.external_id || null,
     createdBy: row.created_by || null,
@@ -569,7 +600,125 @@ export function parseLeadInput(body = {}, { partial = false, lenient = false } =
     }
   }
 
+  applyEnergyFields(body, row, errors, { partial });
+
   return { row, errors };
+}
+
+function textField(body, ...keys) {
+  const key = keys.find((item) => Object.prototype.hasOwnProperty.call(body, item));
+  if (!key) return undefined;
+  return emptyToNull(body[key]);
+}
+
+function applyEnergyFields(body, row, errors, { partial }) {
+  const requested = normalizeVertical(body.vertical);
+  if (!partial && Object.prototype.hasOwnProperty.call(body, 'vertical') && body.vertical && !requested) {
+    errors.push('Bereich ist ungültig.');
+  }
+  if (!partial) row.vertical = requested || 'insurance';
+
+  const isEnergy = (partial ? false : row.vertical === 'energy')
+    || (partial && requested === 'energy');
+  if (!isEnergy) return;
+
+  const product = body.energyProduct ?? body.energy_product;
+  const delivery = body.deliveryType ?? body.delivery_type;
+  const hasProduct = product !== undefined;
+  const hasDelivery = delivery !== undefined;
+
+  if (!partial || hasProduct) {
+    const value = String(product || '').trim();
+    if (!ENERGY_PRODUCTS.includes(value)) errors.push('Produkt muss Photovoltaik oder Wärmepumpe sein.');
+    else row.energy_product = value;
+  }
+  if (!partial || hasDelivery) {
+    const value = String(delivery || '').trim();
+    if (!ENERGY_DELIVERY_TYPES.includes(value)) errors.push('Lieferart muss Lead oder fester Termin sein.');
+    else row.delivery_type = value;
+  }
+
+  const required = [
+    ['houseNumber', 'house_number', 'house_number', 'Hausnummer ist erforderlich.'],
+    ['state', 'state', 'state', 'Bundesland ist erforderlich.'],
+    ['ownerStatus', 'owner_status', 'owner_status', 'Eigentümerstatus ist erforderlich.'],
+    ['energyNeed', 'energy_need', 'energy_need', 'Bedarf ist erforderlich.'],
+    ['timeframe', 'timeframe', 'timeframe', 'Zeitrahmen ist erforderlich.'],
+    ['callSummary', 'call_summary', 'call_summary', 'Gesprächszusammenfassung ist erforderlich.'],
+    ['consentStatus', 'consent_status', 'consent_status', 'Einwilligungsstatus ist erforderlich.'],
+    ['evidenceSource', 'evidence_source', 'evidence_source', 'Quelle ist erforderlich.'],
+  ];
+
+  required.forEach(([camel, snake, column, message]) => {
+    const present = camel in body || snake in body;
+    if (!partial || present) {
+      const value = textField(body, camel, snake);
+      if (!value) errors.push(message);
+      else row[column] = value;
+    }
+  });
+
+  if (row.state && !ENERGY_STATES.includes(row.state)) {
+    errors.push('Bundesland ist ungültig.');
+  }
+
+  if (!partial || 'street' in body) {
+    if (!row.street) errors.push('Straße ist erforderlich.');
+  }
+  if (!partial || 'zip' in body) {
+    if (!row.zip) errors.push('PLZ ist erforderlich.');
+  }
+  if (!partial || 'city' in body) {
+    if (!row.city) errors.push('Ort ist erforderlich.');
+  }
+  if (!partial || 'phone' in body) {
+    if (!row.phone) errors.push('Telefonnummer ist erforderlich.');
+  }
+
+  const optional = [
+    ['annualConsumption', 'annual_consumption', 'annual_consumption'],
+    ['roofNotes', 'roof_notes', 'roof_notes'],
+    ['heatingSystem', 'heating_system', 'heating_system'],
+    ['energySource', 'energy_source', 'energy_source'],
+    ['constructionYear', 'construction_year', 'construction_year'],
+    ['replacementTimeframe', 'replacement_timeframe', 'replacement_timeframe'],
+  ];
+  optional.forEach(([camel, snake, column]) => {
+    if (camel in body || snake in body) row[column] = textField(body, camel, snake);
+  });
+
+  const existing = body.existingPv ?? body.existing_pv;
+  if (existing !== undefined) {
+    const value = String(existing || '').trim();
+    if (value && !EXISTING_PV.includes(value)) errors.push('Bestehende PV-Anlage muss ja, nein oder unbekannt sein.');
+    else row.existing_pv = value || null;
+  }
+
+  const productValue = row.energy_product;
+  const deliveryValue = row.delivery_type;
+  if (!partial && productValue === 'photovoltaic' && !EXISTING_PV.includes(row.existing_pv)) {
+    errors.push('Bestehende PV-Anlage muss ja, nein oder unbekannt sein.');
+  }
+  if (!partial && productValue === 'heat_pump') {
+    if (!row.heating_system) errors.push('Aktuelle Heizung ist erforderlich.');
+    if (!row.energy_source) errors.push('Energieträger ist erforderlich.');
+    if (!row.replacement_timeframe) errors.push('Gewünschter Austauschzeitraum ist erforderlich.');
+  }
+  if (!partial && deliveryValue === 'appointment' && !row.appointment_at) {
+    errors.push('Fester Termin braucht Datum und Uhrzeit.');
+  }
+
+  if (!partial && productValue === 'photovoltaic') {
+    row.heating_system = null;
+    row.energy_source = null;
+    row.construction_year = null;
+    row.replacement_timeframe = null;
+  }
+  if (!partial && productValue === 'heat_pump') {
+    row.annual_consumption = null;
+    row.existing_pv = null;
+    row.roof_notes = null;
+  }
 }
 
 async function getAssigneeMap(ids) {
@@ -601,11 +750,18 @@ function sanitizeSearch(value) {
   return trim(value).replace(/[%_,()"\\]/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
-export async function listLeads({ status, assignedTo, search, scope } = {}) {
+function energySchemaError() {
+  const error = new Error('Energie-Bereich fehlt. Bitte server/supabase/vertical.sql im Supabase SQL Editor ausführen.');
+  error.status = 503;
+  return error;
+}
+
+export async function listLeads({ status, assignedTo, search, scope, vertical } = {}) {
   if (!supabaseConfig.configured || !supabase) {
     throw Object.assign(new Error('Supabase ist nicht konfiguriert.'), { status: 503 });
   }
 
+  const wanted = normalizeVertical(vertical);
   let query = supabase.from('leads').select('*').order('created_at', { ascending: false });
 
   if (status && LEAD_STATUSES.includes(status)) {
@@ -615,6 +771,8 @@ export async function listLeads({ status, assignedTo, search, scope } = {}) {
   if (scope && LEAD_SCOPES.includes(scope)) {
     query = query.eq('scope', scope);
   }
+
+  if (wanted) query = query.eq('vertical', wanted);
 
   if (assignedTo === 'rejected') {
     query = query.not('refunded_at', 'is', null);
@@ -634,22 +792,54 @@ export async function listLeads({ status, assignedTo, search, scope } = {}) {
     );
   }
 
-  const { data, error } = await query;
+  let { data, error } = await query;
+  if (error && verticalColumnMissing(error)) {
+    if (wanted === 'energy') throw energySchemaError();
+    if (wanted === 'insurance') {
+      query = supabase.from('leads').select('*').order('created_at', { ascending: false });
+      if (status && LEAD_STATUSES.includes(status)) query = query.eq('status', status);
+      if (scope && LEAD_SCOPES.includes(scope)) query = query.eq('scope', scope);
+      if (assignedTo === 'rejected') query = query.not('refunded_at', 'is', null);
+      else if (assignedTo === 'unassigned') query = query.is('assigned_to', null).is('refunded_at', null);
+      else if (assignedTo && isUuid(assignedTo)) query = query.eq('assigned_to', assignedTo);
+      else query = query.is('refunded_at', null);
+      const q = sanitizeSearch(search);
+      if (q) {
+        const pattern = `"%${q}%"`;
+        query = query.or(
+          `first_name.ilike.${pattern},last_name.ilike.${pattern},email.ilike.${pattern},city.ilike.${pattern},zip.ilike.${pattern},phone.ilike.${pattern}`,
+        );
+      }
+      ({ data, error } = await query);
+    }
+  }
   if (error) throw error;
   return withAssignees(data || []);
 }
 
-export async function listMyLeads(userId) {
+export async function listMyLeads(userId, { vertical } = {}) {
   if (!supabaseConfig.configured || !supabase) {
     throw Object.assign(new Error('Supabase ist nicht konfiguriert.'), { status: 503 });
   }
 
-  const { data, error } = await supabase
+  const wanted = normalizeVertical(vertical) || 'insurance';
+  let { data, error } = await supabase
     .from('leads')
     .select('*')
     .eq('assigned_to', userId)
+    .eq('vertical', wanted)
     .is('refunded_at', null)
     .order('assigned_at', { ascending: false });
+
+  if (error && verticalColumnMissing(error)) {
+    if (wanted === 'energy') throw energySchemaError();
+    ({ data, error } = await supabase
+      .from('leads')
+      .select('*')
+      .eq('assigned_to', userId)
+      .is('refunded_at', null)
+      .order('assigned_at', { ascending: false }));
+  }
 
   if (error) throw error;
   return withAssignees(data || []);
@@ -727,7 +917,15 @@ export async function createLead(input, {
     payload.external_id = extId;
   }
 
-  const { data, error } = await supabase.from('leads').insert(payload).select('*').single();
+  let { data, error } = await supabase.from('leads').insert(payload).select('*').single();
+  if (error && verticalColumnMissing(error) && payload.vertical !== 'energy') {
+    const retryPayload = { ...payload };
+    delete retryPayload.vertical;
+    ({ data, error } = await supabase.from('leads').insert(retryPayload).select('*').single());
+  }
+  if (error && payload.vertical === 'energy' && (verticalColumnMissing(error) || energySchemaMissing(error))) {
+    throw energySchemaError();
+  }
   if (error) throw error;
   const lead = await withAssignee(data);
   schedulePoolAutoFill('createLead');
@@ -767,7 +965,15 @@ export async function importLeads(rows, { createdBy } = {}) {
     throw Object.assign(new Error('Supabase ist nicht konfiguriert.'), { status: 503 });
   }
 
-  const { data, error } = await supabase.from('leads').insert(created).select('*');
+  let { data, error } = await supabase.from('leads').insert(created).select('*');
+  if (error && verticalColumnMissing(error)) {
+    const retryRows = created.map((row) => {
+      const next = { ...row };
+      delete next.vertical;
+      return next;
+    });
+    ({ data, error } = await supabase.from('leads').insert(retryRows).select('*'));
+  }
   if (error) throw error;
 
   const leads = await withAssignees(data || []);
@@ -960,6 +1166,15 @@ export async function assignLead(id, beraterId, { requestId } = {}) {
     request_id: resolvedRequestId,
   };
 
+  // Energie-Termine erscheinen beim Berater direkt in der Termin-Spalte
+  if (
+    verticalOrInsurance(current.vertical) === 'energy'
+    && (current.delivery_type === 'appointment' || current.deliveryType === 'appointment')
+    && !current.contact_status
+  ) {
+    patch.contact_status = 'termin';
+  }
+
   const { data, error } = await supabase
     .from('leads')
     .update(patch)
@@ -968,6 +1183,11 @@ export async function assignLead(id, beraterId, { requestId } = {}) {
     .single();
 
   if (error) throw error;
+  if (verticalOrInsurance(data.vertical) === 'energy') {
+    import('./energy.js')
+      .then(({ recordEnergyDelivery }) => recordEnergyDelivery(data))
+      .catch((err) => console.error('Energy delivery skipped:', err.message));
+  }
   return withAssignee(data);
 }
 
@@ -1084,6 +1304,12 @@ export function handleLeadError(res, error) {
     return tableMissingResponse(
       res,
       'Abschluss-Ergebnis fehlt. Bitte server/supabase/lead_close_outcome.sql im Supabase SQL Editor ausführen.',
+    );
+  }
+  if (verticalColumnMissing(error) || energySchemaMissing(error)) {
+    return tableMissingResponse(
+      res,
+      'Energie-Bereich fehlt. Bitte server/supabase/vertical.sql im Supabase SQL Editor ausführen.',
     );
   }
   if (/external_source|external_id/i.test(String(error?.message || ''))) {

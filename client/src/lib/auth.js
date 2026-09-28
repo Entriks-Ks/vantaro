@@ -1,8 +1,11 @@
 import { apiUrl } from './api';
+import { clearSignupCategory } from './signupCategory';
 import { supabase } from './supabase';
+import { isVertical } from './vertical';
 
 const STORAGE_KEY = 'vantaro-auth';
 const OAUTH_NEXT_KEY = 'vantaro-oauth-next';
+const OAUTH_VERTICAL_KEY = 'vantaro-oauth-vertical';
 
 function readStoredSession() {
   try {
@@ -61,6 +64,20 @@ export function consumeOAuthNext() {
   return next;
 }
 
+export function rememberOAuthVertical(vertical) {
+  if (isVertical(vertical)) {
+    sessionStorage.setItem(OAUTH_VERTICAL_KEY, vertical);
+    return;
+  }
+  sessionStorage.removeItem(OAUTH_VERTICAL_KEY);
+}
+
+export function consumeOAuthVertical() {
+  const value = sessionStorage.getItem(OAUTH_VERTICAL_KEY);
+  sessionStorage.removeItem(OAUTH_VERTICAL_KEY);
+  return isVertical(value) ? value : '';
+}
+
 const OAUTH_PROVIDERS = {
   google: 'Google',
   apple: 'Apple',
@@ -108,14 +125,14 @@ export async function startAppleLogin(nextPath) {
   return startOAuthLogin('apple', nextPath);
 }
 
-export async function completeOAuthRequest({ access_token, refresh_token, expires_at }) {
+export async function completeOAuthRequest({ access_token, refresh_token, expires_at, vertical }) {
   const response = await fetch(apiUrl('/api/auth/oauth'), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${access_token}`,
     },
-    body: JSON.stringify({ access_token, refresh_token, expires_at }),
+    body: JSON.stringify({ access_token, refresh_token, expires_at, vertical }),
   });
   const session = await parseAuthResponse(response);
   writeStoredSession(session);
@@ -162,7 +179,9 @@ export async function exchangeOAuthCallback() {
       access_token: data.session.access_token,
       refresh_token: data.session.refresh_token,
       expires_at: data.session.expires_at,
+      vertical: consumeOAuthVertical(),
     });
+    clearSignupCategory();
 
     await supabase.auth.signOut({ scope: 'local' }).catch(() => {});
     return session;
@@ -197,6 +216,21 @@ function mapOAuthError(message, provider) {
     return `Die ${label}-Anmeldung konnte nicht abgeschlossen werden. Bitte starten Sie die Anmeldung erneut.`;
   }
   return `${label}-Anmeldung ist fehlgeschlagen. Bitte versuchen Sie es erneut.`;
+}
+
+export async function setVerticalRequest(vertical) {
+  const session = readStoredSession();
+  const response = await fetch(apiUrl('/api/auth/vertical'), {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+    },
+    body: JSON.stringify({ vertical }),
+  });
+  const payload = await parseAuthResponse(response);
+  if (payload.user && session) writeStoredSession({ ...session, user: payload.user });
+  return payload;
 }
 
 export async function registerRequest(payload) {

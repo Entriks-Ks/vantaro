@@ -240,6 +240,7 @@ export async function fetchLeads(params = {}) {
   if (params.assignedTo) search.set('assignedTo', params.assignedTo);
   if (params.search) search.set('q', params.search);
   if (params.scope) search.set('scope', params.scope);
+  if (params.vertical) search.set('vertical', params.vertical);
   const suffix = search.toString() ? `?${search}` : '';
   const response = await fetch(apiUrl(`/api/leads${suffix}`), { headers: authHeaders() });
   return parseResponse(response);

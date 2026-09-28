@@ -20,6 +20,7 @@ import { DEFAULT_ROLE, isAdmin } from '../lib/roles.js';
 import { supabase, supabaseAuth } from '../lib/supabase.js';
 import { allocateCustomerNumber, createUserSession, ensureUserRole, finalizeOAuthUser, findUserByEmail, isEmailVerified, isSupportedOAuthUser, revokeSession } from '../lib/users.js';
 import { issueVerificationCode, secondsUntilResend, verifyUserCode, verifyUserToken } from '../lib/verification.js';
+import { normalizeVertical } from '../lib/vertical.js';
 
 const router = Router();
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -47,6 +48,7 @@ router.post('/register', async (req, res) => {
   const legacyFullName = String(req.body?.fullName ?? '').trim();
   const email = String(req.body?.email ?? '').trim().toLowerCase();
   const password = String(req.body?.password ?? '');
+  const vertical = normalizeVertical(req.body?.vertical);
 
   const resolvedFirst = firstName || legacyFullName.split(/\s+/)[0] || '';
   const resolvedLast = lastName || legacyFullName.split(/\s+/).slice(1).join(' ') || '';
@@ -69,6 +71,9 @@ router.post('/register', async (req, res) => {
   const passwordError = validatePassword(password);
   if (passwordError) {
     return res.status(400).json({ error: passwordError });
+  }
+  if (!vertical) {
+    return res.status(400).json({ error: 'Bitte wählen Sie Versicherung oder Energie.' });
   }
 
   try {
@@ -99,6 +104,8 @@ router.post('/register', async (req, res) => {
         full_name: fullName,
         email_verified: false,
         onboarding_complete: false,
+        vertical,
+        vertical_required: false,
       },
       app_metadata: { role: DEFAULT_ROLE },
     });
@@ -240,6 +247,36 @@ router.post('/login', async (req, res) => {
   }
 
   const user = await ensureUserRole(data.user);
+  const mapped = publicUser(user);
+  if (
+    mapped.vertical === 'energy'
+    && mapped.energyRole
+    && mapped.energyRole !== 'main'
+    && mapped.energyActive === false
+  ) {
+    await revokeSession(data.session.access_token);
+    return res.status(403).json({
+      error: 'Dieser Zugang ist deaktiviert. Bitte wenden Sie sich an die Hauptfirma.',
+    });
+  }
+
+  if (
+    mapped.vertical === 'energy'
+    && mapped.energyRole
+    && mapped.energyRole !== 'main'
+    && user.user_metadata?.energy_invite_accepted !== true
+  ) {
+    const { data: acceptedData } = await supabase.auth.admin.updateUserById(user.id, {
+      user_metadata: {
+        ...(user.user_metadata || {}),
+        energy_invite_accepted: true,
+      },
+    }).catch(() => ({ data: null }));
+    if (acceptedData?.user) {
+      return res.json(publicSession(data.session, acceptedData.user));
+    }
+  }
+
   res.json(publicSession(data.session, user));
 });
 
@@ -254,6 +291,7 @@ router.post('/oauth', async (req, res) => {
 
   const { data, error } = await supabase.auth.getUser(token);
   if (error || !data.user) {
+    console.error('OAuth token check failed:', error?.message || 'no user');
     return res.status(401).json({ error: 'Anmeldung ist fehlgeschlagen.' });
   }
 
@@ -262,7 +300,9 @@ router.post('/oauth', async (req, res) => {
   }
 
   try {
-    const user = await finalizeOAuthUser(data.user);
+    const user = await finalizeOAuthUser(data.user, {
+      vertical: req.body?.vertical,
+    });
     res.json(publicSession({
       access_token: token,
       refresh_token: refreshToken,
@@ -272,6 +312,29 @@ router.post('/oauth', async (req, res) => {
     console.error('OAuth complete failed:', oauthError.message);
     return res.status(400).json({ error: mapAuthError(oauthError) });
   }
+});
+
+router.post('/vertical', requireAuth, async (req, res) => {
+  const vertical = normalizeVertical(req.body?.vertical);
+  if (!vertical) {
+    return res.status(400).json({ error: 'Bitte wählen Sie Versicherung oder Energie.' });
+  }
+  const existing = req.authUser.user_metadata || {};
+  if (normalizeVertical(existing.vertical)) {
+    return res.status(400).json({ error: 'Der Bereich ist bereits festgelegt.' });
+  }
+  const { data, error } = await supabase.auth.admin.updateUserById(req.authUser.id, {
+    user_metadata: {
+      ...existing,
+      vertical,
+      vertical_required: false,
+    },
+  });
+  if (error || !data.user) {
+    console.error('Set vertical failed:', error?.message);
+    return res.status(400).json({ error: 'Der Bereich konnte nicht gespeichert werden.' });
+  }
+  return res.json({ user: publicUser(data.user) });
 });
 
 router.post('/logout', async (req, res) => {

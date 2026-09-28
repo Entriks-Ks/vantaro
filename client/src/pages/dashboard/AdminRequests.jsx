@@ -282,7 +282,8 @@ export function AdminRequests() {
                     {isUnseenRequest(entry) ? <span className="dash-request-new">Neu</span> : null}
                   </strong>
                   <span className="dash-lead-row-sub">
-                    {packageKindLabel(entry.scope)} · {leadTypeLabel(entry.leadType)} · {entry.requestedCount} Leads
+                    {packageKindLabel(entry.scope)} · {leadTypeLabel(entry.leadType)} · {entry.requestedCount}{' '}
+                    {String(entry.leadType || '').includes('APPOINTMENT') ? 'Termine' : 'Leads'}
                     {entry.berater?.company ? ` · ${entry.berater.company}` : ''}
                   </span>
                   <span className="dash-request-track">

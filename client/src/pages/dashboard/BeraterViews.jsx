@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom';
-import { AlertCircle, ArrowLeft, ArrowRight, Bell, Building2, Calendar as CalendarIcon, CalendarClock, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, CircleCheck, CircleX, Clock, Cookie, CreditCard, Download, Eye, EyeOff, FileCheck2, FileText, Filter, Flag, Globe, GraduationCap, Handshake, KeyRound, LayoutGrid, List, Lock, Mail, MapPin, MessageCircle, Paperclip, Phone, Printer, Receipt, Save, Search, Send, Settings, Shield, ShieldCheck, Sparkles, StickyNote, User, UserPlus, Users, Wand2, X } from 'lucide-react';
+import { Link, Navigate, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { AlertCircle, ArrowLeft, ArrowRight, Bell, Building2, Calendar as CalendarIcon, CalendarClock, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, CircleCheck, CircleX, Clock, Cookie, CreditCard, Download, Eye, EyeOff, FileCheck2, FileText, Filter, Flag, Globe, GraduationCap, Handshake, KeyRound, LayoutGrid, List, Lock, LogOut, Mail, MapPin, MessageCircle, Paperclip, Phone, Printer, Receipt, Save, Search, Send, Settings, Shield, ShieldCheck, Sparkles, StickyNote, User, UserPlus, Users, Wand2, X } from 'lucide-react';
 import AddressAutocomplete from '../../components/AddressAutocomplete';
 import AddressMap from '../../components/AddressMap';
 import BootScreen from '../../components/BootScreen';
@@ -37,10 +37,11 @@ import {
   updateLead,
 } from '../../lib/leads';
 import { LEGAL_FORMS, fileToAvatarDataUrl, generatePassword, validatePassword } from '../../lib/profile';
+import { ENERGY_PACKAGES, energyLeadTypeOf, energyTypeLabel, verticalOrInsurance } from '../../lib/vertical';
 import ThemeMode from '../../components/ThemeMode';
 import { accountSetupGaps, displayName, firstName, formatDate, formatDateTime, formatEuroExact, initials } from './helpers';
 import { MIN_LEAD_PACK, PACKAGES, packageById, packTotalCents } from './packages';
-import { DEFAULT_LEAD_SCOPE, leadScopeLabel } from '../../lib/scopes';
+import { connectEnergyCalendar, disconnectEnergyCalendar, fetchCalendarStatus, setEnergyOutcome } from '../../lib/energy';
 import {
   checkoutLeadPackage,
   collectBrowserPaymentMeta,
@@ -75,8 +76,12 @@ import {
 } from './leads';
 
 function leadProduct(lead) {
-  const filter = PRODUCT_FILTERS.find((option) => option.id === leadProductCode(lead));
-  return filter?.label || leadProductCode(lead);
+  const code = leadProductCode(lead);
+  if (['PV_LEAD', 'PV_APPOINTMENT', 'HP_LEAD', 'HP_APPOINTMENT'].includes(code)) {
+    return energyTypeLabel(code);
+  }
+  const filter = PRODUCT_FILTERS.find((option) => option.id === code);
+  return filter?.label || code;
 }
 
 function withPipeline(lead, leadStatuses) {
@@ -586,7 +591,7 @@ function CloseOutcomeMark({ outcome, compact = false }) {
   );
 }
 
-function LeadCloseOutcomeModal({ leadName, value, saving, onSave, onClose }) {
+export function LeadCloseOutcomeModal({ leadName, value, saving, onSave, onClose }) {
   const titleId = 'lead-close-outcome-modal-title';
 
   useEffect(() => {
@@ -640,7 +645,7 @@ function LeadCloseOutcomeModal({ leadName, value, saving, onSave, onClose }) {
   );
 }
 
-function LeadScheduleModal({ kind, value, saving, locked, leadName, onSave, onClose }) {
+export function LeadScheduleModal({ kind, value, saving, locked, leadName, onSave, onClose }) {
   const isTermin = kind === 'termin';
   const titleId = 'lead-schedule-modal-title';
 
@@ -742,7 +747,7 @@ function LeadStatusMark({ lead, large = false, placement = 'list' }) {
   );
 }
 
-function LeadStatusDropdown({
+export function LeadStatusDropdown({
   lead,
   status,
   onSelectStatus,
@@ -1617,8 +1622,12 @@ function LeadCard({ lead, onOpen, dragging = false, onDragStart, onDragEnd }) {
       ) : null}
       <div className="broker-lead-meta">
         {distance ? <span>{distance} entfernt</span> : null}
-        <span>{lead.productCode || leadProductCode(lead)}</span>
-        <span>{lead.quality || 'Exklusiv'}</span>
+        <span>{lead.product || lead.productCode || leadProductCode(lead)}</span>
+        {(lead.deliveryType || lead.delivery_type) === 'appointment' ? (
+          <span>Termin</span>
+        ) : lead.quality ? (
+          <span>{lead.quality}</span>
+        ) : null}
       </div>
       {lead.notes ? <p className="broker-lead-note">{lead.notes}</p> : null}
       <div className="broker-lead-bottom">
@@ -1703,13 +1712,21 @@ function leadMatchesInsurance(lead, selected) {
   return selected.some((id) => values.includes(id));
 }
 
+function leadMatchesEnergyPackage(lead, selected) {
+  if (!selected.length) return true;
+  return selected.includes(leadProductCode(lead));
+}
+
 export function BeraterLeads() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const energy = verticalOrInsurance(user?.vertical) === 'energy';
   const { leadStatuses, setLeadStatus, showToast } = useBroker();
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [insurance, setInsurance] = useState([]);
+  const [packages, setPackages] = useState([]);
   const [view, setView] = useState('kanban');
   const [page, setPage] = useState(1);
   const [draggingId, setDraggingId] = useState('');
@@ -1740,8 +1757,12 @@ export function BeraterLeads() {
   const pipeline = useMemo(() => (
     leads
       .map((lead) => withPipeline(lead, leadStatuses))
-      .filter((lead) => leadMatchesInsurance(lead, insurance))
-  ), [leads, leadStatuses, insurance]);
+      .filter((lead) => (
+        energy
+          ? leadMatchesEnergyPackage(lead, packages)
+          : leadMatchesInsurance(lead, insurance)
+      ))
+  ), [leads, leadStatuses, insurance, packages, energy]);
 
   const visible = pipeline;
   const nonAbgeschlossenCount = useMemo(() => (
@@ -1751,7 +1772,7 @@ export function BeraterLeads() {
 
   useEffect(() => {
     setPage(1);
-  }, [insurance, view]);
+  }, [insurance, packages, view]);
 
   useEffect(() => {
     setPage((current) => Math.min(current, totalPages));
@@ -1869,6 +1890,12 @@ export function BeraterLeads() {
     ));
   }
 
+  function togglePackage(id) {
+    setPackages((current) => (
+      current.includes(id) ? current.filter((value) => value !== id) : [...current, id]
+    ));
+  }
+
   const kanbanProps = {
     dropStatus,
     draggingId,
@@ -1889,40 +1916,66 @@ export function BeraterLeads() {
     },
   };
 
+  const filterActive = energy ? packages.length : insurance.length;
+
   return (
     <div className="broker-page broker-page--wide">
       <div className="broker-heading">
         <div>
           <div className="eyebrow">Ihr Bestand</div>
           <h1>Meine Leads</h1>
-          <p className="lede">Karten in die passende Spalte ziehen — oder in der Liste öffnen.</p>
+          <p className="lede">
+            {energy
+              ? 'Karten in die passende Spalte ziehen — Termine erscheinen direkt unter Termin.'
+              : 'Karten in die passende Spalte ziehen — oder in der Liste öffnen.'}
+          </p>
         </div>
       </div>
 
       {error ? <div className="broker-alert">{error}</div> : null}
 
       <div className="broker-filterbar">
-        <div className="broker-ins-filter" role="group" aria-label="Versicherungsstatus">
-          <span className="broker-ins-filter__label">Versicherungsstatus</span>
-          <div className="broker-ins-filter__options">
-            {INSURANCE_OPTIONS.map((option) => {
-              const checked = insurance.includes(option.id);
-              return (
-                <label key={option.id} className={checked ? 'is-checked' : undefined}>
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    onChange={() => toggleInsurance(option.id)}
-                  />
-                  <span className="broker-ins-filter__box" aria-hidden="true">
-                    {checked ? <Check size={12} strokeWidth={3} /> : null}
-                  </span>
-                  <span className="broker-ins-filter__text">{option.label}</span>
-                </label>
-              );
-            })}
+        {energy ? (
+          <div className="broker-ins-filter" role="group" aria-label="Paket">
+            <span className="broker-ins-filter__label">Paket</span>
+            <div className="broker-ins-filter__options">
+              {ENERGY_PACKAGES.map((option) => {
+                const checked = packages.includes(option.id);
+                return (
+                  <label key={option.id} className={checked ? 'is-checked' : undefined}>
+                    <input type="checkbox" checked={checked} onChange={() => togglePackage(option.id)} />
+                    <span className="broker-ins-filter__box" aria-hidden="true">
+                      {checked ? <Check size={12} strokeWidth={3} /> : null}
+                    </span>
+                    <span className="broker-ins-filter__text">{option.label}</span>
+                  </label>
+                );
+              })}
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="broker-ins-filter" role="group" aria-label="Versicherungsstatus">
+            <span className="broker-ins-filter__label">Versicherungsstatus</span>
+            <div className="broker-ins-filter__options">
+              {INSURANCE_OPTIONS.map((option) => {
+                const checked = insurance.includes(option.id);
+                return (
+                  <label key={option.id} className={checked ? 'is-checked' : undefined}>
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => toggleInsurance(option.id)}
+                    />
+                    <span className="broker-ins-filter__box" aria-hidden="true">
+                      {checked ? <Check size={12} strokeWidth={3} /> : null}
+                    </span>
+                    <span className="broker-ins-filter__text">{option.label}</span>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         <div className="broker-filterbar-end">
           <div className="broker-pills broker-pills--view" role="tablist" aria-label="Ansicht">
@@ -1955,10 +2008,12 @@ export function BeraterLeads() {
         </div>
       ) : !visible.length ? (
         <div className="broker-panel broker-empty">
-          <strong>{insurance.length ? 'Keine Leads für diesen Filter' : 'Noch keine Leads'}</strong>
+          <strong>{filterActive ? 'Keine Leads für diesen Filter' : 'Noch keine Leads'}</strong>
           <p>
-            {insurance.length
-              ? 'Andere Versicherungsstatus wählen — oder alle Häkchen entfernen, um den gesamten Bestand zu sehen.'
+            {filterActive
+              ? (energy
+                ? 'Anderes Paket wählen — oder alle Häkchen entfernen, um den gesamten Bestand zu sehen.'
+                : 'Andere Versicherungsstatus wählen — oder alle Häkchen entfernen, um den gesamten Bestand zu sehen.')
               : 'Sobald wir Ihnen Chancen zuteilen, erscheinen sie hier.'}
           </p>
         </div>
@@ -1967,14 +2022,29 @@ export function BeraterLeads() {
           <div className="broker-panel broker-list-panel">
             <div className="broker-list-head" aria-hidden="true">
               <span>Kontakt</span>
-              <span>Produkt</span>
-              <span>Qualität</span>
+              <span>{energy ? 'Paket' : 'Produkt'}</span>
+              <span>{energy ? 'Art' : 'Qualität'}</span>
               <span>Status</span>
-              <span>Preis</span>
+              <span>{energy ? 'Gebiet' : 'Preis'}</span>
             </div>
             <div className="broker-list-body">
               {pageItems.map((lead) => (
-                <LeadListRow key={lead.id} lead={lead} onOpen={openLead} />
+                energy ? (
+                  <button key={lead.id} type="button" className="broker-list-row" onClick={() => openLead(lead.id)}>
+                    <span className="broker-list-name">
+                      <strong>{lead.name}</strong>
+                      <small>{lead.address}</small>
+                    </span>
+                    <span className="broker-list-meta">{lead.product}</span>
+                    <span className="broker-list-meta">
+                      {(lead.deliveryType || lead.delivery_type) === 'appointment' ? 'Termin' : 'Lead'}
+                    </span>
+                    <LeadStatusMark lead={lead} />
+                    <span className="broker-list-meta">{[lead.zip, lead.city].filter(Boolean).join(' ') || '—'}</span>
+                  </button>
+                ) : (
+                  <LeadListRow key={lead.id} lead={lead} onOpen={openLead} />
+                )
               ))}
             </div>
           </div>
@@ -2146,10 +2216,15 @@ function calAvatarInitials(name = '') {
 
 export function BeraterCalendar() {
   const { leadStatuses, setLeadStatus, showToast } = useBroker();
+  const { user } = useAuth();
+  const energy = user?.vertical === 'energy';
+  const fieldRep = energy && (user?.energyRole || 'main') === 'field_rep';
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [error, setError] = useState(searchParams.get('calendar') === 'error' ? 'Google Kalender konnte nicht verbunden werden.' : '');
+  const [calendarLink, setCalendarLink] = useState(null);
   
   const now = new Date();
   const todayKey = toDateKey(now);
@@ -2181,6 +2256,12 @@ export function BeraterCalendar() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!fieldRep) return undefined;
+    fetchCalendarStatus().then(setCalendarLink).catch(() => {});
+    return undefined;
+  }, [fieldRep]);
+
   const pipelineLeads = useMemo(
     () => leads.map((lead) => withPipeline(lead, leadStatuses)),
     [leads, leadStatuses],
@@ -2190,13 +2271,16 @@ export function BeraterCalendar() {
   const allEvents = useMemo(() => {
     const list = [];
     pipelineLeads.forEach((lead) => {
+      const product = energy
+        ? (energyTypeLabel(energyLeadTypeOf(lead)) || 'Energie')
+        : (leadProduct(lead) || lead.product || 'Versicherung');
       if (lead.appointmentAt) {
         const at = lead.appointmentAt;
         const d = new Date(at);
         list.push({
           id: `${lead.id}-termin`,
           lead,
-          kind: 'termin',
+          kind: energy && lead.energyStatus === 'FOLLOW_UP' ? 'wiedervorlage' : 'termin',
           at,
           dateKey: toDateKey(d),
           timeStr: d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) + ' Uhr',
@@ -2206,10 +2290,10 @@ export function BeraterCalendar() {
           leadName: lead.name || lead.fullName || 'Ohne Namen',
           phone: lead.phone || '',
           email: lead.email || '',
-          product: leadProduct(lead) || lead.product || 'Versicherung',
+          product,
         });
       }
-      if (lead.followUpAt) {
+      if (lead.followUpAt && !(energy && lead.appointmentAt)) {
         const at = lead.followUpAt;
         const d = new Date(at);
         list.push({
@@ -2225,12 +2309,12 @@ export function BeraterCalendar() {
           leadName: lead.name || lead.fullName || 'Ohne Namen',
           phone: lead.phone || '',
           email: lead.email || '',
-          product: leadProduct(lead) || lead.product || 'Versicherung',
+          product,
         });
       }
     });
     return list.sort((a, b) => new Date(a.at) - new Date(b.at));
-  }, [pipelineLeads]);
+  }, [pipelineLeads, energy]);
 
   // Apply filters & search query
   const filteredEvents = useMemo(() => {
@@ -2326,6 +2410,18 @@ export function BeraterCalendar() {
     setSavingSchedule(true);
     setError('');
     try {
+      if (energy) {
+        const payload = await setEnergyOutcome(lead.id, {
+          status: kind === 'wiedervorlage' ? 'FOLLOW_UP' : 'CONFIRMED',
+          appointmentAt: iso,
+        });
+        setLeads((prev) =>
+          prev.map((l) => (String(l.id) === String(lead.id) ? { ...l, ...payload.lead, complaint: l.complaint } : l)),
+        );
+        setScheduleTarget(null);
+        if (showToast) showToast('Termin erfolgreich aktualisiert.');
+        return;
+      }
       const payload = await updateLead(lead.id, contactUpdatePayload(kind, {
         followUpAt: kind === 'wiedervorlage' ? iso : null,
         appointmentAt: kind === 'termin' ? iso : null,
@@ -2374,9 +2470,32 @@ export function BeraterCalendar() {
             Alle Beratungstermine und Wiedervorlagen im Überblick.
           </p>
         </div>
+        {fieldRep ? (
+          <button
+            type="button"
+            className="btn btn-outline"
+            onClick={async () => {
+              try {
+                if (calendarLink?.syncStatus === 'connected') {
+                  setCalendarLink(await disconnectEnergyCalendar());
+                  return;
+                }
+                const payload = await connectEnergyCalendar();
+                window.location.assign(payload.url);
+              } catch (err) {
+                setError(err.message);
+              }
+            }}
+          >
+            {calendarLink?.syncStatus === 'connected' ? 'Google Kalender trennen' : 'Google Kalender verbinden'}
+          </button>
+        ) : null}
       </div>
 
       {error ? <div className="broker-alert">{error}</div> : null}
+      {energy && searchParams.get('calendar') === 'connected' ? (
+        <div className="broker-alert broker-alert--ok">Google Kalender ist verbunden. Ein Testtermin wurde angelegt.</div>
+      ) : null}
 
       {/* Google Calendar Style Controls Bar */}
       <div className="broker-gcal-header">
@@ -2825,7 +2944,7 @@ export function BeraterAcademy() {
       <div className="broker-heading">
         <div>
           <div className="eyebrow">Lernen</div>
-          <h1>Academy</h1>
+          <h1>Akademie</h1>
           <p className="lede">Schulungen, Videos und Unterlagen für Ihren Bestand — in Kürze.</p>
         </div>
       </div>
@@ -2834,7 +2953,7 @@ export function BeraterAcademy() {
           <GraduationCap size={28} strokeWidth={1.8} />
         </span>
         <em>Coming soon</em>
-        <strong>Academy folgt in Kürze</strong>
+        <strong>Akademie folgt in Kürze</strong>
         <p>Dieser Bereich wird vorbereitet. Sobald Inhalte bereitstehen, finden Sie sie hier.</p>
       </section>
     </div>
@@ -4114,7 +4233,7 @@ function useHashScroll() {
 }
 
 function ProfileNav({ active }) {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const gaps = accountSetupGaps(user);
   const countFor = (id) => gaps.filter((gap) => gap.nav === id).length;
   const hrefFor = (id, fallback) => gaps.find((gap) => gap.nav === id)?.to || fallback;
@@ -4144,6 +4263,14 @@ function ProfileNav({ active }) {
           </Link>
         );
       })}
+      <button
+        type="button"
+        className="broker-profile-nav__logout"
+        onClick={() => logout()}
+      >
+        <LogOut size={16} strokeWidth={2} />
+        Abmelden
+      </button>
       <ThemeMode variant="nav" />
     </nav>
   );

@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import SocialAuthButtons from '../components/SocialAuthButtons';
+import { rememberOAuthVertical } from '../lib/auth';
+import { normalizeVertical } from '../lib/vertical';
 import { useAuth } from '../hooks/useAuth';
 import useBackForwardCacheRestore from '../hooks/useBackForwardCacheRestore';
 import useNavigate from '../hooks/useNavigate';
@@ -15,9 +17,14 @@ export default function Login() {
   const navigate = useNavigate();
   const location = useLocation();
   const nextPath = location.state?.from || '/dashboard';
-  const info = new URLSearchParams(location.search).get('verified') === '1'
+  const searchParams = new URLSearchParams(location.search);
+  const info = searchParams.get('verified') === '1'
     ? 'Ihre E-Mail-Adresse ist bestätigt. Bitte melden Sie sich an.'
     : '';
+  const category = normalizeVertical(searchParams.get('category'));
+  const registerHref = category
+    ? `/register?category=${encodeURIComponent(category)}`
+    : '/register';
 
   const unlockForm = useCallback(() => {
     setSubmitting(false);
@@ -56,6 +63,7 @@ export default function Login() {
     setError('');
     setSubmitting(true);
     try {
+      rememberOAuthVertical('');
       await loginWithGoogle(nextPath);
     } catch (err) {
       setError(err.message || 'Google-Anmeldung ist fehlgeschlagen.');
@@ -67,6 +75,7 @@ export default function Login() {
     setError('');
     setSubmitting(true);
     try {
+      rememberOAuthVertical('');
       await loginWithApple(nextPath);
     } catch (err) {
       setError(err.message || 'Apple-Anmeldung ist fehlgeschlagen.');
@@ -175,7 +184,7 @@ export default function Login() {
 
           <div className="auth-footer">
             <span>Noch kein Konto?</span>
-            <Link to="/register">Registrieren</Link>
+            <Link to={registerHref}>Registrieren</Link>
           </div>
         </div>
 

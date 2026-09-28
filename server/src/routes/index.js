@@ -10,6 +10,7 @@ import complaintsRouter from './complaints.js';
 import paymentsRouter from './payments.js';
 import jobsRouter from './jobs.js';
 import calendarRouter from './calendar.js';
+import energyRouter from './energy.js';
 import tcdialWebhookRouter from './webhooks/tcdial.js';
 
 const router = Router();
@@ -25,6 +26,7 @@ router.use('/complaints', complaintsRouter);
 router.use('/payments', paymentsRouter);
 router.use('/jobs', jobsRouter);
 router.use('/calendar', calendarRouter);
+router.use('/energy', energyRouter);
 router.use('/webhooks/tcdial', tcdialWebhookRouter);
 
 export default router;

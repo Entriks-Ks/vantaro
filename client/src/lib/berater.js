@@ -5,6 +5,10 @@ export const LEAD_TYPE_OPTIONS = [
   { id: 'PKV', label: 'PKV' },
   { id: 'bAV', label: 'bAV' },
   { id: 'BU', label: 'BU' },
+  { id: 'PV_LEAD', label: 'Photovoltaik-Lead' },
+  { id: 'PV_APPOINTMENT', label: 'Photovoltaik-Termin' },
+  { id: 'HP_LEAD', label: 'Wärmepumpen-Lead' },
+  { id: 'HP_APPOINTMENT', label: 'Wärmepumpen-Termin' },
 ];
 
 export const REQUEST_STATUS_OPTIONS = [

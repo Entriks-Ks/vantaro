@@ -9,6 +9,7 @@ import {
   Inbox,
   KeyRound,
   ListChecks,
+  LogOut,
   Mail,
   Phone,
   Save,
@@ -653,7 +654,7 @@ function PasswordField({ label, value, onChange, show, onToggle, autoComplete, d
 }
 
 export function AdminProfile() {
-  const { user, updateProfile, changePassword } = useAuth();
+  const { user, updateProfile, changePassword, logout } = useAuth();
   const { showToast } = useBroker();
   const [form, setForm] = useState(() => adminProfileForm(user));
   const [avatarName, setAvatarName] = useState('');
@@ -947,6 +948,24 @@ export function AdminProfile() {
           </button>
         </div>
       </form>
+
+      <section className="dash-panel dash-panel--profile">
+        <section className="dash-profile-section dash-profile-section--flush">
+          <header>
+            <h3>
+              <span className="dash-profile-section__icon" aria-hidden="true">
+                <LogOut size={16} strokeWidth={2.2} />
+              </span>
+              Sitzung
+            </h3>
+            <p>Melden Sie sich von diesem Gerät ab.</p>
+          </header>
+          <button type="button" className="dash-btn dash-btn--danger" onClick={() => logout()}>
+            <LogOut size={15} strokeWidth={2.2} aria-hidden="true" />
+            Abmelden
+          </button>
+        </section>
+      </section>
     </div>
   );
 }

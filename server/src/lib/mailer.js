@@ -634,6 +634,7 @@ function adminLeadRequestEmail({
   const safeCode = escapeHtml(requestCode);
   const safeType = escapeHtml(leadType);
   const safeScope = escapeHtml(scopeLabel);
+  const unitLabel = String(leadType || '').includes('APPOINTMENT') ? 'Termine' : 'Leads';
   const safeCount = escapeHtml(String(requestedCount));
   const safeUrl = escapeHtml(reviewUrl);
   const greeting = 'Hallo';
@@ -649,7 +650,7 @@ ${beraterEmail ? `E-Mail: ${beraterEmail}` : ''}
 ${companyLine}
 ${codeLine}
 Paket: ${scopeLabel} · ${leadType}
-Anzahl: ${requestedCount} Leads
+Anzahl: ${requestedCount} ${unitLabel}
 
 Anforderung öffnen:
 ${reviewUrl}
@@ -706,7 +707,7 @@ ${reviewUrl}
                       ${company ? `<div style="margin:0 0 8px;"><strong style="color:#101827;">Firma:</strong> ${safeCompany}</div>` : ''}
                       ${requestCode ? `<div style="margin:0 0 8px;"><strong style="color:#101827;">Code:</strong> ${safeCode}</div>` : ''}
                       <div style="margin:0 0 8px;"><strong style="color:#101827;">Paket:</strong> ${safeScope} · ${safeType}</div>
-                      <div style="margin:0;"><strong style="color:#101827;">Anzahl:</strong> ${safeCount} Leads</div>
+                      <div style="margin:0;"><strong style="color:#101827;">Anzahl:</strong> ${safeCount} ${escapeHtml(unitLabel)}</div>
                     </td>
                   </tr>
                 </table>
@@ -1052,4 +1053,13 @@ export async function sendSupportEmail(payload) {
   }
 
   return 'resend';
+}
+
+export async function sendEnergyNoticeEmail({ to, subject, text }) {
+  await sendWithResend({
+    to,
+    subject,
+    text,
+    html: `<p style="font-family:Arial,sans-serif;color:#101827;">${String(text || '')}</p>`,
+  });
 }

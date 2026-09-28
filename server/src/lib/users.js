@@ -7,6 +7,7 @@ import {
   splitFullName,
 } from './profile.js';
 import { ROLES, getUserRole } from './roles.js';
+import { normalizeVertical } from './vertical.js';
 
 export async function findUserByEmail(email) {
   const normalized = String(email || '').trim().toLowerCase();
@@ -110,7 +111,7 @@ function trimMeta(value) {
   return String(value ?? '').trim();
 }
 
-export async function finalizeOAuthUser(user) {
+export async function finalizeOAuthUser(user, { vertical } = {}) {
   if (!user?.id || !supabase) return user;
 
   const metadata = user.user_metadata || {};
@@ -119,6 +120,10 @@ export async function finalizeOAuthUser(user) {
   const firstName = trimMeta(metadata.first_name) || trimMeta(metadata.given_name) || split.firstName;
   const lastName = trimMeta(metadata.last_name) || trimMeta(metadata.family_name) || split.lastName;
   const avatarUrl = trimMeta(metadata.avatar_url) || trimMeta(metadata.picture);
+  const chosen = normalizeVertical(metadata.vertical);
+  const requested = normalizeVertical(vertical);
+  const createdAt = new Date(user.created_at || 0).getTime();
+  const fresh = Number.isFinite(createdAt) && Date.now() - createdAt < 15 * 60 * 1000;
 
   const nextMetadata = {
     ...metadata,
@@ -128,6 +133,13 @@ export async function finalizeOAuthUser(user) {
     email_verified: true,
     onboarding_complete: metadata.onboarding_complete === true,
   };
+
+  if (!chosen && fresh && requested) {
+    nextMetadata.vertical = requested;
+    nextMetadata.vertical_required = false;
+  } else if (!chosen && fresh) {
+    nextMetadata.vertical_required = true;
+  }
 
   if (avatarUrl) nextMetadata.avatar_url = avatarUrl;
 
@@ -281,6 +293,7 @@ export function toDirectoryUser(user) {
     phone: metadata.phone || '',
     avatarUrl: metadata.avatar_url || '',
     role: getUserRole(user),
+    vertical: normalizeVertical(metadata.vertical) || 'insurance',
     verified: isEmailVerified(user),
     onboardingComplete: metadata.onboarding_complete === true,
     createdAt: user.created_at || null,

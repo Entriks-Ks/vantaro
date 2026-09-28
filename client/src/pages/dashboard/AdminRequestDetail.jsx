@@ -705,7 +705,8 @@ export function AdminRequestDetail() {
             </div>
             <h2>{beraterName(request)}</h2>
             <p>
-              {packageKindLabel(request.scope)} · {leadTypeLabel(request.leadType)} · {request.requestedCount} Leads
+              {packageKindLabel(request.scope)} · {leadTypeLabel(request.leadType)} · {request.requestedCount}{' '}
+              {String(request.leadType || '').includes('APPOINTMENT') ? 'Termine' : 'Leads'}
               {request.berater?.company ? ` · ${request.berater.company}` : ''}
             </p>
             <div className="dash-drawer-chips">

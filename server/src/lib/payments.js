@@ -49,6 +49,8 @@ export function toPublicPayment(row, extras = {}) {
     scope: row.scope,
     leadType: row.lead_type || 'PKV',
     leadCount: Number(row.lead_count) || 0,
+    territory: row.territory || null,
+    desiredTimeframe: row.desired_timeframe || null,
     netCents: Number(row.net_cents) || 0,
     taxCents: Number(row.tax_cents) || 0,
     grossCents: Number(row.gross_cents) || 0,
@@ -76,6 +78,17 @@ function makeInvoiceNumber(at = new Date()) {
   const stamp = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
   const suffix = String(d.getTime()).slice(-4);
   return `RE-${stamp}-${suffix}`;
+}
+
+/** Fallback when territory columns are missing: label · Gebiet · Zeitraum */
+function parseEnergyTerritory(packageLabel) {
+  const parts = String(packageLabel || '').split(' · ').map((part) => part.trim()).filter(Boolean);
+  return parts.length >= 3 ? parts[parts.length - 2] : null;
+}
+
+function parseEnergyTimeframe(packageLabel) {
+  const parts = String(packageLabel || '').split(' · ').map((part) => part.trim()).filter(Boolean);
+  return parts.length >= 3 ? parts[parts.length - 1] : null;
 }
 
 function clientIp(req) {
@@ -269,6 +282,8 @@ export async function finalizePaymentFromGateway(row, { beraterUser = null } = {
       requestedCount: row.lead_count,
       leadType: row.lead_type || 'PKV',
       scope: row.scope,
+      territory: row.territory || parseEnergyTerritory(row.package_label),
+      desiredTimeframe: row.desired_timeframe || parseEnergyTimeframe(row.package_label),
       notes: `${row.package_label} · ${row.invoice_number}`,
       createdBy: beraterUser?.id || row.berater_id,
       notifyAdmins: true,
@@ -355,6 +370,8 @@ export async function finalizePaymentFromGateway(row, { beraterUser = null } = {
 export async function checkoutLeadPackage(user, {
   packageId,
   requestedCount,
+  territory,
+  desiredTimeframe,
   browser,
 } = {}, req = null) {
   requireDb();
@@ -381,6 +398,13 @@ export async function checkoutLeadPackage(user, {
     throw fail(`Mindestabnahme ${MIN_LEAD_PACK} Leads (in 5er-Schritten: 10, 15, 20, …).`);
   }
 
+  const area = String(territory || '').trim();
+  const timeframe = String(desiredTimeframe || '').trim();
+  if (pkg.vertical === 'energy') {
+    if (!area) throw fail('Gebiet oder PLZ ist erforderlich.');
+    if (!timeframe) throw fail('Gewünschter Zeitraum ist erforderlich.');
+  }
+
   const netCents = packTotalCents(pkg, count);
   const taxCents = 0;
   const grossCents = netCents;
@@ -390,33 +414,55 @@ export async function checkoutLeadPackage(user, {
     || user.fullName
     || null;
 
-  const { data: pending, error: insertError } = await supabase
-    .from('lead_payments')
-    .insert({
-      berater_id: user.id,
-      request_id: null,
-      package_id: pkg.id,
-      package_label: pkg.label,
-      scope: pkg.scope,
-      lead_type: pkg.leadType,
-      lead_count: count,
-      net_cents: netCents,
-      tax_cents: taxCents,
-      gross_cents: grossCents,
-      invoice_number: invoiceNumber,
-      status: 'pending',
-      method: 'card',
-      billing_name: billingName,
-      billing_email: user.email || null,
-      billing_company: user.profile?.company || null,
-      test_mode: config.testMode,
-      return_token: returnToken,
-      paid_at: null,
-    })
-    .select('*')
-    .single();
+  const insertRow = {
+    berater_id: user.id,
+    request_id: null,
+    package_id: pkg.id,
+    package_label: pkg.label,
+    scope: pkg.scope,
+    lead_type: pkg.leadType,
+    lead_count: count,
+    net_cents: netCents,
+    tax_cents: taxCents,
+    gross_cents: grossCents,
+    invoice_number: invoiceNumber,
+    status: 'pending',
+    method: 'card',
+    billing_name: billingName,
+    billing_email: user.email || null,
+    billing_company: user.profile?.company || null,
+    test_mode: config.testMode,
+    return_token: returnToken,
+    paid_at: null,
+  };
+  if (pkg.vertical === 'energy') {
+    insertRow.territory = area;
+    insertRow.desired_timeframe = timeframe;
+  }
 
-  if (insertError) throw insertError;
+  let pending;
+  {
+    const { data, error: insertError } = await supabase
+      .from('lead_payments')
+      .insert(insertRow)
+      .select('*')
+      .single();
+    if (insertError) {
+      // Older DBs without territory columns — retry without them (energy will fail at request create if missing)
+      if (pkg.vertical === 'energy' && /territory|desired_timeframe/i.test(String(insertError.message || ''))) {
+        delete insertRow.territory;
+        delete insertRow.desired_timeframe;
+        insertRow.package_label = `${pkg.label} · ${area} · ${timeframe}`;
+        const retry = await supabase.from('lead_payments').insert(insertRow).select('*').single();
+        if (retry.error) throw retry.error;
+        pending = retry.data;
+      } else {
+        throw insertError;
+      }
+    } else {
+      pending = data;
+    }
+  }
 
   const apiOrigin = getApiOrigin();
   const hppRedirectUrl = `${apiOrigin}/api/payments/return?token=${encodeURIComponent(returnToken)}`;

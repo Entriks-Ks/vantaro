@@ -1,12 +1,21 @@
+import { energyLeadTypeOf, territoryMatches } from '../../lib/vertical';
+
 export function leadScopeOrDefault(scope) {
   return scope === 'regional' ? 'regional' : 'deutschlandweit';
 }
 
 export function poolForRequest(availableLeads, request) {
   const scope = leadScopeOrDefault(request?.scope);
-  return (availableLeads || []).filter(
-    (lead) => leadScopeOrDefault(lead.scope) === scope && lead.status !== 'erledigt' && !lead.refundedAt,
-  );
+  const requestVertical = request?.vertical === 'energy' ? 'energy' : 'insurance';
+  return (availableLeads || []).filter((lead) => {
+    if ((lead?.vertical === 'energy' ? 'energy' : 'insurance') !== requestVertical) return false;
+    if (lead.status === 'erledigt' || lead.refundedAt) return false;
+    if (requestVertical === 'energy') {
+      return energyLeadTypeOf(lead) === request.leadType
+        && territoryMatches(request.territory, lead);
+    }
+    return leadScopeOrDefault(lead.scope) === scope;
+  });
 }
 
 export function beraterBusinessAddress(berater) {
@@ -38,6 +47,11 @@ export function requestCode(request) {
 
 export function packageKindLabel(scope) {
   return scope === 'regional' ? 'Regional' : 'Exklusiv';
+}
+
+export function requestAreaLabel(request) {
+  if (request?.vertical === 'energy') return request.territory || 'Gebiet';
+  return packageKindLabel(request?.scope);
 }
 
 export function progressPercent(request) {

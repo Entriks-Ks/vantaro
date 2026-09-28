@@ -10,6 +10,7 @@ import {
   resendVerificationRequest,
   resetPasswordRequest,
   restoreSession,
+  setVerticalRequest,
   startAppleLogin,
   startGoogleLogin,
   updateProfileRequest,
@@ -64,6 +65,12 @@ export function AuthProvider({ children }) {
   }, []);
 
   const register = useCallback(async (payload) => registerRequest(payload), []);
+
+  const setVertical = useCallback(async (vertical) => {
+    const payload = await setVerticalRequest(vertical);
+    if (payload.user) setUser(payload.user);
+    return payload;
+  }, []);
 
   const verifyEmail = useCallback(async (email, code) => {
     const payload = await verifyEmailRequest(email, code);
@@ -122,6 +129,7 @@ export function AuthProvider({ children }) {
       loginWithApple,
       completeOAuthLogin,
       register,
+      setVertical,
       verifyEmail,
       verifyEmailToken,
       updateProfile,
@@ -132,7 +140,7 @@ export function AuthProvider({ children }) {
       resetPassword,
       resendPasswordReset,
     }),
-    [user, role, loading, login, loginWithGoogle, loginWithApple, completeOAuthLogin, register, verifyEmail, verifyEmailToken, updateProfile, changePassword, resendVerification, logout, forgotPassword, resetPassword, resendPasswordReset],
+    [user, role, loading, login, loginWithGoogle, loginWithApple, completeOAuthLogin, register, setVertical, verifyEmail, verifyEmailToken, updateProfile, changePassword, resendVerification, logout, forgotPassword, resetPassword, resendPasswordReset],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

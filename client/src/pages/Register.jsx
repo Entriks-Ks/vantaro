@@ -1,10 +1,17 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import SocialAuthButtons from '../components/SocialAuthButtons';
 import { useAuth } from '../hooks/useAuth';
 import useBackForwardCacheRestore from '../hooks/useBackForwardCacheRestore';
 import useNavigate from '../hooks/useNavigate';
 import { validatePassword } from '../lib/profile';
+import { rememberOAuthVertical } from '../lib/auth';
+import {
+  clearSignupCategory,
+  initialSignupCategory,
+  saveSignupCategory,
+} from '../lib/signupCategory';
+import { VERTICALS, isVertical, normalizeVertical } from '../lib/vertical';
 
 function EyeIcon({ off }) {
   if (off) {
@@ -28,13 +35,15 @@ function passwordError(password) {
 }
 
 export default function Register() {
-  const [formData, setFormData] = useState({
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [formData, setFormData] = useState(() => ({
     firstName: '',
     lastName: '',
     email: '',
     password: '',
     confirmPassword: '',
-  });
+    vertical: initialSignupCategory(searchParams),
+  }));
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState('');
@@ -51,10 +60,30 @@ export default function Register() {
     if (!loading && user) navigate('/dashboard', { replace: true });
   }, [loading, user, navigate]);
 
+  useEffect(() => {
+    if (formData.vertical) saveSignupCategory(formData.vertical);
+    else clearSignupCategory();
+  }, [formData.vertical]);
+
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
+
+  const selectVertical = (id) => {
+    setFormData((prev) => ({ ...prev, vertical: id }));
+    if (searchParams.has('category') && normalizeVertical(searchParams.get('category')) !== id) {
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        next.set('category', id);
+        return next;
+      }, { replace: true });
+    }
+  };
+
+  const loginHref = formData.vertical
+    ? `/login?category=${encodeURIComponent(formData.vertical)}`
+    : '/login';
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -78,6 +107,10 @@ export default function Register() {
       setError('Passwörter stimmen nicht überein');
       return;
     }
+    if (!isVertical(formData.vertical)) {
+      setError('Bitte wählen Sie Versicherung oder Energie.');
+      return;
+    }
 
     setSubmitting(true);
     try {
@@ -86,10 +119,13 @@ export default function Register() {
         lastName: formData.lastName.trim(),
         email: formData.email.trim(),
         password: formData.password,
+        vertical: formData.vertical,
       });
+      clearSignupCategory();
       navigate(`/verify-email?email=${encodeURIComponent(formData.email.trim().toLowerCase())}`);
     } catch (err) {
       if (err.requiresVerification && err.email) {
+        clearSignupCategory();
         navigate(`/verify-email?email=${encodeURIComponent(err.email)}`);
         return;
       }
@@ -101,8 +137,13 @@ export default function Register() {
 
   const handleGoogle = async () => {
     setError('');
+    if (!isVertical(formData.vertical)) {
+      setError('Bitte wählen Sie Versicherung oder Energie.');
+      return;
+    }
     setSubmitting(true);
     try {
+      rememberOAuthVertical(formData.vertical);
       await loginWithGoogle('/dashboard');
     } catch (err) {
       setError(err.message || 'Google-Anmeldung ist fehlgeschlagen.');
@@ -112,8 +153,13 @@ export default function Register() {
 
   const handleApple = async () => {
     setError('');
+    if (!isVertical(formData.vertical)) {
+      setError('Bitte wählen Sie Versicherung oder Energie.');
+      return;
+    }
     setSubmitting(true);
     try {
+      rememberOAuthVertical(formData.vertical);
       await loginWithApple('/dashboard');
     } catch (err) {
       setError(err.message || 'Apple-Anmeldung ist fehlgeschlagen.');
@@ -149,11 +195,33 @@ export default function Register() {
           </div>
 
           <h1 className="auth-title">Konto erstellen</h1>
-          <p className="auth-subtitle">Nur die wichtigsten Kontodaten — den Rest ergänzen Sie nach dem ersten Login.</p>
+          <p className="auth-subtitle">Wählen Sie den Bereich. Den Rest ergänzen Sie nach dem ersten Login.</p>
 
           {error && <div className="auth-error">{error}</div>}
 
           <form className="auth-form" onSubmit={handleSubmit}>
+            <fieldset className="vertical-choice">
+              <legend>
+                Bereich <span className="auth-required">*</span>
+              </legend>
+              {VERTICALS.map((option) => {
+                const selected = formData.vertical === option.id;
+                return (
+                  <button
+                    key={option.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    className={selected ? 'is-active' : undefined}
+                    disabled={submitting}
+                    onClick={() => selectVertical(option.id)}
+                  >
+                    <strong>{option.label}</strong>
+                    <span>{option.description}</span>
+                  </button>
+                );
+              })}
+            </fieldset>
             <div className="form-row">
               <div className="form-group">
                 <label htmlFor="firstName">
@@ -274,7 +342,7 @@ export default function Register() {
 
           <div className="auth-footer">
             <span>Bereits ein Konto?</span>
-            <Link to="/login">Anmelden</Link>
+            <Link to={loginHref}>Anmelden</Link>
           </div>
         </div>
 

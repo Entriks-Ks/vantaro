@@ -88,6 +88,8 @@ router.post('/checkout', async (req, res) => {
       {
         packageId: req.body?.packageId ?? req.body?.package_id,
         requestedCount: req.body?.requestedCount ?? req.body?.requested_count,
+        territory: req.body?.territory,
+        desiredTimeframe: req.body?.desiredTimeframe ?? req.body?.desired_timeframe,
         browser: req.body?.browser,
       },
       req,

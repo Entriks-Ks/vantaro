@@ -47,11 +47,30 @@ export function defaultPipelineStatus(apiStatus) {
   return 'neu';
 }
 
+function isEnergyAppointment(lead) {
+  const delivery = lead?.deliveryType || lead?.delivery_type || '';
+  if (delivery === 'appointment') return true;
+  const type = String(lead?.leadType || lead?.packageId || energyLeadTypeHint(lead) || '');
+  return type.endsWith('_APPOINTMENT');
+}
+
+function energyLeadTypeHint(lead) {
+  const product = lead?.energyProduct || lead?.energy_product || '';
+  const delivery = lead?.deliveryType || lead?.delivery_type || '';
+  if (product === 'photovoltaic' && delivery === 'appointment') return 'PV_APPOINTMENT';
+  if (product === 'heat_pump' && delivery === 'appointment') return 'HP_APPOINTMENT';
+  if (product === 'photovoltaic' && delivery === 'lead') return 'PV_LEAD';
+  if (product === 'heat_pump' && delivery === 'lead') return 'HP_LEAD';
+  return '';
+}
+
 export function pipelineStatusOf(lead, statuses = {}) {
   const fromLead = lead?.contactStatus;
   if (fromLead && STATUS_IDS.has(fromLead)) return fromLead;
   const stored = statuses[String(lead?.id || '')];
   if (stored && STATUS_IDS.has(stored)) return stored;
+  // Bought/zugewiesene Termine landen direkt in der Termin-Spalte
+  if (isEnergyAppointment(lead)) return 'termin';
   return defaultPipelineStatus(lead?.status);
 }
 
@@ -74,8 +93,12 @@ export function contactUpdatePayload(statusId, { followUpAt = null, appointmentA
 }
 
 export function leadProductCode(lead) {
+  const energyType = energyLeadTypeHint(lead);
+  if (energyType) return energyType;
+
   const explicit = String(lead?.leadType || lead?.productType || '').trim();
   if (explicit === 'PKV' || explicit === 'bAV' || explicit === 'BU') return explicit;
+  if (['PV_LEAD', 'PV_APPOINTMENT', 'HP_LEAD', 'HP_APPOINTMENT'].includes(explicit)) return explicit;
 
   const insurance = Array.isArray(lead?.insuranceStatus) ? lead.insuranceStatus : [];
   const haystack = [

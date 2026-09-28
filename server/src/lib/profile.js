@@ -1,4 +1,5 @@
 import { parsePhoneNumberFromString } from 'libphonenumber-js';
+import { verticalOrInsurance } from './vertical.js';
 
 export const LEGAL_FORMS = [
   'GmbH',
@@ -166,7 +167,9 @@ export function readProfileFields(metadata = {}, email = '') {
     customerNumber: trim(metadata.customer_number),
     location: trim(metadata.location) || business.city,
     radiusKm: Number.isFinite(radiusKm) && radiusKm > 0 ? radiusKm : 10,
-    products: products.length ? products : ['PKV', 'bAV', 'BU'],
+    products: products.length
+      ? products
+      : (verticalOrInsurance(metadata.vertical) === 'energy' ? [] : ['PKV', 'bAV', 'BU']),
     email: trim(email),
     settings: normalizeUserSettings(metadata.settings),
   };

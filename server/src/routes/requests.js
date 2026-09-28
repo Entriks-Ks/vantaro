@@ -58,6 +58,8 @@ router.post('/', async (req, res) => {
       requestedCount: req.body?.requestedCount ?? req.body?.requested_count,
       leadType: req.body?.leadType ?? req.body?.lead_type,
       scope: req.body?.scope,
+      territory: req.body?.territory,
+      desiredTimeframe: req.body?.desiredTimeframe ?? req.body?.desired_timeframe,
       notes: req.body?.notes,
       createdBy: req.user.id,
     });
