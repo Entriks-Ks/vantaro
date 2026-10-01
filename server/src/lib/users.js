@@ -6,7 +6,7 @@ import {
   nextCustomerNumber,
   splitFullName,
 } from './profile.js';
-import { ROLES, getUserRole } from './roles.js';
+import { PARTNER_ROLE_IDS, ROLES, getUserRole } from './roles.js';
 import { normalizeVertical } from './vertical.js';
 
 export async function findUserByEmail(email) {
@@ -283,11 +283,17 @@ export function toDirectoryUser(user) {
   const metadata = user.user_metadata || {};
   const fullName = metadata.full_name
     || `${metadata.first_name || ''} ${metadata.last_name || ''}`.trim();
+  const partnerRole = PARTNER_ROLE_IDS.includes(metadata.energy_role) ? metadata.energy_role : 'main';
 
   return {
     id: user.id,
     email: user.email,
     fullName,
+    partnerRole,
+    companyId: partnerRole === 'main' ? user.id : (metadata.energy_company_id || null),
+    partnerActive: partnerRole === 'main' || metadata.energy_active !== false,
+    partnerPages: Array.isArray(metadata.energy_pages) ? metadata.energy_pages : null,
+    lastSignInAt: user.last_sign_in_at || null,
     company: metadata.company || '',
     customerNumber: metadata.customer_number || '',
     phone: metadata.phone || '',

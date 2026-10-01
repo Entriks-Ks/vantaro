@@ -143,6 +143,17 @@ export function canAmendComplaint(complaint) {
   return status === 'info_needed' || status === 'infos_noetig' || status === 'declined' || status === 'rejected';
 }
 
+export function complaintNeedsInfo(complaint) {
+  const status = complaint?.status;
+  return status === 'info_needed' || status === 'infos_noetig';
+}
+
+/** Declined complaints return the lead to the normal pipeline. */
+export function isComplaintFlowLead(lead) {
+  const status = lead?.complaint?.status;
+  return Boolean(status) && status !== 'declined' && status !== 'rejected';
+}
+
 export function contactStatusLabel(id) {
   return CONTACT_STATUS_LABELS[id] || id || '—';
 }

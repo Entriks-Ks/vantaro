@@ -22,6 +22,15 @@ export function isValidMobile(value) {
   }
 }
 
+export function formatPhoneDisplay(value) {
+  if (!value) return '';
+  try {
+    return parsePhoneNumber(value).formatInternational();
+  } catch {
+    return String(value);
+  }
+}
+
 /**
  * Phone input with country selector.
  * Pass an `error` string (from the parent on submit) to show it below the field.

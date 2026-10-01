@@ -7,6 +7,7 @@ import {
   ClipboardList,
   CreditCard,
   Globe,
+  Handshake,
   Mail,
   MapPin,
   Phone,
@@ -23,6 +24,7 @@ import {
 import { statusLabel as leadStatusLabel } from '../../lib/leads';
 import { leadScopeLabel } from '../../lib/scopes';
 import { formatCardMask } from '../../lib/payments';
+import { allowedPartnerPages, partnerPageOptions, partnerRoleLabel } from '../../lib/partners';
 import { DashSeg } from './DashboardLayout';
 import { formatDate, formatEuro, formatEuroExact } from './helpers';
 
@@ -31,6 +33,7 @@ const VIEW_TABS = [
   { id: 'requests', label: 'Anfragen', icon: ClipboardList },
   { id: 'payment', label: 'Zahlungen', icon: CreditCard },
   { id: 'leads', label: 'Leads', icon: Users },
+  { id: 'partners', label: 'Partner', icon: Handshake },
 ];
 
 const PAY_SEGMENT_COLORS = ['#ff8b73', '#56d3c4', '#7eb6ff', '#f0c36a'];
@@ -865,6 +868,171 @@ function LeadsPanel({ leads, assignedCount }) {
   );
 }
 
+function PartnerDetail({ partner, vertical, leads }) {
+  const held = (leads || []).filter((lead) => lead.energyHolderId === partner.id && !lead.refundedAt);
+  const pageIds = allowedPartnerPages({ partnerRole: partner.partnerRole, vertical, partnerPages: partner.pages }) || [];
+  const pageLabels = partnerPageOptions(vertical)
+    .filter((option) => pageIds.includes(option.id))
+    .map((option) => option.label);
+  const phone = String(partner.phone || '').trim();
+
+  return (
+    <section className="dash-bv-card dash-bv-partner-detail" aria-labelledby="bv-partner-title">
+      <div className="dash-bv-partner-detail__head">
+        <BeraterAvatar berater={partner} size="md" />
+        <div>
+          <h3 id="bv-partner-title">{partner.fullName || partner.email}</h3>
+          <p>{partnerRoleLabel(vertical, partner.partnerRole)}</p>
+        </div>
+      </div>
+
+      <div className="dash-bv-hero__badges">
+        <span className={`dash-badge dash-badge--${partner.active ? 'ok' : 'muted'}`}>
+          {partner.active ? 'Aktiv' : 'Deaktiviert'}
+        </span>
+        <span className={`dash-badge dash-badge--${partner.lastSignInAt ? 'ok' : 'warn'}`}>
+          {partner.lastSignInAt ? 'Zugang genutzt' : 'Noch nie angemeldet'}
+        </span>
+      </div>
+
+      <div className="dash-bv-facts">
+        <ProfileFact icon={Mail} label="E-Mail">
+          {partner.email ? <a href={`mailto:${partner.email}`}>{partner.email}</a> : null}
+        </ProfileFact>
+        <ProfileFact icon={Phone} label="Telefon">
+          {phone ? <a href={`tel:${phone}`}>{phone}</a> : null}
+        </ProfileFact>
+        <ProfileFact icon={UserRound} label="Angelegt">
+          {formatDate(partner.createdAt)}
+        </ProfileFact>
+        <ProfileFact icon={BadgeCheck} label="Zuletzt online">
+          {partner.lastSignInAt ? formatDate(partner.lastSignInAt) : null}
+        </ProfileFact>
+      </div>
+
+      <h4 className="dash-bv-subhead">Seitenzugriff</h4>
+      {pageLabels.length ? (
+        <div className="dash-bv-chips" aria-label="Seitenzugriff">
+          {pageLabels.map((label) => (
+            <span key={label}>{label}</span>
+          ))}
+        </div>
+      ) : (
+        <div className="dash-empty"><p>Keine Seiten freigegeben.</p></div>
+      )}
+
+      <h4 className="dash-bv-subhead">Zugewiesene Leads ({held.length})</h4>
+      {held.length ? (
+        <div className="dash-bv-lead-list">
+          {held.map((lead) => (
+            <Link key={lead.id} className="dash-bv-lead" to={`/dashboard/leads/${lead.id}`}>
+              <div className="dash-bv-lead__main">
+                <strong>{lead.fullName || 'Ohne Namen'}</strong>
+                <span>
+                  {[lead.zip, lead.city].filter(Boolean).join(' ') || 'Ohne Ort'}
+                  {lead.email ? ` · ${lead.email}` : ''}
+                </span>
+              </div>
+              <div className="dash-bv-lead__side">
+                <span className={`dash-badge dash-badge--${leadTone(lead.status)}`}>
+                  {leadStatusLabel(lead.status)}
+                </span>
+              </div>
+            </Link>
+          ))}
+        </div>
+      ) : (
+        <div className="dash-empty"><p>Diesem Partner sind aktuell keine Leads zugewiesen.</p></div>
+      )}
+    </section>
+  );
+}
+
+function PartnersPanel({ partners, vertical, leads }) {
+  const [selectedId, setSelectedId] = useState(null);
+  const list = partners || [];
+  const selected = list.find((partner) => partner.id === selectedId) || list[0] || null;
+  const activeCount = list.filter((partner) => partner.active).length;
+  const heldTotal = list.reduce((sum, partner) => sum + (Number(partner.heldCount) || 0), 0);
+
+  if (!list.length) {
+    return (
+      <div className="dash-bv-panel">
+        <div className="dash-empty">
+          <p>Dieser Berater hat noch keine Partner angelegt.</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="dash-bv-panel dash-bv-panel--partners">
+      <div className="dash-bv-metrics">
+        <div className="dash-metric">
+          <span>Partner</span>
+          <strong><AnimatedNumber value={list.length} /></strong>
+          <small>Zugänge</small>
+        </div>
+        <div className="dash-metric">
+          <span>Aktiv</span>
+          <strong><AnimatedNumber value={activeCount} /></strong>
+          <small>Zugang freigeschaltet</small>
+        </div>
+        <div className="dash-metric">
+          <span>Inaktiv</span>
+          <strong><AnimatedNumber value={list.length - activeCount} /></strong>
+          <small>deaktiviert</small>
+        </div>
+        <div className="dash-metric">
+          <span>Leads bei Partnern</span>
+          <strong><AnimatedNumber value={heldTotal} /></strong>
+          <small>aktuell zugewiesen</small>
+        </div>
+      </div>
+
+      <div className="dash-bv-partner-split">
+        <section className="dash-bv-card">
+          <header>
+            <div>
+              <h3>Alle Partner</h3>
+              <p>{list.length} Zugang{list.length === 1 ? '' : 'e'}</p>
+            </div>
+          </header>
+          <div className="dash-bv-lead-list">
+            {list.map((partner) => (
+              <button
+                key={partner.id}
+                type="button"
+                className={`dash-bv-lead dash-bv-lead--partner${selected?.id === partner.id ? ' is-active' : ''}`}
+                onClick={() => setSelectedId(partner.id)}
+                aria-pressed={selected?.id === partner.id}
+              >
+                <BeraterAvatar berater={partner} size="sm" />
+                <div className="dash-bv-lead__main">
+                  <strong>{partner.fullName || partner.email}</strong>
+                  <span>{partnerRoleLabel(vertical, partner.partnerRole)}</span>
+                  <span className="dash-bv-lead__meta">
+                    {partner.heldCount} Lead{partner.heldCount === 1 ? '' : 's'} zugewiesen
+                  </span>
+                </div>
+                <div className="dash-bv-lead__side">
+                  <span className={`dash-badge dash-badge--${partner.active ? 'ok' : 'muted'}`}>
+                    {partner.active ? 'Aktiv' : 'Inaktiv'}
+                  </span>
+                </div>
+              </button>
+            ))}
+          </div>
+        </section>
+
+        {selected ? (
+          <PartnerDetail key={selected.id} partner={selected} vertical={vertical} leads={leads} />
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 export function AdminBeraterList() {
   const [beraters, setBeraters] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -976,6 +1144,11 @@ export function AdminBeraterList() {
                     ) : (
                       <span className="dash-lead-row-tags">{entry.assignedCount} Leads im Bestand</span>
                     )}
+                    {entry.partnerCount ? (
+                      <span className="dash-lead-row-tags">
+                        {entry.partnerCount} Partner
+                      </span>
+                    ) : null}
                   </div>
                   <div className="dash-lead-row-side">
                     <PipelineStatus request={request} />
@@ -1039,6 +1212,7 @@ export function AdminBeraterDetail() {
   const requests = data?.requests || [];
   const payments = data?.payments || [];
   const leads = data?.sentLeads || [];
+  const partners = data?.partners || [];
   const totals = useMemo(() => requests.reduce((acc, entry) => ({
     requested: acc.requested + (Number(entry.requestedCount) || 0),
     valid: acc.valid + (Number(entry.validCount) || 0),
@@ -1143,7 +1317,9 @@ export function AdminBeraterDetail() {
                 ? paidCount
                 : tab.id === 'leads'
                   ? (data.assignedCount || leads.filter((lead) => !lead.refundedAt).length)
-                  : null;
+                  : tab.id === 'partners'
+                    ? partners.length
+                    : null;
             return (
               <button
                 key={tab.id}
@@ -1179,6 +1355,9 @@ export function AdminBeraterDetail() {
         ) : null}
         {activeTab === 'leads' ? (
           <LeadsPanel leads={leads} assignedCount={data.assignedCount || 0} />
+        ) : null}
+        {activeTab === 'partners' ? (
+          <PartnersPanel partners={partners} vertical={berater.vertical} leads={leads} />
         ) : null}
       </div>
     </div>

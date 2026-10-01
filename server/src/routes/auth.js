@@ -248,24 +248,14 @@ router.post('/login', async (req, res) => {
 
   const user = await ensureUserRole(data.user);
   const mapped = publicUser(user);
-  if (
-    mapped.vertical === 'energy'
-    && mapped.energyRole
-    && mapped.energyRole !== 'main'
-    && mapped.energyActive === false
-  ) {
+  if (mapped.partnerRole !== 'main' && mapped.partnerActive === false) {
     await revokeSession(data.session.access_token);
     return res.status(403).json({
       error: 'Dieser Zugang ist deaktiviert. Bitte wenden Sie sich an die Hauptfirma.',
     });
   }
 
-  if (
-    mapped.vertical === 'energy'
-    && mapped.energyRole
-    && mapped.energyRole !== 'main'
-    && user.user_metadata?.energy_invite_accepted !== true
-  ) {
+  if (mapped.partnerRole !== 'main' && user.user_metadata?.energy_invite_accepted !== true) {
     const { data: acceptedData } = await supabase.auth.admin.updateUserById(user.id, {
       user_metadata: {
         ...(user.user_metadata || {}),

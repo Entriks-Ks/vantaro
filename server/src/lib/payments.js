@@ -12,7 +12,7 @@ import {
   createPurchaseOrder,
   getOrderDetails,
   getProcreditConfig,
-} from './procredit.js';
+} from './paymentGateway.js';
 
 const TAX_RATE = 0;
 

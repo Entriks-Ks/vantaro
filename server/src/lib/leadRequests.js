@@ -18,6 +18,7 @@ import { beraterBusinessAddress, sortLeadsByZipProximity } from './proximity.js'
 import {
   energyLeadTypeOf,
   energySchemaMissing,
+  isAppointmentExpired,
   leadTypesFor,
   territoryMatches,
   verticalColumnMissing,
@@ -324,7 +325,12 @@ export function pickWorkingRequest(requests) {
 export async function listBeraterPipelines() {
   requireDb();
   const directory = await listDirectoryUsers();
-  const beraters = directory.users.filter((user) => user.role === ROLES.BERATER);
+  const beraters = directory.users.filter((user) => user.role === ROLES.BERATER && user.partnerRole === 'main');
+  const partnerCounts = new Map();
+  for (const user of directory.users) {
+    if (user.partnerRole === 'main' || !user.companyId) continue;
+    partnerCounts.set(user.companyId, (partnerCounts.get(user.companyId) || 0) + 1);
+  }
 
   const { data: requests, error } = await supabase
     .from('lead_requests')
@@ -349,10 +355,54 @@ export async function listBeraterPipelines() {
     return {
       ...user,
       assignedCount: assigned.get(user.id) || 0,
+      partnerCount: partnerCounts.get(user.id) || 0,
       request: pickInboxRequest(userRequests),
       requests: userRequests,
     };
   });
+}
+
+async function heldCountsByPartner(ids) {
+  const map = new Map(ids.map((id) => [id, 0]));
+  if (!ids.length) return map;
+  const { data, error } = await supabase
+    .from('leads')
+    .select('energy_holder_id')
+    .in('energy_holder_id', ids)
+    .is('refunded_at', null);
+  if (error) {
+    if (tableMissing(error) || ['42703', 'PGRST204'].includes(error.code)) return map;
+    throw error;
+  }
+  for (const row of data || []) {
+    map.set(row.energy_holder_id, (map.get(row.energy_holder_id) || 0) + 1);
+  }
+  return map;
+}
+
+async function listCompanyPartners(companyId, vertical) {
+  const directory = await listDirectoryUsers();
+  const partners = directory.users.filter((user) => (
+    user.partnerRole !== 'main'
+    && user.companyId === companyId
+    && verticalOrInsurance(user.vertical) === verticalOrInsurance(vertical)
+  ));
+  const held = await heldCountsByPartner(partners.map((user) => user.id));
+  return partners
+    .map((user) => ({
+      id: user.id,
+      fullName: user.fullName,
+      email: user.email,
+      phone: user.phone,
+      avatarUrl: user.avatarUrl,
+      partnerRole: user.partnerRole,
+      active: user.partnerActive,
+      pages: user.partnerPages,
+      lastSignInAt: user.lastSignInAt,
+      createdAt: user.createdAt,
+      heldCount: held.get(user.id) || 0,
+    }))
+    .sort((a, b) => String(a.fullName || '').localeCompare(String(b.fullName || ''), 'de'));
 }
 
 async function assignedCountsByBerater(ids) {
@@ -377,13 +427,16 @@ export async function getBeraterPipeline(beraterId) {
   const current = pickInboxRequest(mapped);
   const requestIds = mapped.map((entry) => entry.id);
 
-  const [sentLeads, availableLeads, requestLeads] = await Promise.all([
+  const [sentLeads, availableLeads, requestLeads, partners] = await Promise.all([
     listMyLeads(beraterId, { vertical: berater.vertical }),
     listLeads({ assignedTo: 'unassigned', vertical: berater.vertical }),
     requestIds.length ? listLeadsForRequests(requestIds) : Promise.resolve([]),
+    listCompanyPartners(beraterId, berater.vertical),
   ]);
 
-  const pool = (availableLeads || []).filter((lead) => lead.status !== 'erledigt' && !lead.refundedAt);
+  const pool = (availableLeads || []).filter((lead) => (
+    lead.status !== 'erledigt' && !lead.refundedAt && !isAppointmentExpired(lead)
+  ));
   let freePool = pool;
   try {
     const { openComplaintLeadIds, complaintTableMissing } = await import('./complaints.js');
@@ -408,6 +461,7 @@ export async function getBeraterPipeline(beraterId) {
     requests: mapped,
     sentLeads,
     requestLeads,
+    partners,
     availableLeads: freePool,
     assignedCount: sentLeads.filter((lead) => !lead.refundedAt).length,
     availableCount: freePool.length,
@@ -947,6 +1001,9 @@ export async function sendLeadsToRequest(requestId, leadIds, { skipReplacementLi
     if (!currentLead) throw fail('Ein ausgewählter Lead wurde nicht gefunden.');
     if (verticalOrInsurance(currentLead.vertical) !== verticalOrInsurance(current.vertical)) {
       throw fail('Lead und Auftrag gehören zu unterschiedlichen Bereichen.');
+    }
+    if (isAppointmentExpired(currentLead)) {
+      throw fail('Der Termin ist bereits verstrichen und kann nicht mehr gesendet werden. Bitte zuerst neu terminieren.');
     }
     if (verticalOrInsurance(current.vertical) === 'energy') {
       if (energyLeadTypeOf(currentLead) !== current.lead_type) {

@@ -1,12 +1,6 @@
-import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
+import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { supabase } from './supabase.js';
-import { publicUser, normalizeEnergyPages } from './auth.js';
 import { getApiOrigin, getClientOrigin } from './clientOrigin.js';
-import { hasCustomMailer } from './mailer.js';
-import { ROLES } from './roles.js';
-import { verticalOrInsurance } from './vertical.js';
-
-const PARTNER_ROLES = ['dispatcher', 'sub_partner', 'field_rep'];
 
 function fail(message, status = 400) {
   const error = new Error(message);
@@ -18,10 +12,6 @@ function schemaMissing(error) {
   const message = String(error?.message || error?.code || '');
   return /energy_holder_id|google_event_id|calendar_sync_status|energy_calendar/i.test(message)
     && (/column|relation|schema cache/i.test(message) || error?.code === '42P01' || error?.code === 'PGRST205' || error?.code === 'PGRST204' || error?.code === '42703');
-}
-
-export function energySchemaError() {
-  return fail('Energie-Betrieb fehlt. Bitte server/supabase/energy_portal.sql im Supabase SQL Editor ausführen.', 503);
 }
 
 function secretKey() {
@@ -40,233 +30,6 @@ function decryptSecret(payload) {
   const decipher = createDecipheriv('aes-256-gcm', secretKey(), raw.subarray(0, 12));
   decipher.setAuthTag(raw.subarray(12, 28));
   return Buffer.concat([decipher.update(raw.subarray(28)), decipher.final()]).toString('utf8');
-}
-
-export function energyCompanyId(user) {
-  if (user?.energyCompanyId) return user.energyCompanyId;
-  if (user?.vertical === 'energy' && (user.energyRole === 'main' || !user.energyRole)) return user.id;
-  return null;
-}
-
-export function canReadEnergyLead(user, row) {
-  if (verticalOrInsurance(row?.vertical) !== 'energy') return false;
-  const role = user?.energyRole || 'main';
-  if (role === 'sub_partner' || role === 'field_rep') return row.energy_holder_id === user.id;
-  return row.assigned_to === energyCompanyId(user);
-}
-
-export async function listVisibleEnergyLeads(user) {
-  const role = user?.energyRole || 'main';
-  let query = supabase.from('leads').select('*').eq('vertical', 'energy').is('refunded_at', null);
-  if (role === 'sub_partner' || role === 'field_rep') query = query.eq('energy_holder_id', user.id);
-  else query = query.eq('assigned_to', energyCompanyId(user));
-  if (role === 'field_rep') query = query.eq('delivery_type', 'appointment');
-  const { data, error } = await query.order('assigned_at', { ascending: false });
-  if (error) {
-    if (schemaMissing(error)) throw energySchemaError();
-    throw error;
-  }
-  const { withAssignees } = await import('./leads.js');
-  return withAssignees(data || []);
-}
-
-async function loadUser(id) {
-  const { data, error } = await supabase.auth.admin.getUserById(id);
-  if (error || !data?.user) return null;
-  return data.user;
-}
-
-export async function listEnergyPartners(actor) {
-  if (!['main', 'dispatcher'].includes(actor.energyRole || 'main') && actor.role !== 'admin') {
-    throw fail('Keine Berechtigung.', 403);
-  }
-  const companyId = energyCompanyId(actor);
-  const users = [];
-  for (let page = 1; page <= 10; page += 1) {
-    const { data, error } = await supabase.auth.admin.listUsers({ page, perPage: 200 });
-    if (error) throw error;
-    users.push(...(data.users || []));
-    if ((data.users || []).length < 200) break;
-  }
-  return users
-    .filter((raw) => {
-      const user = publicUser(raw);
-      return user?.vertical === 'energy' && user.energyCompanyId === companyId && user.id !== companyId;
-    })
-    .map((raw) => {
-      const user = publicUser(raw);
-      const metadata = raw.user_metadata || {};
-      const accepted = metadata.energy_invite_accepted === true || Boolean(raw.last_sign_in_at);
-      return {
-        id: user.id,
-        fullName: user.fullName,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        email: user.email,
-        energyRole: user.energyRole,
-        active: user.energyActive !== false,
-        pages: user.energyPages || normalizeEnergyPages(metadata.energy_pages),
-        inviteStatus: accepted ? 'accepted' : 'pending',
-        lastSignInAt: raw.last_sign_in_at || null,
-        createdAt: raw.created_at || null,
-      };
-    })
-    .sort((a, b) => String(a.fullName || '').localeCompare(String(b.fullName || ''), 'de'));
-}
-
-function generatePassword() {
-  const sets = ['abcdefghijkmnopqrstuvwxyz', 'ABCDEFGHJKLMNPQRSTUVWXYZ', '23456789', '!@$%#?&*'];
-  const all = sets.join('');
-  const chars = sets.map((set) => set[randomInt(set.length)]);
-  while (chars.length < 14) chars.push(all[randomInt(all.length)]);
-  for (let i = chars.length - 1; i > 0; i -= 1) {
-    const j = randomInt(i + 1);
-    [chars[i], chars[j]] = [chars[j], chars[i]];
-  }
-  return chars.join('');
-}
-
-export async function createEnergyPartner(actor, { firstName, lastName, email, energyRole, pages }) {
-  if ((actor.energyRole || 'main') !== 'main') throw fail('Nur die Hauptfirma kann Unterpartner anlegen.', 403);
-  const role = String(energyRole || '').trim();
-  if (!PARTNER_ROLES.includes(role)) throw fail('Rolle ist ungültig.');
-  const given = String(firstName || '').trim();
-  const family = String(lastName || '').trim();
-  const mail = String(email || '').trim().toLowerCase();
-  if (given.length < 2 || family.length < 2) throw fail('Vor- und Nachname müssen mindestens 2 Zeichen haben.');
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) throw fail('Bitte geben Sie eine gültige E-Mail-Adresse ein.');
-  const password = generatePassword();
-  const pageAccess = normalizeEnergyPages(pages);
-  const { data, error } = await supabase.auth.admin.createUser({
-    email: mail,
-    password,
-    email_confirm: true,
-    user_metadata: {
-      first_name: given,
-      last_name: family,
-      full_name: `${given} ${family}`,
-      email_verified: true,
-      onboarding_complete: false,
-      vertical: 'energy',
-      vertical_required: false,
-      energy_role: role,
-      energy_company_id: energyCompanyId(actor),
-      energy_active: true,
-      energy_pages: pageAccess,
-      energy_invite_accepted: false,
-    },
-    app_metadata: { role: ROLES.BERATER },
-  });
-  if (error) throw fail(error.message || 'Zugang konnte nicht angelegt werden.');
-  return {
-    user: {
-      id: data.user.id,
-      fullName: `${given} ${family}`,
-      email: mail,
-      energyRole: role,
-      active: true,
-      pages: pageAccess,
-      inviteStatus: 'pending',
-    },
-    password,
-  };
-}
-
-export async function updateEnergyPartner(actor, partnerId, { active, pages, energyRole } = {}) {
-  if ((actor.energyRole || 'main') !== 'main' && actor.role !== 'admin') {
-    throw fail('Nur die Hauptfirma kann Unterpartner verwalten.', 403);
-  }
-  if (!partnerId) throw fail('Unterpartner wurde nicht gefunden.', 404);
-  const companyId = energyCompanyId(actor);
-  const raw = await loadUser(partnerId);
-  if (!raw) throw fail('Unterpartner wurde nicht gefunden.', 404);
-  const mapped = publicUser(raw);
-  if (mapped.vertical !== 'energy' || mapped.energyCompanyId !== companyId || mapped.id === companyId) {
-    throw fail('Dieser Zugang gehört nicht zur Hauptfirma.');
-  }
-  if (!PARTNER_ROLES.includes(mapped.energyRole)) throw fail('Dieser Zugang kann nicht bearbeitet werden.');
-
-  const metadata = { ...(raw.user_metadata || {}) };
-  if (energyRole != null) {
-    const role = String(energyRole || '').trim();
-    if (!PARTNER_ROLES.includes(role)) throw fail('Rolle ist ungültig.');
-    metadata.energy_role = role;
-  }
-  if (pages != null) {
-    metadata.energy_pages = normalizeEnergyPages(pages);
-  }
-  if (active != null) {
-    metadata.energy_active = active === true;
-  }
-
-  const patch = { user_metadata: metadata };
-  if (active === true) patch.ban_duration = 'none';
-  if (active === false) patch.ban_duration = '876600h';
-
-  const { data, error } = await supabase.auth.admin.updateUserById(partnerId, patch);
-  if (error) throw fail(error.message || 'Unterpartner konnte nicht aktualisiert werden.');
-  const next = publicUser(data.user);
-  const accepted = data.user.user_metadata?.energy_invite_accepted === true || Boolean(data.user.last_sign_in_at);
-  return {
-    id: next.id,
-    fullName: next.fullName,
-    firstName: next.firstName,
-    lastName: next.lastName,
-    email: next.email,
-    energyRole: next.energyRole,
-    active: next.energyActive !== false,
-    pages: next.energyPages || normalizeEnergyPages(data.user.user_metadata?.energy_pages),
-    inviteStatus: accepted ? 'accepted' : 'pending',
-    lastSignInAt: data.user.last_sign_in_at || null,
-    createdAt: data.user.created_at || null,
-  };
-}
-
-async function assertCompanyLead(actor, lead) {
-  if (!lead || verticalOrInsurance(lead.vertical) !== 'energy') throw fail('Lead wurde nicht gefunden.', 404);
-  if (actor.role === 'admin') return lead;
-  if (!canReadEnergyLead(actor, lead)) throw fail('Keine Berechtigung.', 403);
-  return lead;
-}
-
-export async function assignEnergyHolder(actor, leadId, holderId) {
-  if (!['main', 'dispatcher'].includes(actor.energyRole || 'main') && actor.role !== 'admin') {
-    throw fail('Nur Hauptfirma oder Dispatcher können zuweisen.', 403);
-  }
-  const { getLeadById, withAssignee } = await import('./leads.js');
-  const lead = await assertCompanyLead(actor, await getLeadById(leadId));
-  const holder = await loadUser(holderId);
-  if (!holder) throw fail('Unterpartner wurde nicht gefunden.');
-  const mapped = publicUser(holder);
-  if (mapped.vertical !== 'energy' || mapped.energyCompanyId !== lead.assigned_to) {
-    throw fail('Dieser Zugang gehört nicht zur Hauptfirma.');
-  }
-  if (!PARTNER_ROLES.includes(mapped.energyRole)) throw fail('Dieser Zugang kann keine Leads erhalten.');
-  if (mapped.energyActive === false) throw fail('Dieser Zugang ist deaktiviert.');
-  const previousHolderId = lead.energy_holder_id;
-  const reassigned = Boolean(previousHolderId) && previousHolderId !== holderId;
-  if (reassigned && lead.google_event_id) {
-    await syncGoogleEvent(lead, previousHolderId, 'delete').catch((err) => {
-      console.error('Energy calendar cleanup failed:', err.message);
-    });
-  }
-  const patch = { energy_holder_id: holderId };
-  if (reassigned) patch.google_event_id = null;
-  const { data, error } = await supabase
-    .from('leads')
-    .update(patch)
-    .eq('id', leadId)
-    .select('*')
-    .single();
-  if (error) {
-    if (schemaMissing(error)) throw energySchemaError();
-    throw error;
-  }
-  await syncLeadCalendar(reassigned ? { ...lead, appointment_at: null, google_event_id: null } : lead, data).catch((err) => {
-    console.error('Energy calendar sync failed:', err.message);
-  });
-  notifyEnergyAssignment(mapped, data).catch(() => {});
-  return withAssignee(data);
 }
 
 function googleConfigured() {
@@ -443,6 +206,10 @@ export async function syncLeadCalendar(previous, next) {
   await syncGoogleEvent(next, holderId, next.google_event_id ? 'update' : 'insert');
 }
 
+export async function removeHolderCalendarEvent(lead, holderId) {
+  await syncGoogleEvent(lead, holderId, 'delete');
+}
+
 async function syncGoogleEvent(lead, holderId, mode) {
   if (mode !== 'delete' && !lead.appointment_at) return;
   const connection = await connectionFor(holderId);
@@ -505,17 +272,6 @@ async function syncGoogleEvent(lead, holderId, mode) {
     sync_error: null,
     last_synced_at: new Date().toISOString(),
   }).eq('user_id', holderId);
-}
-
-async function notifyEnergyAssignment(holder, lead) {
-  if (!hasCustomMailer() || !holder?.email) return;
-  const { sendEnergyNoticeEmail } = await import('./mailer.js');
-  const kind = lead.delivery_type === 'appointment' ? 'Neuer Termin' : 'Neuer Lead';
-  await sendEnergyNoticeEmail({
-    to: holder.email,
-    subject: kind,
-    text: `${kind} wurde Ihnen in Vantaro zugewiesen. Details stehen im Portal.`,
-  });
 }
 
 export function calendarReturnUrl(ok) {

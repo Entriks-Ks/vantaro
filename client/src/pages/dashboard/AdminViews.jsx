@@ -19,13 +19,12 @@ import { useAuth } from '../../hooks/useAuth';
 import { useBroker } from '../../hooks/useBroker';
 import { useDashboard } from '../../hooks/useDashboard';
 import { leadTypeLabel, requestStatusLabel, requestStatusTone } from '../../lib/berater';
-import { fetchAllPayments, formatCardExpiry, formatCardMask, paymentStatusLabel } from '../../lib/payments';
 import { leadScopeLabel } from '../../lib/scopes';
 import { fileToAvatarDataUrl, validatePassword } from '../../lib/profile';
 import PhoneField, { isValidMobile } from '../../components/PhoneField';
 import { roleLabel } from '../../lib/roles';
 import { LeadListItem } from './AdminLeads';
-import { formatDate, formatDateTime, formatEuroExact, initials } from './helpers';
+import { formatDate, formatEuroExact, initials } from './helpers';
 
 function Metric({ label, value, hint, tone, to }) {
   const className = `dash-metric${tone ? ` dash-metric--${tone}` : ''}${to ? ' is-link' : ''}`;
@@ -493,126 +492,6 @@ export function AdminUsers() {
           <Link to="/dashboard/berater">Berater</Link>
         </div>
         <UsersTable users={admin?.directory} empty="Keine Konten gefunden." />
-      </section>
-    </div>
-  );
-}
-
-export function AdminPayment() {
-  const [payments, setPayments] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-
-  useEffect(() => {
-    let active = true;
-    fetchAllPayments()
-      .then((payload) => {
-        if (active) setPayments(payload.payments || []);
-      })
-      .catch((err) => {
-        if (active) setError(err.message);
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  const paidCount = payments.filter((entry) => entry.status === 'paid').length;
-  const paidTotal = payments
-    .filter((entry) => entry.status === 'paid')
-    .reduce((sum, entry) => sum + (entry.netCents || entry.grossCents || 0), 0);
-  const pendingCount = payments.filter((entry) => entry.status === 'pending').length;
-
-  return (
-    <div className="dash-stack">
-      {error ? <div className="dash-alert">{error}</div> : null}
-
-      <div className="dash-metrics dash-metrics--three">
-        <div className="dash-metric">
-          <span>Zahlungen</span>
-          <strong>{loading ? '—' : paidCount}</strong>
-          <small>{pendingCount ? `${pendingCount} offen` : 'bezahlt'}</small>
-        </div>
-        <div className="dash-metric">
-          <span>Umsatz</span>
-          <strong>{loading ? '—' : formatEuroExact(paidTotal)}</strong>
-        </div>
-        <div className="dash-metric">
-          <span>Leads gekauft</span>
-          <strong>
-            {loading
-              ? '—'
-              : payments
-                .filter((entry) => entry.status === 'paid')
-                .reduce((sum, entry) => sum + (entry.leadCount || 0), 0)}
-          </strong>
-          <small>über ProCredit</small>
-        </div>
-      </div>
-
-      <section className="dash-panel">
-        <div className="dash-panel-head">
-          <div>
-            <strong>Zahlungseingänge</strong>
-            <p className="dash-panel-lede">Zahlungen über ProCredit Bank (Hosted Payment Page).</p>
-          </div>
-        </div>
-
-        {loading ? (
-          <div className="dash-empty"><p>Laden…</p></div>
-        ) : payments.length ? (
-          <div className="dash-lead-list">
-            {payments.map((entry) => (
-              <article key={entry.id} className="dash-lead-row dash-request-row">
-                <span className="dash-lead-avatar dash-lead-avatar--sm" aria-hidden="true">
-                  {initials(entry.berater || {})}
-                </span>
-                <div className="dash-lead-row-main">
-                  <strong>{entry.berater?.fullName || entry.berater?.email || 'Berater'}</strong>
-                  <span className="dash-lead-row-sub">
-                    {[entry.billingCompany || entry.berater?.company, entry.billingEmail || entry.berater?.email]
-                      .filter(Boolean)
-                      .join(' · ')}
-                  </span>
-                  <span className="dash-lead-row-tags">
-                    {entry.invoiceNumber} · {leadScopeLabel(entry.scope)} · {entry.leadCount} Leads · {entry.packageLabel}
-                  </span>
-                  <span className="dash-lead-row-tags">
-                    {formatCardMask(entry)}
-                    {entry.cardLast4 && formatCardExpiry(entry) !== '—' ? ` · ${formatCardExpiry(entry)}` : ''}
-                    {entry.cardHolder ? ` · ${entry.cardHolder}` : ''}
-                    {entry.testMode ? ' · Testmodus' : ''}
-                    {entry.pgStatus ? ` · PG: ${entry.pgStatus}` : ''}
-                  </span>
-                </div>
-                <div className="dash-lead-row-side">
-                  <span className={`dash-badge${entry.status === 'paid' ? ' dash-badge--ok' : ''}`}>
-                    {paymentStatusLabel(entry.status)}
-                  </span>
-                  <strong>{formatEuroExact(entry.netCents || entry.grossCents)}</strong>
-                  <small>{formatDateTime(entry.paidAt || entry.createdAt)}</small>
-                  {entry.beraterId ? (
-                    <div className="dash-row-actions">
-                      <Link className="dash-btn dash-btn--ghost" to={`/dashboard/berater/${entry.beraterId}`}>
-                        Berater
-                      </Link>
-                      <Link className="dash-btn dash-btn--ghost" to="/dashboard/anfordern">
-                        Anforderung
-                      </Link>
-                    </div>
-                  ) : null}
-                </div>
-              </article>
-            ))}
-          </div>
-        ) : (
-          <div className="dash-empty">
-            <p>Noch keine Testzahlungen. Sobald ein Berater ein Paket kauft, erscheint der Vorgang hier.</p>
-          </div>
-        )}
       </section>
     </div>
   );

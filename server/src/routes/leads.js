@@ -9,7 +9,6 @@ import {
   importLeads,
   isUuid,
   listLeads,
-  listMyLeads,
   LEAD_STATUSES,
   restoreRejectedLead,
   tableMissingResponse,
@@ -23,7 +22,8 @@ import {
 } from '../lib/complaints.js';
 import { assignLeadToBerater, requestTableMissing } from '../lib/leadRequests.js';
 import { notifyScheduleCancelled, notifyScheduleSaved } from '../lib/followUpReminders.js';
-import { canReadEnergyLead, listVisibleEnergyLeads, syncLeadCalendar } from '../lib/energy.js';
+import { syncLeadCalendar } from '../lib/energy.js';
+import { canReadCompanyLead, listVisibleCompanyLeads } from '../lib/partners.js';
 import { normalizeVertical, verticalOrInsurance } from '../lib/vertical.js';
 
 const router = Router();
@@ -37,11 +37,7 @@ function hideBrokerNotes(lead) {
 
 router.get('/mine', requireAuth, async (req, res) => {
   try {
-    const leads = await attachComplaints(
-      req.user.vertical === 'energy'
-        ? await listVisibleEnergyLeads(req.user)
-        : await listMyLeads(req.user.id, { vertical: req.user.vertical }),
-    );
+    const leads = await attachComplaints(await listVisibleCompanyLeads(req.user));
     res.json({ leads });
   } catch (error) {
     if (complaintTableMissing(error)) {
@@ -63,9 +59,9 @@ router.post('/:id/report', requireAuth, async (req, res) => {
       return res.status(403).json({ error: 'Nur Berater können Leads reklamieren.' });
     }
     let reporterId = req.user.id;
-    if (req.user.vertical === 'energy') {
+    if (req.user.partnerRole !== 'main') {
       const row = await getLeadById(req.params.id);
-      if (row && canReadEnergyLead(req.user, row)) reporterId = row.assigned_to;
+      if (canReadCompanyLead(req.user, row)) reporterId = row.assigned_to;
     }
     const complaint = await reportLead(req.params.id, reporterId, {
       reason: req.body?.reason,
@@ -142,16 +138,8 @@ router.get('/:id', requireAuth, async (req, res) => {
     if (!row) {
       return res.status(404).json({ error: 'Lead wurde nicht gefunden.' });
     }
-    if (req.user.role !== ROLES.ADMIN) {
-      if (req.user.vertical === 'energy') {
-        if (!canReadEnergyLead(req.user, row)) {
-          return res.status(404).json({ error: 'Lead wurde nicht gefunden.' });
-        }
-      } else if (row.assigned_to !== req.user.id) {
-        return res.status(403).json({ error: 'Keine Berechtigung.' });
-      } else if (verticalOrInsurance(row.vertical) !== req.user.vertical) {
-        return res.status(404).json({ error: 'Lead wurde nicht gefunden.' });
-      }
+    if (req.user.role !== ROLES.ADMIN && !canReadCompanyLead(req.user, row)) {
+      return res.status(404).json({ error: 'Lead wurde nicht gefunden.' });
     }
     const [lead] = await attachComplaints([await withAssignee(row)]);
     res.json({
@@ -190,8 +178,8 @@ router.patch('/:id', requireAuth, async (req, res) => {
     }
 
     const owner = current.assigned_to === req.user.id;
-    const energyReader = req.user.vertical === 'energy' && canReadEnergyLead(req.user, current);
-    if (req.user.role !== ROLES.BERATER || (!owner && !energyReader)) {
+    const companyReader = canReadCompanyLead(req.user, current);
+    if (req.user.role !== ROLES.BERATER || (!owner && !companyReader)) {
       return res.status(403).json({ error: 'Keine Berechtigung.' });
     }
     if (verticalOrInsurance(current.vertical) !== req.user.vertical) {

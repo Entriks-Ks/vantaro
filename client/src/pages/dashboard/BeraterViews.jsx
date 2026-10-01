@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, Navigate, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { AlertCircle, ArrowLeft, ArrowRight, Bell, Building2, Calendar as CalendarIcon, CalendarClock, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, CircleCheck, CircleX, Clock, Cookie, CreditCard, Download, Eye, EyeOff, FileCheck2, FileText, Filter, Flag, Globe, GraduationCap, Handshake, KeyRound, LayoutGrid, List, Lock, LogOut, Mail, MapPin, MessageCircle, Paperclip, Phone, Printer, Receipt, Save, Search, Send, Settings, Shield, ShieldCheck, Sparkles, StickyNote, User, UserPlus, Users, Wand2, X } from 'lucide-react';
+import { AlertCircle, ArrowLeft, ArrowRight, BadgeCheck, Bell, Building2, Calendar as CalendarIcon, CalendarClock, Camera, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, CircleCheck, CircleX, Clock, Cookie, CreditCard, Download, Eye, EyeOff, FileCheck2, FileText, Filter, Flag, Globe, GraduationCap, KeyRound, LayoutGrid, List, Lock, LogOut, Mail, MapPin, MessageCircle, Paperclip, Pencil, Phone, Printer, Receipt, Save, Search, Send, Settings, Shield, ShieldCheck, Sparkles, StickyNote, Trash2, User, UserPlus, Users, Wand2, X } from 'lucide-react';
 import AddressAutocomplete from '../../components/AddressAutocomplete';
 import AddressMap from '../../components/AddressMap';
 import BootScreen from '../../components/BootScreen';
-import PhoneField, { isValidMobile } from '../../components/PhoneField';
+import PhoneField, { formatPhoneDisplay, isValidMobile } from '../../components/PhoneField';
 import { useAuth } from '../../hooks/useAuth';
 import { useBroker } from '../../hooks/useBroker';
 import { didGoogleMapsAuthFail, geocodeAddress, hasGoogleMapsKey, isInGermany, reverseGeocode } from '../../lib/googleMaps';
@@ -17,10 +17,12 @@ import {
 import {
   COMPLAINT_COMMENT_MIN,
   canAmendComplaint,
+  complaintNeedsInfo,
   complaintReasonsFor,
   complaintReasonLabel,
   complaintStatusLabel,
   contactStatusLabel,
+  isComplaintFlowLead,
   isOpenComplaint,
   reportLead,
 } from '../../lib/complaints';
@@ -43,7 +45,8 @@ import { accountSetupGaps, displayName, firstName, formatDate, formatDateTime, f
 import { MIN_LEAD_PACK, PACKAGES, packageById, packTotalCents } from './packages';
 import { connectEnergyCalendar, disconnectEnergyCalendar, fetchCalendarStatus } from '../../lib/energy';
 import { CopyableAction, EnergyLeadFacts } from './EnergyLeadFacts';
-import { EnergyLeadActions } from './EnergyOps';
+import { PartnerLeadActions } from './EnergyOps';
+import { SelectDropdown, useDropdownDismiss } from './SelectDropdown';
 import {
   checkoutLeadPackage,
   collectBrowserPaymentMeta,
@@ -1367,7 +1370,9 @@ export function BeraterHome() {
   }, []);
 
   const pipelineLeads = useMemo(
-    () => leads.map((lead) => withPipeline(lead, leadStatuses)),
+    () => leads
+      .filter((lead) => !isComplaintFlowLead(lead))
+      .map((lead) => withPipeline(lead, leadStatuses)),
     [leads, leadStatuses],
   );
 
@@ -1592,10 +1597,12 @@ function LeadCard({ lead, onOpen, dragging = false, onDragStart, onDragEnd }) {
   const skipClick = useRef(false);
   const schedule = leadScheduleOf(lead);
   const needsSchedule = lead.status === 'termin' || lead.status === 'wiedervorlage';
+  const place = [lead.zip, lead.city].filter(Boolean).join(' ') || lead.address;
+  const isAppointment = (lead.deliveryType || lead.delivery_type) === 'appointment';
 
   return (
     <article
-      className={`broker-panel broker-lead-card is-clickable${dragging ? ' is-dragging' : ''}`}
+      className={`broker-panel broker-lead-card is-clickable is-compact${dragging ? ' is-dragging' : ''}`}
       role="button"
       tabIndex={0}
       draggable="true"
@@ -1626,29 +1633,27 @@ function LeadCard({ lead, onOpen, dragging = false, onDragStart, onDragEnd }) {
       }}
     >
       <div className="broker-lead-top">
-        <div>
-          <div className="broker-lead-name">{lead.name}</div>
-          <div className="broker-lead-address">{lead.address}</div>
+        <div className="broker-lead-name" title={lead.name}>{lead.name || 'Ohne Namen'}</div>
+        {lead.status === 'abgeschlossen' ? <CloseOutcomeMark outcome={closeOutcomeOf(lead)} compact /> : null}
+      </div>
+      {place ? (
+        <div className="broker-lead-place" title={lead.address}>
+          <MapPin size={12} aria-hidden="true" />
+          <span>{place}</span>
+          {distance ? <em>· {distance}</em> : null}
         </div>
-        <LeadStatusMark lead={lead} placement="kanban" />
-      </div>
-      {schedule ? (
-        <LeadScheduleBlock kind={schedule.kind} at={schedule.at} />
-      ) : needsSchedule ? (
-        <div className="broker-lead-when is-missing">Datum und Uhrzeit wählen</div>
       ) : null}
-      <div className="broker-lead-meta">
-        {distance ? <span>{distance} entfernt</span> : null}
+      {schedule ? (
+        <LeadScheduleBlock kind={schedule.kind} at={schedule.at} compact />
+      ) : needsSchedule ? (
+        <div className="broker-lead-when is-missing is-compact">Datum wählen</div>
+      ) : null}
+      <div className="broker-lead-tags">
         <span>{lead.product || lead.productCode || leadProductCode(lead)}</span>
-        {(lead.deliveryType || lead.delivery_type) === 'appointment' ? (
-          <span>Termin</span>
-        ) : lead.quality ? (
-          <span>{lead.quality}</span>
+        {isAppointment ? <span>Termin</span> : lead.quality ? <span>{lead.quality}</span> : null}
+        {lead.notes ? (
+          <StickyNote size={13} className="broker-lead-note-icon" aria-label="Notiz vorhanden" />
         ) : null}
-      </div>
-      {lead.notes ? <p className="broker-lead-note">{lead.notes}</p> : null}
-      <div className="broker-lead-bottom">
-        <span className="broker-muted-action">Ziehen oder öffnen</span>
       </div>
     </article>
   );
@@ -1668,6 +1673,46 @@ function LeadListRow({ lead, onOpen }) {
       <span className="broker-list-meta">{lead.productCode || leadProductCode(lead)}</span>
       <span className="broker-list-meta">{lead.quality}</span>
       <LeadStatusMark lead={lead} />
+    </button>
+  );
+}
+
+function complaintChipLabel(status) {
+  const tone = complaintTone(status);
+  if (tone === 'gutgeschrieben') return 'Gutgeschrieben';
+  if (tone === 'teilweise') return 'Teilweise gutgeschrieben';
+  if (tone === 'infos_noetig') return 'Infos nötig';
+  return 'In Prüfung';
+}
+
+function ComplaintLeadRow({ lead, onOpen }) {
+  const complaint = lead.complaint;
+  const tone = complaintTone(complaint.status);
+  const needsInfo = complaintNeedsInfo(complaint);
+  return (
+    <button
+      type="button"
+      className={`broker-list-row broker-complaint-row${needsInfo ? ' is-action' : ''}`}
+      onClick={() => onOpen(lead.id)}
+    >
+      <span className="broker-list-name">
+        <strong>{lead.name}</strong>
+        <small>{lead.address}</small>
+      </span>
+      <span className="broker-list-meta" title={complaintReasonLabel(complaint.reason, verticalOrInsurance(lead.vertical))}>
+        {complaintReasonLabel(complaint.reason, verticalOrInsurance(lead.vertical))}
+      </span>
+      <span className="broker-list-meta">{formatDate(complaint.createdAt)}</span>
+      <span className="broker-complaint-status">
+        <span className={`broker-complaint-chip broker-complaint-chip--${tone}`}>
+          <ComplaintStatusIcon status={complaint.status} size={12} />
+          {complaintChipLabel(complaint.status)}
+        </span>
+        {needsInfo ? <small>Aktion nötig</small> : null}
+      </span>
+      <span className="broker-list-meta broker-complaint-credit">
+        {complaint.refundCents != null ? formatEuroExact(complaint.refundCents) : '—'}
+      </span>
     </button>
   );
 }
@@ -1698,9 +1743,9 @@ function KanbanColumn({
         <span className={`broker-kanban-icon broker-kanban-icon--${column.id}`} aria-hidden="true">
           <Icon size={16} />
         </span>
-        <div>
-          <strong>{column.label}</strong>
-          <small>{column.hint}</small>
+        <div className="broker-kanban-title">
+          <strong tabIndex={0} aria-describedby={`kanban-hint-${column.id}`}>{column.label}</strong>
+          <small id={`kanban-hint-${column.id}`} role="tooltip">{column.hint}</small>
         </div>
         <span className="broker-count">{items.length}</span>
       </header>
@@ -1719,6 +1764,75 @@ function KanbanColumn({
         )}
       </div>
     </section>
+  );
+}
+
+function FilterDropdown({ label, options, selected, counts, onToggle, onClear }) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef(null);
+  const chosen = options.filter((option) => selected.includes(option.id));
+  const summary = !chosen.length
+    ? 'Alle'
+    : chosen.length === 1 ? chosen[0].label : `${chosen.length} ausgewählt`;
+
+  useDropdownDismiss(open, setOpen, wrapRef);
+
+  return (
+    <div className="broker-filter-start">
+      <div className="broker-filter-dd" ref={wrapRef}>
+        <button
+          type="button"
+          className={`broker-filter-dd__trigger${chosen.length ? ' is-active' : ''}${open ? ' is-open' : ''}`}
+          aria-haspopup="true"
+          aria-expanded={open}
+          onClick={() => setOpen((value) => !value)}
+        >
+          <Filter size={15} strokeWidth={2.1} aria-hidden="true" />
+          <span className="broker-filter-dd__label">{label}</span>
+          <span className="broker-filter-dd__value">{summary}</span>
+          <ChevronDown size={14} className={`broker-filter-dd__chevron${open ? ' is-open' : ''}`} aria-hidden="true" />
+        </button>
+        {open ? (
+          <div className="broker-filter-dd__panel" role="group" aria-label={label}>
+            <div className="broker-filter-dd__options">
+              {options.map((option) => {
+                const checked = selected.includes(option.id);
+                return (
+                  <label key={option.id} className={`broker-filter-dd__option${checked ? ' is-checked' : ''}`}>
+                    <input type="checkbox" checked={checked} onChange={() => onToggle(option.id)} />
+                    <span className="broker-filter-dd__box" aria-hidden="true">
+                      {checked ? <Check size={12} strokeWidth={3} /> : null}
+                    </span>
+                    <span className="broker-filter-dd__text">{option.label}</span>
+                    {counts ? <span className="broker-filter-dd__count">{counts[option.id] || 0}</span> : null}
+                  </label>
+                );
+              })}
+            </div>
+            <div className="broker-filter-dd__foot">
+              <button type="button" className="broker-filter-dd__reset" disabled={!chosen.length} onClick={onClear}>
+                Zurücksetzen
+              </button>
+              <button type="button" className="broker-filter-dd__done" onClick={() => setOpen(false)}>
+                Fertig
+              </button>
+            </div>
+          </div>
+        ) : null}
+      </div>
+      {chosen.map((option) => (
+        <button
+          key={option.id}
+          type="button"
+          className="broker-filter-chip"
+          onClick={() => onToggle(option.id)}
+          aria-label={`Filter ${option.label} entfernen`}
+        >
+          {option.label}
+          <X size={12} strokeWidth={2.5} aria-hidden="true" />
+        </button>
+      ))}
+    </div>
   );
 }
 
@@ -1746,6 +1860,8 @@ export function BeraterLeads() {
   const [packages, setPackages] = useState([]);
   const [delivery, setDelivery] = useState('all');
   const [view, setView] = useState('kanban');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const segment = searchParams.get('ansicht') === 'reklamiert' ? 'complaints' : 'active';
   const [page, setPage] = useState(1);
   const [draggingId, setDraggingId] = useState('');
   const [dropStatus, setDropStatus] = useState('');
@@ -1782,25 +1898,58 @@ export function BeraterLeads() {
       ))
   ), [leads, leadStatuses, insurance, packages, energy]);
 
+  const activePipeline = useMemo(() => pipeline.filter((lead) => !isComplaintFlowLead(lead)), [pipeline]);
+  const complaintPipeline = useMemo(() => pipeline.filter(isComplaintFlowLead), [pipeline]);
+  const segmentPipeline = segment === 'complaints' ? complaintPipeline : activePipeline;
+  const complaintsNeedInfo = useMemo(
+    () => complaintPipeline.filter((lead) => complaintNeedsInfo(lead.complaint)).length,
+    [complaintPipeline],
+  );
+  const showSegments = complaintPipeline.length > 0 || segment === 'complaints';
+  const filterCounts = useMemo(() => {
+    const base = leads.filter((lead) => (segment === 'complaints') === isComplaintFlowLead(lead));
+    const options = energy ? ENERGY_PACKAGES : INSURANCE_OPTIONS;
+    return Object.fromEntries(options.map((option) => [
+      option.id,
+      base.filter((lead) => (
+        energy ? leadMatchesEnergyPackage(lead, [option.id]) : leadMatchesInsurance(lead, [option.id])
+      )).length,
+    ]));
+  }, [leads, segment, energy]);
+
   const deliveryCounts = useMemo(() => ({
-    all: pipeline.length,
-    lead: pipeline.filter((lead) => (lead.deliveryType || 'lead') === 'lead').length,
-    appointment: pipeline.filter((lead) => lead.deliveryType === 'appointment').length,
-  }), [pipeline]);
+    all: segmentPipeline.length,
+    lead: segmentPipeline.filter((lead) => (lead.deliveryType || 'lead') === 'lead').length,
+    appointment: segmentPipeline.filter((lead) => lead.deliveryType === 'appointment').length,
+  }), [segmentPipeline]);
 
   const visible = useMemo(() => (
     energy && delivery !== 'all'
-      ? pipeline.filter((lead) => (lead.deliveryType || 'lead') === delivery)
-      : pipeline
-  ), [pipeline, energy, delivery]);
-  const nonAbgeschlossenCount = useMemo(() => (
-    visible.filter((lead) => lead.status !== 'abgeschlossen' && lead.contactStatus !== 'abgeschlossen').length
-  ), [visible]);
+      ? segmentPipeline.filter((lead) => (lead.deliveryType || 'lead') === delivery)
+      : segmentPipeline
+  ), [segmentPipeline, energy, delivery]);
+  const complaintGroups = useMemo(() => {
+    if (segment !== 'complaints') return { open: [], done: [] };
+    const byNewest = (a, b) => String(b.complaint?.createdAt || '').localeCompare(String(a.complaint?.createdAt || ''));
+    const open = visible
+      .filter((lead) => lead.complaint.status === 'pending' || complaintNeedsInfo(lead.complaint))
+      .sort((a, b) => (
+        Number(complaintNeedsInfo(b.complaint)) - Number(complaintNeedsInfo(a.complaint)) || byNewest(a, b)
+      ));
+    const done = visible
+      .filter((lead) => !open.includes(lead))
+      .sort(byNewest);
+    return { open, done };
+  }, [visible, segment]);
   const totalPages = Math.max(1, Math.ceil(visible.length / pageSize));
+
+  function setSegment(next) {
+    setSearchParams(next === 'complaints' ? { ansicht: 'reklamiert' } : {}, { replace: true });
+  }
 
   useEffect(() => {
     setPage(1);
-  }, [insurance, packages, delivery, view]);
+  }, [insurance, packages, delivery, view, segment]);
 
   useEffect(() => {
     setPage((current) => Math.min(current, totalPages));
@@ -1817,6 +1966,11 @@ export function BeraterLeads() {
     event.preventDefault();
     const id = event.dataTransfer.getData('text/plain') || draggingId;
     const current = leads.find((entry) => String(entry.id) === String(id));
+    if (current && isComplaintFlowLead(current)) {
+      setDraggingId('');
+      setDropStatus('');
+      return;
+    }
     if (id && (statusId === 'wiedervorlage' || statusId === 'termin') && current) {
       setScheduleTarget({ lead: current, kind: statusId });
       setDraggingId('');
@@ -1945,17 +2099,20 @@ export function BeraterLeads() {
   };
 
   const filterActive = energy ? packages.length || delivery !== 'all' : insurance.length;
+  const complaintsView = segment === 'complaints';
 
   return (
-    <div className="broker-page broker-page--wide">
+    <div className="broker-page broker-page--wide broker-page--fit">
       <div className="broker-heading">
         <div>
           <div className="eyebrow">Ihr Bestand</div>
           <h1>Meine Leads</h1>
           <p className="lede">
-            {energy
-              ? 'Karten in die passende Spalte ziehen — Termine erscheinen direkt unter Termin.'
-              : 'Karten in die passende Spalte ziehen — oder in der Liste öffnen.'}
+            {complaintsView
+              ? 'Reklamierte Leads prüft VANTARO. Sie zählen nicht zu Ihren aktiven Chancen.'
+              : energy
+                ? 'Karten in die passende Spalte ziehen — Termine erscheinen direkt unter Termin.'
+                : 'Karten in die passende Spalte ziehen — oder in der Liste öffnen.'}
           </p>
         </div>
       </div>
@@ -1964,83 +2121,67 @@ export function BeraterLeads() {
 
       <div className="broker-filterbar">
         {energy ? (
-          <div className="broker-ins-filter" role="group" aria-label="Paket">
-            <span className="broker-ins-filter__label">Paket</span>
-            <div className="broker-ins-filter__options">
-              {ENERGY_PACKAGES.map((option) => {
-                const checked = packages.includes(option.id);
-                return (
-                  <label key={option.id} className={checked ? 'is-checked' : undefined}>
-                    <input type="checkbox" checked={checked} onChange={() => togglePackage(option.id)} />
-                    <span className="broker-ins-filter__box" aria-hidden="true">
-                      {checked ? <Check size={12} strokeWidth={3} /> : null}
-                    </span>
-                    <span className="broker-ins-filter__text">{option.label}</span>
-                  </label>
-                );
-              })}
-            </div>
-          </div>
+          <FilterDropdown
+            label="Paket"
+            options={ENERGY_PACKAGES}
+            selected={packages}
+            counts={loading ? null : filterCounts}
+            onToggle={togglePackage}
+            onClear={() => setPackages([])}
+          />
         ) : (
-          <div className="broker-ins-filter" role="group" aria-label="Versicherungsstatus">
-            <span className="broker-ins-filter__label">Versicherungsstatus</span>
-            <div className="broker-ins-filter__options">
-              {INSURANCE_OPTIONS.map((option) => {
-                const checked = insurance.includes(option.id);
-                return (
-                  <label key={option.id} className={checked ? 'is-checked' : undefined}>
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={() => toggleInsurance(option.id)}
-                    />
-                    <span className="broker-ins-filter__box" aria-hidden="true">
-                      {checked ? <Check size={12} strokeWidth={3} /> : null}
-                    </span>
-                    <span className="broker-ins-filter__text">{option.label}</span>
-                  </label>
-                );
-              })}
-            </div>
-          </div>
+          <FilterDropdown
+            label="Versicherungsstatus"
+            options={INSURANCE_OPTIONS}
+            selected={insurance}
+            counts={loading ? null : filterCounts}
+            onToggle={toggleInsurance}
+            onClear={() => setInsurance([])}
+          />
         )}
 
         <div className="broker-filterbar-end">
-          {energy ? (
-            <div className="broker-pills broker-pills--view" role="tablist" aria-label="Leads oder Termine">
-              {DELIVERY_FILTERS.map((option) => (
-                <button
-                  key={option.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={delivery === option.id}
-                  className={delivery === option.id ? 'is-active' : undefined}
-                  onClick={() => setDelivery(option.id)}
-                >
-                  <span>{option.label}{loading ? '' : ` · ${deliveryCounts[option.id]}`}</span>
-                </button>
-              ))}
-            </div>
+          {showSegments ? (
+            <SelectDropdown
+              label="Bereich"
+              value={segment}
+              onChange={setSegment}
+              options={[
+                { id: 'active', label: 'Aktiv', icon: Sparkles, count: loading ? null : activePipeline.length },
+                {
+                  id: 'complaints',
+                  label: 'Reklamiert',
+                  icon: Flag,
+                  count: loading ? null : complaintPipeline.length,
+                  alert: complaintsNeedInfo,
+                  title: complaintsNeedInfo ? 'Mindestens eine Reklamation braucht weitere Angaben' : undefined,
+                },
+              ]}
+            />
           ) : null}
-          <div className="broker-pills broker-pills--view" role="tablist" aria-label="Ansicht">
-            {VIEW_MODES.map((mode) => (
-              <button
-                key={mode.id}
-                type="button"
-                role="tab"
-                aria-selected={view === mode.id}
-                className={view === mode.id ? 'is-active' : undefined}
-                onClick={() => setView(mode.id)}
-                title={mode.label}
-              >
-                {mode.id === 'kanban' ? <LayoutGrid size={15} strokeWidth={2.1} /> : <List size={15} strokeWidth={2.1} />}
-                <span>{mode.label}</span>
-              </button>
-            ))}
-          </div>
-          <span className="broker-filter-count">
-            {loading ? 'Laden…' : `${nonAbgeschlossenCount} ${nonAbgeschlossenCount === 1 ? 'Chance' : 'Chancen'}`}
-          </span>
+          {energy ? (
+            <SelectDropdown
+              label="Anzeigen"
+              icon={CalendarClock}
+              value={delivery}
+              onChange={setDelivery}
+              options={DELIVERY_FILTERS.map((option) => ({
+                ...option,
+                count: loading ? null : deliveryCounts[option.id],
+              }))}
+            />
+          ) : null}
+          {complaintsView ? null : (
+            <SelectDropdown
+              label="Ansicht"
+              value={view}
+              onChange={setView}
+              options={VIEW_MODES.map((mode) => ({
+                ...mode,
+                icon: mode.id === 'kanban' ? LayoutGrid : List,
+              }))}
+            />
+          )}
         </div>
       </div>
 
@@ -2052,14 +2193,47 @@ export function BeraterLeads() {
         </div>
       ) : !visible.length ? (
         <div className="broker-panel broker-empty">
-          <strong>{filterActive ? 'Keine Leads für diesen Filter' : 'Noch keine Leads'}</strong>
+          <strong>
+            {filterActive
+              ? 'Keine Leads für diesen Filter'
+              : complaintsView ? 'Keine reklamierten Leads' : 'Noch keine Leads'}
+          </strong>
           <p>
             {filterActive
               ? (energy
                 ? 'Anderes Paket oder „Alle“ wählen, um den gesamten Bestand zu sehen.'
                 : 'Andere Versicherungsstatus wählen — oder alle Häkchen entfernen, um den gesamten Bestand zu sehen.')
-              : 'Sobald wir Ihnen Chancen zuteilen, erscheinen sie hier.'}
+              : complaintsView
+                ? 'Reklamationen reichen Sie direkt im Lead ein. Sie erscheinen dann hier, bis VANTARO entschieden hat.'
+                : 'Sobald wir Ihnen Chancen zuteilen, erscheinen sie hier.'}
           </p>
+        </div>
+      ) : complaintsView ? (
+        <div className="broker-complaint-groups">
+          {[
+            { id: 'open', title: 'Offen', hint: 'VANTARO prüft den Fall. Bei „Infos nötig“ bitte im Lead ergänzen.', items: complaintGroups.open },
+            { id: 'done', title: 'Erledigt', hint: 'Gutschrift erteilt.', items: complaintGroups.done },
+          ].filter((group) => group.items.length).map((group) => (
+            <section key={group.id} className="broker-panel broker-list-panel broker-complaint-group">
+              <header className="broker-complaint-group__head">
+                <strong>{group.title}</strong>
+                <span className="broker-count">{group.items.length}</span>
+                <small>{group.hint}</small>
+              </header>
+              <div className="broker-list-head broker-complaint-row" aria-hidden="true">
+                <span>Kontakt</span>
+                <span>Grund</span>
+                <span>Eingereicht</span>
+                <span>Status</span>
+                <span>Gutschrift</span>
+              </div>
+              <div className="broker-list-body">
+                {group.items.map((lead) => (
+                  <ComplaintLeadRow key={lead.id} lead={lead} onOpen={openLead} />
+                ))}
+              </div>
+            </section>
+          ))}
         </div>
       ) : view === 'list' ? (
         <>
@@ -2277,6 +2451,9 @@ export function BeraterCalendar() {
   const [viewMode, setViewMode] = useState('month'); // 'month' | 'week' | 'agenda'
   const [typeFilter, setTypeFilter] = useState('all'); // 'all' | 'termin' | 'wiedervorlage' | 'overdue'
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
+  const searchInputRef = useRef(null);
+  const searchExpanded = searchOpen || Boolean(searchQuery);
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [dayModalEvents, setDayModalEvents] = useState(null);
   const [scheduleTarget, setScheduleTarget] = useState(null);
@@ -2529,9 +2706,7 @@ export function BeraterCalendar() {
         <div className="broker-alert broker-alert--ok">Google Kalender ist verbunden. Ein Testtermin wurde angelegt.</div>
       ) : null}
 
-      {/* Google Calendar Style Controls Bar */}
       <div className="broker-gcal-header">
-        {/* Row 1: Navigation */}
         <div className="broker-gcal-nav-row">
           <div className="broker-gcal-nav">
             <button
@@ -2563,68 +2738,93 @@ export function BeraterCalendar() {
               {viewMode === 'week' ? weekLabel : monthLabel}
             </h2>
           </div>
-        </div>
 
-        {/* Row 2: Search + View Toggle */}
-        <div className="broker-gcal-controls-row">
-          {/* Search */}
-          <div className="broker-cal-search-box">
-            <Search size={14} className="broker-cal-search-icon" aria-hidden="true" />
-            <input
-              type="text"
-              className="broker-cal-search-input"
-              placeholder="Lead oder Sparte suchen…"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-            {searchQuery ? (
+          <div className="broker-gcal-tools">
+            <div className={`broker-gcal-search${searchExpanded ? ' is-open' : ''}`}>
               <button
                 type="button"
-                className="broker-cal-search-clear"
-                aria-label="Suche leeren"
-                onClick={() => setSearchQuery('')}
+                className="broker-gcal-search-toggle"
+                aria-label="Termine durchsuchen"
+                aria-expanded={searchExpanded}
+                title="Suchen"
+                onClick={() => {
+                  setSearchOpen(true);
+                  window.requestAnimationFrame(() => searchInputRef.current?.focus());
+                }}
               >
-                <X size={12} />
+                <Search size={16} aria-hidden="true" />
               </button>
-            ) : null}
-          </div>
+              <input
+                ref={searchInputRef}
+                type="text"
+                className="broker-gcal-search-input"
+                placeholder="Lead oder Sparte…"
+                aria-label="Lead oder Sparte suchen"
+                tabIndex={searchExpanded ? 0 : -1}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onBlur={() => {
+                  if (!searchQuery) setSearchOpen(false);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') {
+                    setSearchQuery('');
+                    setSearchOpen(false);
+                    e.currentTarget.blur();
+                  }
+                }}
+              />
+              {searchQuery ? (
+                <button
+                  type="button"
+                  className="broker-gcal-search-clear"
+                  aria-label="Suche leeren"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => {
+                    setSearchQuery('');
+                    searchInputRef.current?.focus();
+                  }}
+                >
+                  <X size={12} />
+                </button>
+              ) : null}
+            </div>
 
-          {/* View Toggle */}
-          <div className="broker-cal-view-modes" role="tablist" aria-label="Ansicht wählen">
-            <button
-              type="button"
-              role="tab"
-              aria-selected={viewMode === 'month'}
-              className={`broker-cal-view-btn${viewMode === 'month' ? ' is-active' : ''}`}
-              onClick={() => setViewMode('month')}
-            >
-              <CalendarIcon size={14} />
-              <span>Monat</span>
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={viewMode === 'week'}
-              className={`broker-cal-view-btn${viewMode === 'week' ? ' is-active' : ''}`}
-              onClick={() => setViewMode('week')}
-            >
-              <LayoutGrid size={14} />
-              <span>Woche</span>
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={viewMode === 'agenda'}
-              className={`broker-cal-view-btn${viewMode === 'agenda' ? ' is-active' : ''}`}
-              onClick={() => setViewMode('agenda')}
-            >
-              <List size={14} />
-              <span>Agenda</span>
-            </button>
+            <div className="broker-cal-view-modes" role="tablist" aria-label="Ansicht wählen">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={viewMode === 'month'}
+                className={`broker-cal-view-btn${viewMode === 'month' ? ' is-active' : ''}`}
+                onClick={() => setViewMode('month')}
+              >
+                <CalendarIcon size={14} />
+                <span>Monat</span>
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={viewMode === 'week'}
+                className={`broker-cal-view-btn${viewMode === 'week' ? ' is-active' : ''}`}
+                onClick={() => setViewMode('week')}
+              >
+                <LayoutGrid size={14} />
+                <span>Woche</span>
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={viewMode === 'agenda'}
+                className={`broker-cal-view-btn${viewMode === 'agenda' ? ' is-active' : ''}`}
+                onClick={() => setViewMode('agenda')}
+              >
+                <List size={14} />
+                <span>Agenda</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>
-
 
       {/* Full-Width Main Calendar Area */}
       <div className="broker-gcal-container">
@@ -2648,7 +2848,7 @@ export function BeraterCalendar() {
               {cells.map((cell) => {
                 const isToday = cell.dateKey === todayKey;
                 const dayEvents = byDay[cell.dateKey] || [];
-                const maxVisible = 3;
+                const maxVisible = 2;
                 const visibleEvents = dayEvents.slice(0, maxVisible);
                 const hasMore = dayEvents.length > maxVisible;
 
@@ -2992,28 +3192,6 @@ export function BeraterAcademy() {
   );
 }
 
-export function BeraterPartners() {
-  return (
-    <div className="broker-page">
-      <div className="broker-heading">
-        <div>
-          <div className="eyebrow">Netzwerk</div>
-          <h1>Partner</h1>
-          <p className="lede">Partner anlegen und verwalten — in Kürze.</p>
-        </div>
-      </div>
-      <section className="broker-panel broker-coming-soon">
-        <span className="broker-coming-soon-icon" aria-hidden="true">
-          <Handshake size={28} strokeWidth={1.8} />
-        </span>
-        <em>Coming soon</em>
-        <strong>Partner folgt in Kürze</strong>
-        <p>Dieser Bereich wird vorbereitet. Sobald Sie Partner anlegen können, finden Sie sie hier.</p>
-      </section>
-    </div>
-  );
-}
-
 export function BeraterSupport() {
   const { user } = useAuth();
   const { showToast } = useBroker();
@@ -3030,6 +3208,7 @@ export function BeraterSupport() {
   const [error, setError] = useState('');
   const [files, setFiles] = useState([]);
   const [dragOver, setDragOver] = useState(false);
+  const [openFaq, setOpenFaq] = useState(null);
 
   const faqs = [
     {
@@ -3042,7 +3221,7 @@ export function BeraterSupport() {
     },
     {
       q: 'Rechnung oder Paket',
-      a: 'Unter Mein Paket finden Sie Zahlungen und Rechnungen. Für Korrekturen senden Sie uns die Rechnungsnummer mit.',
+      a: 'Unter Zahlungen finden Sie alle Ausgaben und Rechnungen. Für Korrekturen senden Sie uns die Rechnungsnummer mit.',
     },
   ];
 
@@ -3153,7 +3332,7 @@ export function BeraterSupport() {
   const messageLen = form.message.trim().length;
 
   return (
-    <div className="broker-page">
+    <div className="broker-page broker-page--fill">
       <div className="broker-heading">
         <div>
           <div className="eyebrow">Support</div>
@@ -3163,14 +3342,37 @@ export function BeraterSupport() {
       </div>
 
       <div className="broker-support-layout">
-        <section className="broker-panel">
+        <section className="broker-panel broker-support-main">
           <div className="broker-panel-header">
             <div>
               <h2>Nachricht an VANTARO</h2>
               <p>Anliegen beschreiben — wir erhalten Ihre Kontodaten automatisch.</p>
             </div>
+            <div className="broker-support-priority" role="radiogroup" aria-label="Priorität">
+              <button
+                type="button"
+                role="radio"
+                aria-checked={form.priority === 'normal'}
+                className={form.priority === 'normal' ? 'is-active' : undefined}
+                disabled={sending}
+                onClick={() => updateField('priority', 'normal')}
+              >
+                Normal
+              </button>
+              <button
+                type="button"
+                role="radio"
+                aria-checked={form.priority === 'urgent'}
+                className={`is-urgent${form.priority === 'urgent' ? ' is-active' : ''}`}
+                disabled={sending}
+                onClick={() => updateField('priority', 'urgent')}
+              >
+                <Flag size={14} />
+                Dringend
+              </button>
+            </div>
           </div>
-          <div className="broker-panel-body">
+          <div className="broker-panel-body broker-support-body">
             {sent ? (
               <div className="broker-support-success" role="status">
                 <span className="broker-support-success-icon" aria-hidden="true">
@@ -3190,33 +3392,6 @@ export function BeraterSupport() {
                   <span>{error}</span>
                 </div>
               ) : null}
-
-              <div className="broker-support-fieldset">
-                <span className="broker-support-label">Priorität</span>
-                <div className="broker-support-priority" role="radiogroup" aria-label="Priorität">
-                  <button
-                    type="button"
-                    role="radio"
-                    aria-checked={form.priority === 'normal'}
-                    className={form.priority === 'normal' ? 'is-active' : undefined}
-                    disabled={sending}
-                    onClick={() => updateField('priority', 'normal')}
-                  >
-                    Normal
-                  </button>
-                  <button
-                    type="button"
-                    role="radio"
-                    aria-checked={form.priority === 'urgent'}
-                    className={`is-urgent${form.priority === 'urgent' ? ' is-active' : ''}`}
-                    disabled={sending}
-                    onClick={() => updateField('priority', 'urgent')}
-                  >
-                    <Flag size={14} />
-                    Dringend
-                  </button>
-                </div>
-              </div>
 
               <div className="broker-form-grid">
                 <label className="is-full">
@@ -3249,84 +3424,61 @@ export function BeraterSupport() {
                     disabled={sending}
                   />
                 </label>
-                <label className="is-full">
+                <label className="is-full broker-support-message-field">
                   Nachricht
                   <textarea
                     className="broker-support-message"
                     value={form.message}
                     onChange={(event) => updateField('message', event.target.value)}
                     placeholder="Was ist passiert, was erwarten Sie, und seit wann besteht das Thema?"
-                    rows={7}
+                    rows={5}
                     maxLength={4000}
                     disabled={sending}
                     required
                   />
-                  <span className={`broker-support-count${messageLen < 20 ? ' is-short' : ''}`}>
-                    {messageLen} / 4000 · mindestens 20 Zeichen
+                  <span className="broker-support-meta">
+                    <span className={`broker-support-count${messageLen < 20 ? ' is-short' : ''}`}>
+                      {messageLen} / 4000 · mindestens 20 Zeichen
+                    </span>
+                    <span>Antwort an {user?.email || 'Ihre Konto-E-Mail'}</span>
                   </span>
                 </label>
               </div>
 
-              <div
-                className={`broker-support-upload${dragOver ? ' is-over' : ''}${files.length >= SUPPORT_ATTACH_MAX ? ' is-full' : ''}`}
-                onDragOver={(event) => {
-                  event.preventDefault();
-                  if (!sending && files.length < SUPPORT_ATTACH_MAX) setDragOver(true);
-                }}
-                onDragLeave={(event) => {
-                  if (!event.currentTarget.contains(event.relatedTarget)) setDragOver(false);
-                }}
-                onDrop={(event) => {
-                  event.preventDefault();
-                  setDragOver(false);
-                  if (!sending) addSupportFiles(event.dataTransfer.files);
-                }}
-              >
-                <span className="broker-support-label">Anhang</span>
-                <label className="broker-support-drop">
-                  <Paperclip size={18} aria-hidden="true" />
-                  <span>
-                    <strong>Dateien oder Bilder anhängen</strong>
-                    <small>PDF, JPG, PNG, WebP · max. 3 · 1,2 MB je Datei</small>
-                  </span>
-                  <input
-                    type="file"
-                    accept="image/jpeg,image/png,image/webp,image/gif,application/pdf"
-                    multiple
-                    disabled={sending || files.length >= SUPPORT_ATTACH_MAX}
-                    onChange={(event) => {
-                      addSupportFiles(event.target.files);
-                      event.target.value = '';
-                    }}
-                  />
-                </label>
-                {files.length ? (
-                  <ul className="broker-support-files">
-                    {files.map((file) => (
-                      <li key={file.id}>
-                        {file.type.startsWith('image/') ? (
-                          <img src={file.data} alt="" />
-                        ) : (
-                          <span className="broker-support-file-icon" aria-hidden="true">
-                            <FileCheck2 size={22} />
-                          </span>
-                        )}
-                        <span title={file.name}>{file.name}</span>
-                        <button
-                          type="button"
-                          onClick={() => removeSupportFile(file.id)}
-                          disabled={sending}
-                          aria-label={`${file.name} entfernen`}
-                        >
-                          <X size={14} />
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                ) : null}
-              </div>
-
-              <div className="broker-support-actions">
+              <div className="broker-support-footer">
+                <div
+                  className={`broker-support-upload${dragOver ? ' is-over' : ''}${files.length >= SUPPORT_ATTACH_MAX ? ' is-full' : ''}`}
+                  onDragOver={(event) => {
+                    event.preventDefault();
+                    if (!sending && files.length < SUPPORT_ATTACH_MAX) setDragOver(true);
+                  }}
+                  onDragLeave={(event) => {
+                    if (!event.currentTarget.contains(event.relatedTarget)) setDragOver(false);
+                  }}
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    setDragOver(false);
+                    if (!sending) addSupportFiles(event.dataTransfer.files);
+                  }}
+                >
+                  <label className="broker-support-drop">
+                    <Paperclip size={16} aria-hidden="true" />
+                    <span>
+                      <strong>Anhang hinzufügen{files.length ? ` (${files.length}/${SUPPORT_ATTACH_MAX})` : ''}</strong>
+                      <small>PDF, JPG, PNG, WebP · max. 3 · 1,2 MB je Datei</small>
+                    </span>
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,image/gif,application/pdf"
+                      multiple
+                      disabled={sending || files.length >= SUPPORT_ATTACH_MAX}
+                      onChange={(event) => {
+                        addSupportFiles(event.target.files);
+                        event.target.value = '';
+                      }}
+                    />
+                  </label>
+                </div>
                 <button type="submit" className="btn btn-primary" disabled={sending}>
                   {sending ? 'Wird gesendet…' : (
                     <>
@@ -3335,8 +3487,32 @@ export function BeraterSupport() {
                     </>
                   )}
                 </button>
-                <p>Antwort an {user?.email || 'Ihre Konto-E-Mail'}.</p>
               </div>
+
+              {files.length ? (
+                <ul className="broker-support-files">
+                  {files.map((file) => (
+                    <li key={file.id}>
+                      {file.type.startsWith('image/') ? (
+                        <img src={file.data} alt="" />
+                      ) : (
+                        <span className="broker-support-file-icon" aria-hidden="true">
+                          <FileCheck2 size={16} />
+                        </span>
+                      )}
+                      <span title={file.name}>{file.name}</span>
+                      <button
+                        type="button"
+                        onClick={() => removeSupportFile(file.id)}
+                        disabled={sending}
+                        aria-label={`${file.name} entfernen`}
+                      >
+                        <X size={12} />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
             </form>
           </div>
         </section>
@@ -3373,9 +3549,16 @@ export function BeraterSupport() {
               </div>
             </div>
             <div className="broker-faq-list">
-              {faqs.map((item) => (
-                <details key={item.q} className="broker-faq-item">
-                  <summary>{item.q}</summary>
+              {faqs.map((item, index) => (
+                <details key={item.q} className="broker-faq-item" open={openFaq === index}>
+                  <summary
+                    onClick={(event) => {
+                      event.preventDefault();
+                      setOpenFaq((current) => (current === index ? null : index));
+                    }}
+                  >
+                    {item.q}
+                  </summary>
                   <p>{item.a}</p>
                 </details>
               ))}
@@ -3565,9 +3748,13 @@ export function BeraterLeadDetail() {
 
   return (
     <div className="broker-page">
-      <button type="button" className="broker-back" onClick={() => navigate('/dashboard/leads')}>
+      <button
+        type="button"
+        className="broker-back"
+        onClick={() => navigate(isComplaintFlowLead(lead) ? '/dashboard/leads?ansicht=reklamiert' : '/dashboard/leads')}
+      >
         <ArrowLeft size={16} />
-        Zurück zu Ihren Leads
+        {isComplaintFlowLead(lead) ? 'Zurück zu reklamierten Leads' : 'Zurück zu Ihren Leads'}
       </button>
 
       {error ? <div className="broker-alert">{error}</div> : null}
@@ -3624,31 +3811,7 @@ export function BeraterLeadDetail() {
       <div className="broker-detail-grid">
         <div className="broker-detail-sections">
           {energy ? (
-            <>
-              <section className="broker-panel broker-detail-section">
-                <div className="broker-detail-section-head">
-                  <span className="broker-detail-section-icon" aria-hidden="true">
-                    <User size={18} />
-                  </span>
-                  <div>
-                    <h2>Kontakt</h2>
-                    <p>Zum Anrufen, Schreiben und Hinfahren</p>
-                  </div>
-                </div>
-                <div className="broker-detail-facts">
-                  <DetailFact label="Telefon">
-                    {lead.phone ? <a href={phoneHref}>{lead.phone}</a> : null}
-                  </DetailFact>
-                  <DetailFact label="E-Mail">
-                    {lead.email ? <a href={`mailto:${lead.email}`}>{lead.email}</a> : null}
-                  </DetailFact>
-                  <DetailFact label="Adresse" wide>
-                    {hasAddress ? view.address : null}
-                  </DetailFact>
-                </div>
-              </section>
-              <EnergyLeadFacts lead={lead} />
-            </>
+            <EnergyLeadFacts lead={lead} />
           ) : (
             <>
               <section className="broker-panel broker-detail-section">
@@ -3657,20 +3820,11 @@ export function BeraterLeadDetail() {
                     <User size={18} />
                   </span>
                   <div>
-                    <h2>Kontakt</h2>
-                    <p>Zum Anrufen und Schreiben</p>
+                    <h2>Zur Person</h2>
+                    <p>Alter und berufliche Situation</p>
                   </div>
                 </div>
                 <div className="broker-detail-facts">
-                  <DetailFact label="Telefon">
-                    {lead.phone ? <a href={phoneHref}>{lead.phone}</a> : null}
-                  </DetailFact>
-                  <DetailFact label="E-Mail">
-                    {lead.email ? <a href={`mailto:${lead.email}`}>{lead.email}</a> : null}
-                  </DetailFact>
-                  <DetailFact label="Adresse" wide>
-                    {view.address !== '—' ? view.address : null}
-                  </DetailFact>
                   <DetailFact label="Alter">
                     {brief.age || null}
                   </DetailFact>
@@ -3738,12 +3892,10 @@ export function BeraterLeadDetail() {
         </div>
 
         <aside className={`broker-panel broker-detail-side${energy ? ' broker-detail-side--flow' : ''}`}>
-          {energy ? (
-            <EnergyLeadActions
-              lead={lead}
-              onChange={(next) => setLead((current) => ({ ...current, ...next, complaint: current?.complaint }))}
-            />
-          ) : null}
+          <PartnerLeadActions
+            lead={lead}
+            onChange={(next) => setLead((current) => ({ ...current, ...next, complaint: current?.complaint }))}
+          />
 
           {view.status === 'termin' ? (
             <LeadScheduleSummary
@@ -3840,7 +3992,7 @@ export function BeraterLeadDetail() {
             contactStatus={status}
             onReported={() => {
               load().catch((err) => setError(err.message));
-              showToast('Reklamation gesendet. VANTARO prüft den Fall.');
+              showToast('Reklamation gesendet. Der Lead liegt jetzt unter „Reklamiert“.');
             }}
           />
         </aside>
@@ -4033,8 +4185,11 @@ export function BeraterPayments() {
         </div>
         <div className="broker-status-divider" />
         <div className="broker-status-stat broker-status-stat--link">
-          <Link to="/dashboard/unternehmen" className="broker-text-btn">
-            <Building2 size={15} /> Rechnungsadresse
+          <span className="broker-stat-label">Rechnungsadresse</span>
+          <Link to="/dashboard/unternehmen" className="broker-status-action">
+            <Building2 size={15} aria-hidden="true" />
+            <span>Bearbeiten</span>
+            <ArrowRight size={14} aria-hidden="true" />
           </Link>
         </div>
       </div>
@@ -4209,6 +4364,10 @@ export function BeraterPayments() {
             <h2>Rechnungen</h2>
             <p>Übersicht Ihrer bisherigen Zahlungen</p>
           </div>
+          <Link to="/dashboard/zahlung" className="broker-pipeline-open">
+            <span>Alle Zahlungen</span>
+            <ArrowRight size={14} strokeWidth={2.25} aria-hidden="true" />
+          </Link>
         </div>
 
         {payments.length ? (
@@ -4678,39 +4837,106 @@ export function BeraterProfile() {
   const { showToast } = useBroker();
   useHashScroll();
   const [form, setForm] = useState(() => personalForm(user));
+  const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [phoneError, setPhoneError] = useState('');
-  const [avatarName, setAvatarName] = useState('');
+  const [avatarSaving, setAvatarSaving] = useState(false);
+  const avatarInputRef = useRef(null);
 
   useEffect(() => {
-    setForm(personalForm(user));
-    setAvatarName('');
-  }, [user?.id, user?.firstName, user?.lastName, user?.phone, user?.avatarUrl]);
+    if (!editing) setForm(personalForm(user));
+  }, [editing, user?.id, user?.firstName, user?.lastName, user?.phone, user?.avatarUrl]);
 
-  const previewInitials = initials({
-    firstName: form.firstName,
-    lastName: form.lastName,
+  const shownAvatar = user?.avatarUrl || '';
+  const heroInitials = initials({
+    firstName: user?.firstName,
+    lastName: user?.lastName,
     email: user?.email,
   });
+  const fullName = [user?.firstName, user?.lastName].filter(Boolean).join(' ') || displayName(user);
+  const company = user?.profile?.company || '';
+  const phoneShown = formatPhoneDisplay(user?.phone);
+  const personalComplete = Boolean(user?.firstName && user?.lastName && user?.phone);
+
+  const infoGroups = [
+    {
+      id: 'person',
+      title: 'Person',
+      icon: User,
+      items: [
+        { id: 'firstName', label: 'Vorname', value: user?.firstName },
+        { id: 'lastName', label: 'Nachname', value: user?.lastName },
+      ],
+    },
+    {
+      id: 'contact',
+      title: 'Kontakt',
+      icon: Phone,
+      items: [
+        { id: 'phone', label: 'Telefonnummer', value: phoneShown },
+        { id: 'email', label: 'E-Mail-Adresse', value: user?.email, locked: true },
+      ],
+    },
+    {
+      id: 'account',
+      title: 'Konto',
+      icon: BadgeCheck,
+      items: [
+        { id: 'customerNumber', label: 'Kundennummer', value: user?.customerNumber, locked: true, mono: true },
+        { id: 'company', label: 'Unternehmen', value: company, to: '/dashboard/unternehmen' },
+      ],
+    },
+  ];
 
   const handleChange = (event) => {
     const { name, value } = event.target;
     setForm((prev) => ({ ...prev, [name]: value }));
   };
 
+  const openAvatarPicker = () => {
+    avatarInputRef.current?.click();
+  };
+
+  const saveAvatar = async (avatarUrl) => {
+    setError('');
+    setAvatarSaving(true);
+    try {
+      await updateProfile({ avatarUrl });
+      showToast(avatarUrl ? 'Profilbild gespeichert' : 'Profilbild entfernt');
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setAvatarSaving(false);
+    }
+  };
+
   const handleAvatar = async (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
+    setError('');
     try {
       const avatarUrl = await fileToAvatarDataUrl(file);
-      setForm((prev) => ({ ...prev, avatarUrl }));
-      setAvatarName(file.name);
+      await saveAvatar(avatarUrl);
     } catch (err) {
       setError(err.message);
     } finally {
       event.target.value = '';
     }
+  };
+
+  const startEditing = () => {
+    setForm(personalForm(user));
+    setError('');
+    setPhoneError('');
+    setEditing(true);
+  };
+
+  const cancelEditing = () => {
+    setForm(personalForm(user));
+    setError('');
+    setPhoneError('');
+    setEditing(false);
   };
 
   const save = async (event) => {
@@ -4731,8 +4957,12 @@ export function BeraterProfile() {
     }
     setSaving(true);
     try {
-      await updateProfile(form);
-      setAvatarName('');
+      await updateProfile({
+        firstName: form.firstName.trim(),
+        lastName: form.lastName.trim(),
+        phone: form.phone,
+      });
+      setEditing(false);
       showToast('Persönliche Daten gespeichert');
     } catch (err) {
       setError(err.message);
@@ -4747,109 +4977,217 @@ export function BeraterProfile() {
       title="Profil"
       lede="So erscheinen Sie im Portal — Bild, Name und Erreichbarkeit."
     >
-      <form className="broker-panel broker-settings broker-settings--wide broker-settings--profile" onSubmit={save}>
+      <div className="broker-panel broker-settings broker-settings--wide broker-settings--profile">
         {error && <div className="broker-alert">{error}</div>}
 
-        <section className="broker-profile-hero" id="foto" aria-label="Profilbild">
-          <div className="broker-profile-hero__visual">
-            <div className="broker-avatar broker-avatar--hero" aria-hidden="true">
-              {form.avatarUrl ? <img src={form.avatarUrl} alt="" /> : previewInitials}
-            </div>
-            <div className="broker-profile-hero__upload">
-              <label className="broker-upload-card" htmlFor="profile-avatar">
-                <input
-                  id="profile-avatar"
-                  type="file"
-                  accept="image/*"
-                  onChange={handleAvatar}
-                  disabled={saving}
-                />
-                <span className="broker-upload-card__title">Profilbild</span>
-                <span className="broker-upload-card__meta">
-                  {avatarName || (form.avatarUrl ? 'Aktuelles Bild behalten' : 'PNG oder JPG · optional')}
-                </span>
-                <span className="broker-upload-card__cta">Bild auswählen</span>
-              </label>
-              {form.avatarUrl ? (
+        <section className="broker-profile-card" id="foto" aria-label="Profilbild">
+          <div className="broker-profile-card__cover" aria-hidden="true" />
+          <div className="broker-profile-card__body">
+            <div className="broker-profile-card__avatar">
+              <div className="broker-avatar broker-avatar--hero" aria-hidden="true">
+                {shownAvatar ? <img src={shownAvatar} alt="" /> : heroInitials}
+              </div>
+              <div className="broker-profile-card__avatar-tools">
                 <button
                   type="button"
-                  className="broker-text-btn"
-                  onClick={() => {
-                    setForm((prev) => ({ ...prev, avatarUrl: '' }));
-                    setAvatarName('');
-                  }}
-                  disabled={saving}
+                  className="broker-profile-card__avatar-btn"
+                  onClick={openAvatarPicker}
+                  disabled={avatarSaving}
+                  aria-label={shownAvatar ? 'Profilbild ändern' : 'Profilbild hochladen'}
+                  title={shownAvatar ? 'Profilbild ändern' : 'Profilbild hochladen'}
                 >
-                  Bild entfernen
+                  <Camera size={15} strokeWidth={2.2} />
                 </button>
+                {shownAvatar ? (
+                  <button
+                    type="button"
+                    className="broker-profile-card__avatar-btn is-danger"
+                    onClick={() => saveAvatar('')}
+                    disabled={avatarSaving}
+                    aria-label="Profilbild entfernen"
+                    title="Profilbild entfernen"
+                  >
+                    <Trash2 size={15} strokeWidth={2.2} />
+                  </button>
+                ) : null}
+              </div>
+              <input
+                ref={avatarInputRef}
+                id="profile-avatar"
+                type="file"
+                accept="image/*"
+                className="broker-profile-card__file"
+                onChange={handleAvatar}
+                disabled={avatarSaving}
+              />
+            </div>
+
+            <div className="broker-profile-card__identity">
+              <span className="broker-profile-card__kicker">Mein Profil</span>
+              <h2 className="broker-profile-card__name">{fullName}</h2>
+              {user?.email ? (
+                <p className="broker-profile-card__email">
+                  <Mail size={14} strokeWidth={2.2} aria-hidden="true" />
+                  <span>{user.email}</span>
+                </p>
               ) : null}
+              <div className="broker-profile-card__chips">
+                {user?.customerNumber ? (
+                  <span className="broker-profile-chip">
+                    <BadgeCheck size={13} strokeWidth={2.2} aria-hidden="true" />
+                    Kd.-Nr. {user.customerNumber}
+                  </span>
+                ) : null}
+                {company ? (
+                  <span className="broker-profile-chip">
+                    <Building2 size={13} strokeWidth={2.2} aria-hidden="true" />
+                    {company}
+                  </span>
+                ) : null}
+                <span className={`broker-profile-chip ${personalComplete ? 'is-ok' : 'is-warn'}`}>
+                  {personalComplete
+                    ? <CheckCircle2 size={13} strokeWidth={2.2} aria-hidden="true" />
+                    : <AlertCircle size={13} strokeWidth={2.2} aria-hidden="true" />}
+                  {personalComplete ? 'Profil vollständig' : 'Angaben fehlen'}
+                </span>
+              </div>
             </div>
           </div>
         </section>
 
-        <section className="broker-settings-section" id="kontakt">
+        <section className={`broker-settings-section broker-profile-info${editing ? ' is-editing' : ''}`} id="kontakt">
           <header>
-            <h3>
-              <span className="broker-settings-section__icon" aria-hidden="true">
-                <User size={16} strokeWidth={2.2} />
-              </span>
-              Persönliche Angaben
-            </h3>
-            <p>Name und Telefon für Vertrag, Rückfragen und die Anzeige in Ihrem Konto.</p>
+            <span className="broker-settings-section__icon" aria-hidden="true">
+              <User size={16} strokeWidth={2.2} />
+            </span>
+            <div className="broker-settings-section__heading">
+              <h3>Persönliche Angaben</h3>
+              <p>Name und Telefon für Vertrag, Rückfragen und die Anzeige in Ihrem Konto.</p>
+            </div>
+            {!editing ? (
+              <button
+                type="button"
+                className="broker-profile-btn broker-profile-btn--ghost"
+                onClick={startEditing}
+              >
+                <Pencil size={15} strokeWidth={2.2} aria-hidden="true" />
+                Bearbeiten
+              </button>
+            ) : null}
           </header>
-          <div className="broker-form-grid">
-            <label>
-              <FieldLabel required>Vorname</FieldLabel>
-              <input
-                name="firstName"
-                value={form.firstName}
-                onChange={handleChange}
-                autoComplete="given-name"
-                disabled={saving}
-                required
-              />
-            </label>
-            <label>
-              <FieldLabel required>Nachname</FieldLabel>
-              <input
-                name="lastName"
-                value={form.lastName}
-                onChange={handleChange}
-                autoComplete="family-name"
-                disabled={saving}
-                required
-              />
-            </label>
-            <label className="is-full">
-              <FieldLabel>E-Mail-Adresse</FieldLabel>
-              <input type="email" value={user?.email || ''} autoComplete="email" disabled />
-            </label>
-            <label className="is-full">
-              <FieldLabel required>Telefonnummer</FieldLabel>
-              <PhoneField
-                id="profile-phone"
-                value={form.phone}
-                onChange={(phone) => {
-                  setPhoneError('');
-                  setForm((prev) => ({ ...prev, phone }));
-                }}
-                disabled={saving}
-                required
-                className="vantaro-phone-input--light"
-                error={phoneError}
-              />
-            </label>
-          </div>
-        </section>
 
-        <div className="broker-settings-actions broker-settings-actions--bar">
-          <p className="broker-settings-actions__hint">Änderungen gelten sofort nach dem Speichern in Ihrem Konto.</p>
-          <button type="submit" className="btn btn-primary" disabled={saving}>
-            <Save size={16} strokeWidth={2.2} aria-hidden="true" />
-            {saving ? 'Wird gespeichert…' : 'Profil speichern'}
-          </button>
-        </div>
-      </form>
+          {!editing ? (
+            <div className="broker-profile-info__groups">
+              {infoGroups.map((group) => {
+                const GroupIcon = group.icon;
+                return (
+                  <div key={group.id} className="broker-profile-info__group">
+                    <h4 className="broker-profile-info__group-title">
+                      <span className="broker-profile-info__group-icon" aria-hidden="true">
+                        <GroupIcon size={15} strokeWidth={2.2} />
+                      </span>
+                      {group.title}
+                    </h4>
+                    <dl className="broker-profile-info__list">
+                      {group.items.map((item) => (
+                        <div key={item.id} className="broker-profile-info__row">
+                          <dt>
+                            {item.label}
+                            {item.locked ? (
+                              <Lock size={11} strokeWidth={2.4} aria-label="Kann nicht geändert werden" />
+                            ) : null}
+                          </dt>
+                          <dd>
+                            <span
+                              className={[
+                                'broker-profile-info__value',
+                                item.value ? '' : 'is-empty',
+                                item.mono ? 'is-mono' : '',
+                              ].filter(Boolean).join(' ')}
+                            >
+                              {item.value || 'Nicht hinterlegt'}
+                            </span>
+                            {item.to ? (
+                              <Link to={item.to} className="broker-profile-info__link">
+                                Ändern
+                                <ChevronRight size={14} strokeWidth={2.2} aria-hidden="true" />
+                              </Link>
+                            ) : null}
+                          </dd>
+                        </div>
+                      ))}
+                    </dl>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <form className="broker-profile-info__form" onSubmit={save}>
+              <div className="broker-form-grid">
+                <label>
+                  <FieldLabel required>Vorname</FieldLabel>
+                  <input
+                    name="firstName"
+                    value={form.firstName}
+                    onChange={handleChange}
+                    autoComplete="given-name"
+                    disabled={saving}
+                    required
+                    autoFocus
+                  />
+                </label>
+                <label>
+                  <FieldLabel required>Nachname</FieldLabel>
+                  <input
+                    name="lastName"
+                    value={form.lastName}
+                    onChange={handleChange}
+                    autoComplete="family-name"
+                    disabled={saving}
+                    required
+                  />
+                </label>
+                <label className="is-full">
+                  <FieldLabel>E-Mail-Adresse</FieldLabel>
+                  <input type="email" value={user?.email || ''} autoComplete="email" disabled />
+                </label>
+                <label className="is-full">
+                  <FieldLabel required>Telefonnummer</FieldLabel>
+                  <PhoneField
+                    id="profile-phone"
+                    value={form.phone}
+                    onChange={(phone) => {
+                      setPhoneError('');
+                      setForm((prev) => ({ ...prev, phone }));
+                    }}
+                    disabled={saving}
+                    required
+                    className="vantaro-phone-input--light"
+                    error={phoneError}
+                  />
+                </label>
+              </div>
+              <div className="broker-profile-info__actions">
+                <p className="broker-settings-actions__hint">Änderungen gelten sofort nach dem Speichern in Ihrem Konto.</p>
+                <div className="broker-profile-card__btns">
+                  <button
+                    type="button"
+                    className="broker-profile-btn broker-profile-btn--ghost"
+                    onClick={cancelEditing}
+                    disabled={saving}
+                  >
+                    Abbrechen
+                  </button>
+                  <button type="submit" className="broker-profile-btn broker-profile-btn--primary" disabled={saving}>
+                    <Save size={15} strokeWidth={2.2} aria-hidden="true" />
+                    {saving ? 'Wird gespeichert…' : 'Speichern'}
+                  </button>
+                </div>
+              </div>
+            </form>
+          )}
+        </section>
+      </div>
     </SettingsShell>
   );
 }
@@ -5017,20 +5355,6 @@ export function BeraterCompany() {
       }
     >
       <form className="broker-panel broker-settings broker-settings--wide" onSubmit={save}>
-        <div className="broker-settings-head">
-          <div>
-            <p className="broker-muted-note">
-              Angaben für Vertrag, Rechnungen und Verifizierung im Portal.
-            </p>
-          </div>
-          {user?.customerNumber ? (
-            <p className="broker-customer-chip">
-              <span>Kundennummer</span>
-              <strong>{user.customerNumber}</strong>
-            </p>
-          ) : null}
-        </div>
-
         {error && <div className="broker-alert">{error}</div>}
 
         {needsPhone ? (
@@ -5064,15 +5388,21 @@ export function BeraterCompany() {
           id="firma"
         >
           <header>
-            <h3>
-              {highlightMissing ? <span className="broker-step-num">1</span> : (
-                <span className="broker-settings-section__icon" aria-hidden="true">
-                  <Building2 size={16} strokeWidth={2.2} />
-                </span>
-              )}
-              Firma
-            </h3>
-            <p>Name und Rechtsform für Dokumente und Anzeige.</p>
+            {highlightMissing ? <span className="broker-step-num">1</span> : (
+              <span className="broker-settings-section__icon" aria-hidden="true">
+                <Building2 size={16} strokeWidth={2.2} />
+              </span>
+            )}
+            <div className="broker-settings-section__heading">
+              <h3>Firma</h3>
+              <p>Name und Rechtsform für Dokumente und Anzeige.</p>
+            </div>
+            {user?.customerNumber ? (
+              <p className="broker-customer-chip">
+                <span>Kundennummer</span>
+                <strong>{user.customerNumber}</strong>
+              </p>
+            ) : null}
           </header>
           <div className="broker-form-grid">
             <label className={`is-full${highlightMissing && missingLive.includes('company') ? ' is-missing' : ''}`}>
@@ -5104,15 +5434,15 @@ export function BeraterCompany() {
           id="adresse"
         >
           <header>
-            <h3>
-              {highlightMissing ? <span className="broker-step-num">2</span> : (
-                <span className="broker-settings-section__icon" aria-hidden="true">
-                  <MapPin size={16} strokeWidth={2.2} />
-                </span>
-              )}
-              Geschäftsadresse
-            </h3>
-            <p>Sitz Ihres Unternehmens — Suche nutzen oder Pin auf der Karte setzen.</p>
+            {highlightMissing ? <span className="broker-step-num">2</span> : (
+              <span className="broker-settings-section__icon" aria-hidden="true">
+                <MapPin size={16} strokeWidth={2.2} />
+              </span>
+            )}
+            <div className="broker-settings-section__heading">
+              <h3>Geschäftsadresse</h3>
+              <p>Sitz Ihres Unternehmens — Suche nutzen oder Pin auf der Karte setzen.</p>
+            </div>
           </header>
           <div className="broker-form-grid">
             <label className={`is-full${highlightMissing && missingLive.includes('address') ? ' is-missing' : ''}`}>
@@ -5173,13 +5503,13 @@ export function BeraterCompany() {
 
         <section className="broker-settings-section" id="webseite">
           <header>
-            <h3>
-              <span className="broker-settings-section__icon" aria-hidden="true">
-                <Globe size={16} strokeWidth={2.2} />
-              </span>
-              Webseite <span className="broker-optional">(freiwillig)</span>
-            </h3>
-            <p>Webseite Ihres Unternehmens — ohne https:// möglich.</p>
+            <span className="broker-settings-section__icon" aria-hidden="true">
+              <Globe size={16} strokeWidth={2.2} />
+            </span>
+            <div className="broker-settings-section__heading">
+              <h3>Webseite <span className="broker-optional">(Optional)</span></h3>
+              <p>Webseite Ihres Unternehmens — ohne https:// möglich.</p>
+            </div>
           </header>
           <div className="broker-form-grid">
             <label className="is-full">
@@ -5220,13 +5550,13 @@ export function BeraterSecurity() {
       <section className="broker-panel broker-settings broker-settings--wide">
         <section className="broker-settings-section broker-settings-section--action">
           <header>
-            <h3>
-              <span className="broker-settings-section__icon" aria-hidden="true">
-                <KeyRound size={16} strokeWidth={2.2} />
-              </span>
-              Passwort
-            </h3>
-            <p>Mindestens 8 Zeichen, Groß- und Kleinbuchstaben, Zahl und Sonderzeichen.</p>
+            <span className="broker-settings-section__icon" aria-hidden="true">
+              <KeyRound size={16} strokeWidth={2.2} />
+            </span>
+            <div className="broker-settings-section__heading">
+              <h3>Passwort</h3>
+              <p>Mindestens 8 Zeichen, Groß- und Kleinbuchstaben, Zahl und Sonderzeichen.</p>
+            </div>
           </header>
           <button type="button" className="btn btn-primary" onClick={() => setModalOpen(true)}>
             Passwort ändern
@@ -5360,13 +5690,13 @@ export function BeraterSettings() {
 
         <section className="broker-settings-section">
           <header>
-            <h3>
-              <span className="broker-settings-section__icon" aria-hidden="true">
-                <Bell size={16} strokeWidth={2.2} />
-              </span>
-              Benachrichtigungen
-            </h3>
-            <p>Legen Sie fest, wofür Sie Hinweise bekommen — oder schalten Sie sie komplett aus.</p>
+            <span className="broker-settings-section__icon" aria-hidden="true">
+              <Bell size={16} strokeWidth={2.2} />
+            </span>
+            <div className="broker-settings-section__heading">
+              <h3>Benachrichtigungen</h3>
+              <p>Legen Sie fest, wofür Sie Hinweise bekommen — oder schalten Sie sie komplett aus.</p>
+            </div>
           </header>
           <div className="broker-setting-rows">
             <SettingSwitch
@@ -5415,15 +5745,15 @@ export function BeraterSettings() {
 
         <section className="broker-settings-section">
           <header>
-            <h3>
-              <span className="broker-settings-section__icon" aria-hidden="true">
-                <CalendarClock size={16} strokeWidth={2.2} />
-              </span>
-              Google Kalender
-            </h3>
-            <p>
-              Termine und Wiedervorlagen gehen als Kalendereinladung an Ihre Konto-E-Mail und erscheinen in Google Kalender. Trennen Sie die Verbindung, wenn das nicht mehr geschehen soll.
-            </p>
+            <span className="broker-settings-section__icon" aria-hidden="true">
+              <CalendarClock size={16} strokeWidth={2.2} />
+            </span>
+            <div className="broker-settings-section__heading">
+              <h3>Google Kalender</h3>
+              <p>
+                Termine und Wiedervorlagen gehen als Kalendereinladung an Ihre Konto-E-Mail und erscheinen in Google Kalender. Trennen Sie die Verbindung, wenn das nicht mehr geschehen soll.
+              </p>
+            </div>
           </header>
           <div className="broker-setting-connect">
             <div>
@@ -5457,13 +5787,13 @@ export function BeraterSettings() {
 
         <section className="broker-settings-section">
           <header>
-            <h3>
-              <span className="broker-settings-section__icon" aria-hidden="true">
-                <Cookie size={16} strokeWidth={2.2} />
-              </span>
-              Datenschutz
-            </h3>
-            <p>Notwendige Cookies bleiben immer aktiv. Statistik und Marketing können Sie abwählen.</p>
+            <span className="broker-settings-section__icon" aria-hidden="true">
+              <Cookie size={16} strokeWidth={2.2} />
+            </span>
+            <div className="broker-settings-section__heading">
+              <h3>Datenschutz</h3>
+              <p>Notwendige Cookies bleiben immer aktiv. Statistik und Marketing können Sie abwählen.</p>
+            </div>
           </header>
           <div className="broker-setting-rows">
             <SettingSwitch

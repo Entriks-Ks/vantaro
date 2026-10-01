@@ -3,6 +3,8 @@ export const ROLES = {
   ADMIN: 'admin',
 };
 
+export const PARTNER_ROLE_IDS = ['dispatcher', 'sub_partner', 'field_rep'];
+
 export const DEFAULT_ROLE = ROLES.BERATER;
 export const ALLOWED_ROLES = new Set(Object.values(ROLES));
 

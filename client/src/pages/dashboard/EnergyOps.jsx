@@ -1,28 +1,110 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import {
+  Check,
+  Copy,
+  Eye,
   KeyRound,
   Mail,
+  MoreVertical,
+  Pencil,
+  RotateCcw,
+  Trash2,
   UserPlus,
   Users,
   X,
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import {
-  ENERGY_DEFAULT_PAGE_IDS,
-  ENERGY_PAGE_OPTIONS,
-  ENERGY_ROLE_LABELS,
-  assignEnergyHolder,
-  createEnergyPartner,
-  fetchEnergyPartners,
-  updateEnergyPartner,
-} from '../../lib/energy';
-import { initials } from './helpers';
+  DEFAULT_PARTNER_PAGE_IDS,
+  assignLeadHolder,
+  createPartner,
+  deletePartner,
+  fetchPartners,
+  partnerPageOptions,
+  partnerRoleLabel,
+  partnerRoleOptions,
+  resetPartnerPassword,
+  sendPartnerPasswordLink,
+  updatePartner,
+} from '../../lib/partners';
+import { formatDateTime, initials } from './helpers';
 
-export function EnergyLeadActions({ lead, onChange }) {
+export function partnersPath(vertical) {
+  return vertical === 'energy' ? '/dashboard/team' : '/dashboard/partner';
+}
+
+function PartnerMoreMenu({ partner, pagesLabel, disabled, onAccess, onSendLink, onNewPassword }) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    function handleClickOutside(event) {
+      if (wrapRef.current && !wrapRef.current.contains(event.target)) setOpen(false);
+    }
+    function handleKeyDown(event) {
+      if (event.key === 'Escape') setOpen(false);
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [open]);
+
+  const pick = (action) => {
+    setOpen(false);
+    action();
+  };
+
+  return (
+    <div className="energy-partner-more" ref={wrapRef}>
+      <button
+        type="button"
+        className={`energy-partner-icon-btn${open ? ' is-open' : ''}`}
+        disabled={disabled}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label={`Weitere Aktionen für ${partner.fullName}`}
+        title="Weitere Aktionen"
+        onClick={() => setOpen((value) => !value)}
+      >
+        <MoreVertical size={15} />
+      </button>
+      {open ? (
+        <div className="energy-partner-more-menu" role="menu">
+          <button type="button" role="menuitem" onClick={() => pick(onAccess)}>
+            <KeyRound size={15} aria-hidden="true" />
+            <span>Seitenzugriff</span>
+            <em>{pagesLabel}</em>
+          </button>
+          <div className="energy-partner-more-divider" role="separator" />
+          <button type="button" role="menuitem" onClick={() => pick(onSendLink)}>
+            <Mail size={15} aria-hidden="true" />
+            <span>
+              Passwort-Link senden
+              <small>Per E-Mail an {partner.email}</small>
+            </span>
+          </button>
+          <button type="button" role="menuitem" onClick={() => pick(onNewPassword)}>
+            <RotateCcw size={15} aria-hidden="true" />
+            <span>
+              Neues Passwort erstellen
+              <small>Einmal-Passwort zum Weitergeben</small>
+            </span>
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+export function PartnerLeadActions({ lead, onChange }) {
   const { user, isAdmin } = useAuth();
-  const role = user?.energyRole || 'main';
+  const role = user?.partnerRole || 'main';
   const canAssign = role === 'main' || role === 'dispatcher' || isAdmin;
   const [partners, setPartners] = useState([]);
   const [partnersState, setPartnersState] = useState(canAssign ? 'loading' : 'idle');
@@ -35,7 +117,7 @@ export function EnergyLeadActions({ lead, onChange }) {
   const loadPartners = () => {
     setPartnersState('loading');
     setPartnersError('');
-    fetchEnergyPartners()
+    fetchPartners()
       .then((payload) => {
         setPartners(payload.partners || []);
         setPartnersState('ready');
@@ -92,7 +174,7 @@ export function EnergyLeadActions({ lead, onChange }) {
         event.preventDefault();
         if (!holderId || holderId === lead.energyHolderId) return;
         run(
-          () => assignEnergyHolder(lead.id, holderId),
+          () => assignLeadHolder(lead.id, holderId),
           `${isAssigned ? 'Neu zugewiesen' : 'Zugewiesen'} an ${selected?.fullName || 'Partner'}.`,
         );
       }}>
@@ -106,8 +188,8 @@ export function EnergyLeadActions({ lead, onChange }) {
           </div>
         ) : partnersState === 'ready' && assignable.length === 0 ? (
           <div className="energy-actions__empty">
-            <span>Noch keine aktiven Unterpartner oder Außendienst-Zugänge.</span>
-            {role === 'main' ? <Link className="broker-text-btn" to="/dashboard/team">Partner anlegen</Link> : null}
+            <span>Noch keine aktiven Partner-Zugänge.</span>
+            {role === 'main' ? <Link className="broker-text-btn" to={partnersPath(user?.vertical)}>Partner anlegen</Link> : null}
           </div>
         ) : (
           <div className="energy-actions__row energy-actions__row--inline">
@@ -127,7 +209,7 @@ export function EnergyLeadActions({ lead, onChange }) {
               </option>
               {assignable.map((partner) => (
                 <option key={partner.id} value={partner.id}>
-                  {partner.fullName} · {ENERGY_ROLE_LABELS[partner.energyRole] || partner.energyRole}
+                  {partner.fullName} · {partnerRoleLabel(user?.vertical, partner.partnerRole)}
                   {partner.id === lead.energyHolderId ? ' (aktuell)' : ''}
                   {partner.active === false ? ' – inaktiv' : ''}
                 </option>
@@ -154,14 +236,36 @@ function emptyPartnerForm() {
     firstName: '',
     lastName: '',
     email: '',
-    energyRole: 'sub_partner',
+    partnerRole: 'sub_partner',
   };
 }
 
-function PartnerPageAccess({ pages, disabled, onChange }) {
+function PartnerRolePicker({ vertical, value, disabled, onChange }) {
+  return (
+    <div className="energy-partner-create-roles" role="radiogroup" aria-label="Rolle">
+      <span className="energy-partner-create-label">Rolle</span>
+      {partnerRoleOptions(vertical).map((role) => (
+        <button
+          key={role.id}
+          type="button"
+          role="radio"
+          aria-checked={value === role.id}
+          disabled={disabled}
+          className={`energy-partner-create-role${value === role.id ? ' is-active' : ''}`}
+          onClick={() => onChange(role.id)}
+        >
+          <strong>{role.title}</strong>
+          <small>{role.hint}</small>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function PartnerPageAccess({ vertical, pages, disabled, onChange }) {
   return (
     <div className="energy-partner-pages" role="group" aria-label="Seitenzugriff">
-      {ENERGY_PAGE_OPTIONS.map((option) => {
+      {partnerPageOptions(vertical).map((option) => {
         const checked = pages.includes(option.id);
         return (
           <label key={option.id} className={`energy-partner-page${checked ? ' is-on' : ''}`}>
@@ -184,7 +288,10 @@ function PartnerPageAccess({ pages, disabled, onChange }) {
   );
 }
 
-export function EnergyPartners() {
+export function PartnersPage() {
+  const { user } = useAuth();
+  const vertical = user?.vertical === 'energy' ? 'energy' : 'insurance';
+  const pageOptions = partnerPageOptions(vertical);
   const [partners, setPartners] = useState([]);
   const [form, setForm] = useState(emptyPartnerForm);
   const [filter, setFilter] = useState('all');
@@ -198,18 +305,40 @@ export function EnergyPartners() {
   const [busyId, setBusyId] = useState('');
   const [creating, setCreating] = useState(false);
   const [savingAccess, setSavingAccess] = useState(false);
+  const [editPartner, setEditPartner] = useState(null);
+  const [editForm, setEditForm] = useState(emptyPartnerForm);
+  const [editError, setEditError] = useState('');
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [removePartner, setRemovePartner] = useState(null);
+  const [removeError, setRemoveError] = useState('');
+  const [removing, setRemoving] = useState(false);
+  const [viewPartnerId, setViewPartnerId] = useState('');
+  const [passwordPartner, setPasswordPartner] = useState(null);
+  const [passwordResult, setPasswordResult] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const [resettingPassword, setResettingPassword] = useState(false);
+  const [passwordCopied, setPasswordCopied] = useState(false);
+  const [notice, setNotice] = useState('');
+  const [loadState, setLoadState] = useState('loading');
+  const viewPartner = viewPartnerId ? partners.find((item) => item.id === viewPartnerId) || null : null;
 
-  const load = () => fetchEnergyPartners().then((payload) => {
+  const load = () => fetchPartners().then((payload) => {
     setPartners(payload.partners || []);
-  }).catch((err) => setError(err.message));
+    setLoadState('ready');
+  }).catch((err) => {
+    setError(err.message);
+    setLoadState('error');
+  });
 
   useEffect(() => { load(); }, []);
 
   useEffect(() => {
-    if (!showCreate && !accessPartner) return undefined;
+    if (!showCreate && !accessPartner && !editPartner && !removePartner && !viewPartnerId && !passwordPartner) return undefined;
     const onKey = (event) => {
       if (event.key !== 'Escape') return;
-      if (creating || savingAccess) return;
+      if (creating || savingAccess || savingEdit || removing || resettingPassword) return;
+      if (viewPartnerId) setViewPartnerId('');
+      if (passwordPartner) setPasswordPartner(null);
       if (showCreate) {
         setShowCreate(false);
         setFormError('');
@@ -219,10 +348,18 @@ export function EnergyPartners() {
         setAccessPartner(null);
         setAccessError('');
       }
+      if (editPartner) {
+        setEditPartner(null);
+        setEditError('');
+      }
+      if (removePartner) {
+        setRemovePartner(null);
+        setRemoveError('');
+      }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [showCreate, accessPartner, creating, savingAccess]);
+  }, [showCreate, accessPartner, editPartner, removePartner, viewPartnerId, passwordPartner, creating, savingAccess, savingEdit, removing, resettingPassword]);
 
   const accepted = partners.filter((item) => item.inviteStatus === 'accepted');
   const pending = partners.filter((item) => item.inviteStatus !== 'accepted');
@@ -245,7 +382,7 @@ export function EnergyPartners() {
   const openAccess = (partner) => {
     const pages = Array.isArray(partner.pages) && partner.pages.length
       ? partner.pages
-      : ENERGY_DEFAULT_PAGE_IDS;
+      : DEFAULT_PARTNER_PAGE_IDS;
     setAccessError('');
     setAccessPages([...pages]);
     setAccessPartner(partner);
@@ -257,11 +394,102 @@ export function EnergyPartners() {
     setAccessError('');
   };
 
+  const openEdit = (partner) => {
+    const [first = '', ...rest] = String(partner.fullName || '').split(' ');
+    setEditError('');
+    setEditForm({
+      firstName: partner.firstName || first,
+      lastName: partner.lastName || rest.join(' '),
+      email: partner.email || '',
+      partnerRole: partner.partnerRole || 'sub_partner',
+    });
+    setEditPartner(partner);
+  };
+
+  const closeEdit = () => {
+    if (savingEdit) return;
+    setEditPartner(null);
+    setEditError('');
+  };
+
+  const sendPasswordLink = async (partner) => {
+    setError('');
+    setNotice('');
+    setBusyId(partner.id);
+    try {
+      await sendPartnerPasswordLink(partner.id);
+      setNotice(`Link zum Zurücksetzen des Passworts wurde an ${partner.email} gesendet.`);
+    } catch (err) {
+      setError(err.message || 'Passwort-Link konnte nicht gesendet werden.');
+    } finally {
+      setBusyId('');
+    }
+  };
+
+  const openNewPassword = (partner) => {
+    setPasswordError('');
+    setPasswordResult('');
+    setPasswordCopied(false);
+    setPasswordPartner(partner);
+  };
+
+  const closeNewPassword = () => {
+    if (resettingPassword) return;
+    setPasswordPartner(null);
+  };
+
+  const confirmNewPassword = async () => {
+    setPasswordError('');
+    setResettingPassword(true);
+    try {
+      const payload = await resetPartnerPassword(passwordPartner.id);
+      setPasswordResult(payload.password);
+    } catch (err) {
+      setPasswordError(err.message || 'Passwort konnte nicht zurückgesetzt werden.');
+    } finally {
+      setResettingPassword(false);
+    }
+  };
+
+  const openRemove = (partner) => {
+    setRemoveError('');
+    setRemovePartner(partner);
+  };
+
+  const closeRemove = () => {
+    if (removing) return;
+    setRemovePartner(null);
+    setRemoveError('');
+  };
+
+  const confirmRemove = async () => {
+    const partner = removePartner;
+    setRemoveError('');
+    setError('');
+    setNotice('');
+    setRemoving(true);
+    setBusyId(partner.id);
+    try {
+      const payload = await deletePartner(partner.id);
+      setPartners((list) => list.filter((item) => item.id !== partner.id));
+      if (created?.user?.id === partner.id) setCreated(null);
+      setRemovePartner(null);
+      setNotice(payload.unassignedLeads
+        ? `${partner.fullName} wurde gelöscht. ${payload.unassignedLeads} Lead(s) liegen wieder bei Ihrer Firma.`
+        : `${partner.fullName} wurde gelöscht.`);
+    } catch (err) {
+      setRemoveError(err.message || 'Zugang konnte nicht gelöscht werden.');
+    } finally {
+      setRemoving(false);
+      setBusyId('');
+    }
+  };
+
   const patchPartner = async (partnerId, patch) => {
     setError('');
     setBusyId(partnerId);
     try {
-      const payload = await updateEnergyPartner(partnerId, patch);
+      const payload = await updatePartner(partnerId, patch);
       setPartners((list) => list.map((item) => (item.id === partnerId ? { ...item, ...payload.partner } : item)));
       return payload.partner;
     } catch (err) {
@@ -300,9 +528,9 @@ export function EnergyPartners() {
             setError('');
             setCreating(true);
             try {
-              const payload = await createEnergyPartner({
+              const payload = await createPartner({
                 ...form,
-                pages: [...ENERGY_DEFAULT_PAGE_IDS],
+                pages: [...DEFAULT_PARTNER_PAGE_IDS],
               });
               setCreated(payload);
               setForm(emptyPartnerForm());
@@ -349,30 +577,17 @@ export function EnergyPartners() {
             </label>
           </div>
 
-          <div className="energy-partner-create-roles" role="radiogroup" aria-label="Rolle">
-            <span className="energy-partner-create-label">Rolle</span>
-            {[
-              { id: 'dispatcher', title: 'Dispatcher', hint: 'Zuweisung und Koordination' },
-              { id: 'sub_partner', title: 'Untervertriebspartner', hint: 'Verkauf und Betreuung' },
-              { id: 'field_rep', title: 'Außendienst', hint: 'Termine vor Ort' },
-            ].map((role) => (
-              <button
-                key={role.id}
-                type="button"
-                role="radio"
-                aria-checked={form.energyRole === role.id}
-                className={`energy-partner-create-role${form.energyRole === role.id ? ' is-active' : ''}`}
-                onClick={() => setForm({ ...form, energyRole: role.id })}
-              >
-                <strong>{role.title}</strong>
-                <small>{role.hint}</small>
-              </button>
-            ))}
-          </div>
+          <PartnerRolePicker
+            vertical={vertical}
+            value={form.partnerRole}
+            disabled={creating}
+            onChange={(partnerRole) => setForm({ ...form, partnerRole })}
+          />
 
           <div className="energy-partner-create-note">
             Standardzugriff: Dashboard, Leads, Kalender, Akademie, Support.
-            <em>Meine Pakete</em> kann später freigegeben werden.
+            {vertical === 'energy' ? <em>Meine Pakete</em> : null}
+            {vertical === 'energy' ? ' kann später freigegeben werden.' : null}
           </div>
 
           <div className="energy-partner-create-footer">
@@ -402,6 +617,7 @@ export function EnergyPartners() {
         </p>
         {accessError ? <div className="broker-alert">{accessError}</div> : null}
         <PartnerPageAccess
+          vertical={vertical}
           pages={accessPages}
           disabled={savingAccess}
           onChange={setAccessPages}
@@ -432,6 +648,286 @@ export function EnergyPartners() {
     </div>
   ) : null;
 
+  const editModal = editPartner ? (
+    <div className="broker-modal" role="dialog" aria-modal="true" aria-labelledby="energy-partner-edit-title">
+      <button type="button" className="broker-modal__backdrop" aria-label="Schließen" onClick={closeEdit} />
+      <div className="broker-modal__panel energy-partner-create-modal">
+        <div className="energy-partner-create-head">
+          <div className="energy-partner-create-title">
+            <span className="energy-partner-create-icon" aria-hidden="true">
+              <Pencil size={20} />
+            </span>
+            <div>
+              <h2 id="energy-partner-edit-title">Zugang bearbeiten</h2>
+              <p>Name, E-Mail und Rolle von {editPartner.fullName} ändern.</p>
+            </div>
+          </div>
+          <button type="button" className="energy-partner-create-close" aria-label="Schließen" disabled={savingEdit} onClick={closeEdit}>
+            <X size={18} />
+          </button>
+        </div>
+
+        <form
+          className="energy-partner-create-body"
+          onSubmit={async (event) => {
+            event.preventDefault();
+            setEditError('');
+            setNotice('');
+            setSavingEdit(true);
+            try {
+              const partner = await patchPartner(editPartner.id, editForm);
+              setEditPartner(null);
+              setNotice(`${partner?.fullName || 'Zugang'} wurde aktualisiert.`);
+            } catch (err) {
+              setError('');
+              setEditError(err.message || 'Zugang konnte nicht gespeichert werden.');
+            } finally {
+              setSavingEdit(false);
+            }
+          }}
+        >
+          {editError ? <div className="broker-alert">{editError}</div> : null}
+
+          <div className="energy-partner-create-grid">
+            <label className="energy-partner-create-field">
+              <span>Vorname</span>
+              <input
+                value={editForm.firstName}
+                onChange={(event) => setEditForm({ ...editForm, firstName: event.target.value })}
+                disabled={savingEdit}
+                required
+                autoFocus
+              />
+            </label>
+            <label className="energy-partner-create-field">
+              <span>Nachname</span>
+              <input
+                value={editForm.lastName}
+                onChange={(event) => setEditForm({ ...editForm, lastName: event.target.value })}
+                disabled={savingEdit}
+                required
+              />
+            </label>
+            <label className="energy-partner-create-field is-full">
+              <span>E-Mail</span>
+              <input
+                type="email"
+                value={editForm.email}
+                onChange={(event) => setEditForm({ ...editForm, email: event.target.value })}
+                disabled={savingEdit}
+                required
+              />
+            </label>
+          </div>
+
+          <PartnerRolePicker
+            vertical={vertical}
+            value={editForm.partnerRole}
+            disabled={savingEdit}
+            onChange={(partnerRole) => setEditForm({ ...editForm, partnerRole })}
+          />
+
+          <div className="energy-partner-create-footer">
+            <button type="button" className="dash-btn dash-btn--ghost" disabled={savingEdit} onClick={closeEdit}>Abbrechen</button>
+            <button className="dash-btn" type="submit" disabled={savingEdit}>
+              {savingEdit ? 'Wird gespeichert…' : 'Speichern'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  ) : null;
+
+  const removeModal = removePartner ? (
+    <div className="broker-modal" role="dialog" aria-modal="true" aria-labelledby="energy-partner-remove-title">
+      <button type="button" className="broker-modal__backdrop" aria-label="Schließen" onClick={closeRemove} />
+      <div className="broker-modal__panel energy-partner-access-modal">
+        <div className="broker-modal__top">
+          <h2 id="energy-partner-remove-title">Zugang löschen</h2>
+          <button type="button" className="broker-modal__close" aria-label="Schließen" disabled={removing} onClick={closeRemove}>
+            <X size={18} />
+          </button>
+        </div>
+        <p className="energy-partner-create-lede">
+          Soll der Zugang von <strong>{removePartner.fullName}</strong> ({removePartner.email}) endgültig gelöscht werden?
+          Zugewiesene Leads gehen an Ihre Firma zurück. Dies kann nicht rückgängig gemacht werden.
+        </p>
+        {removeError ? <div className="broker-alert">{removeError}</div> : null}
+        <div className="energy-partner-create-actions">
+          <button type="button" className="dash-btn dash-btn--ghost" disabled={removing} onClick={closeRemove}>Abbrechen</button>
+          <button type="button" className="dash-btn dash-btn--danger" disabled={removing} onClick={confirmRemove}>
+            <Trash2 size={16} />
+            {removing ? 'Wird gelöscht…' : 'Endgültig löschen'}
+          </button>
+        </div>
+      </div>
+    </div>
+  ) : null;
+
+  const passwordModal = passwordPartner ? (
+    <div className="broker-modal" role="dialog" aria-modal="true" aria-labelledby="energy-partner-password-title">
+      <button type="button" className="broker-modal__backdrop" aria-label="Schließen" onClick={closeNewPassword} />
+      <div className="broker-modal__panel energy-partner-access-modal">
+        <div className="broker-modal__top">
+          <h2 id="energy-partner-password-title">Neues Passwort erstellen</h2>
+          <button type="button" className="broker-modal__close" aria-label="Schließen" disabled={resettingPassword} onClick={closeNewPassword}>
+            <X size={18} />
+          </button>
+        </div>
+        {passwordResult ? (
+          <>
+            <p className="energy-partner-create-lede">
+              Neues Einmal-Passwort für <strong>{passwordPartner.fullName}</strong> ({passwordPartner.email}).
+              Geben Sie es sicher weiter. Das alte Passwort gilt nicht mehr.
+            </p>
+            <div className="energy-partner-password-box">
+              <code>{passwordResult}</code>
+              <button
+                type="button"
+                className="energy-partner-icon-btn"
+                aria-label="Passwort kopieren"
+                title="Kopieren"
+                onClick={() => {
+                  navigator.clipboard?.writeText(passwordResult)
+                    .then(() => setPasswordCopied(true))
+                    .catch(() => setPasswordCopied(false));
+                }}
+              >
+                {passwordCopied ? <Check size={15} /> : <Copy size={15} />}
+              </button>
+            </div>
+            <div className="energy-partner-create-actions">
+              <button type="button" className="dash-btn" onClick={closeNewPassword}>Fertig</button>
+            </div>
+          </>
+        ) : (
+          <>
+            <p className="energy-partner-create-lede">
+              Für <strong>{passwordPartner.fullName}</strong> wird ein neues Einmal-Passwort erstellt.
+              Das bisherige Passwort funktioniert danach nicht mehr.
+            </p>
+            {passwordError ? <div className="broker-alert">{passwordError}</div> : null}
+            <div className="energy-partner-create-actions">
+              <button type="button" className="dash-btn dash-btn--ghost" disabled={resettingPassword} onClick={closeNewPassword}>Abbrechen</button>
+              <button type="button" className="dash-btn" disabled={resettingPassword} onClick={confirmNewPassword}>
+                <RotateCcw size={16} />
+                {resettingPassword ? 'Wird erstellt…' : 'Passwort erstellen'}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  ) : null;
+
+  const viewPages = viewPartner
+    ? (Array.isArray(viewPartner.pages) && viewPartner.pages.length ? viewPartner.pages : DEFAULT_PARTNER_PAGE_IDS)
+    : [];
+  const viewRole = viewPartner
+    ? partnerRoleOptions(vertical).find((option) => option.id === viewPartner.partnerRole)
+    : null;
+  const viewModal = viewPartner ? (
+    <div className="broker-modal" role="dialog" aria-modal="true" aria-labelledby="energy-partner-view-title">
+      <button type="button" className="broker-modal__backdrop" aria-label="Schließen" onClick={() => setViewPartnerId('')} />
+      <div className="broker-modal__panel energy-partner-create-modal">
+        <div className="energy-partner-create-head">
+          <div className="energy-partner-create-title">
+            <span className="energy-partner-create-icon energy-partner-view-avatar" aria-hidden="true">
+              {initials({
+                firstName: viewPartner.firstName,
+                lastName: viewPartner.lastName,
+                fullName: viewPartner.fullName,
+              }) || '?'}
+            </span>
+            <div>
+              <h2 id="energy-partner-view-title">{viewPartner.fullName}</h2>
+              <div className="energy-partner-meta-row">
+                <span className="broker-lead-type">{partnerRoleLabel(vertical, viewPartner.partnerRole)}</span>
+                <span className={`broker-status${viewPartner.inviteStatus === 'accepted' ? '' : ' is-reported'}`}>
+                  {viewPartner.inviteStatus === 'accepted' ? 'Angenommen' : 'Ausstehend'}
+                </span>
+              </div>
+            </div>
+          </div>
+          <button type="button" className="energy-partner-create-close" aria-label="Schließen" onClick={() => setViewPartnerId('')}>
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="energy-partner-create-body">
+          <dl className="energy-partner-view-grid">
+            <div>
+              <dt>Vorname</dt>
+              <dd>{viewPartner.firstName || '—'}</dd>
+            </div>
+            <div>
+              <dt>Nachname</dt>
+              <dd>{viewPartner.lastName || '—'}</dd>
+            </div>
+            <div className="is-full">
+              <dt>E-Mail</dt>
+              <dd><a href={`mailto:${viewPartner.email}`}>{viewPartner.email}</a></dd>
+            </div>
+            <div>
+              <dt>Rolle</dt>
+              <dd>
+                {partnerRoleLabel(vertical, viewPartner.partnerRole)}
+                {viewRole?.hint ? <small>{viewRole.hint}</small> : null}
+              </dd>
+            </div>
+            <div>
+              <dt>Status</dt>
+              <dd className={viewPartner.active !== false ? 'is-ok' : 'is-muted'}>
+                {viewPartner.active !== false ? 'Aktiv' : 'Inaktiv'}
+              </dd>
+            </div>
+            <div>
+              <dt>Angelegt am</dt>
+              <dd>{formatDateTime(viewPartner.createdAt)}</dd>
+            </div>
+            <div>
+              <dt>Letzte Anmeldung</dt>
+              <dd>{viewPartner.lastSignInAt ? formatDateTime(viewPartner.lastSignInAt) : 'Noch nie'}</dd>
+            </div>
+          </dl>
+
+          <div className="energy-partner-view-pages">
+            <span className="energy-partner-view-label">
+              Seitenzugriff · {viewPages.filter((id) => pageOptions.some((option) => option.id === id)).length}/{pageOptions.length}
+            </span>
+            <div>
+              {pageOptions.map((option) => {
+                const granted = viewPages.includes(option.id);
+                return (
+                  <span key={option.id} className={`energy-partner-view-page${granted ? ' is-on' : ''}`}>
+                    {granted ? <Check size={12} strokeWidth={3} aria-hidden="true" /> : <X size={12} aria-hidden="true" />}
+                    {option.label}
+                  </span>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="energy-partner-create-footer">
+            <button type="button" className="dash-btn dash-btn--ghost" onClick={() => setViewPartnerId('')}>Schließen</button>
+            <button
+              type="button"
+              className="dash-btn"
+              onClick={() => {
+                const partner = viewPartner;
+                setViewPartnerId('');
+                openEdit(partner);
+              }}
+            >
+              <Pencil size={16} />
+              Bearbeiten
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  ) : null;
+
   return (
     <div className="broker-page">
       <div className="broker-heading">
@@ -439,7 +935,7 @@ export function EnergyPartners() {
           <div className="eyebrow">Netzwerk</div>
           <h1>Partner</h1>
           <p className="lede">
-            Zugänge anlegen, Einladungsstatus prüfen, Seitenzugriff freigeben und Partner aktivieren oder sperren.
+            Zugänge anlegen, bearbeiten und löschen, Einladungsstatus prüfen, Seitenzugriff freigeben und Partner aktivieren oder sperren.
           </p>
         </div>
       </div>
@@ -460,6 +956,7 @@ export function EnergyPartners() {
       </div>
 
       {error ? <div className="broker-alert">{error}</div> : null}
+      {notice ? <div className="broker-alert broker-alert--ok">{notice}</div> : null}
       {created ? (
         <div className="broker-alert broker-alert--ok">
           Zugang für <strong>{created.user.email}</strong> angelegt. Einmaliges Passwort: <code>{created.password}</code>
@@ -501,14 +998,26 @@ export function EnergyPartners() {
         </div>
 
         <div className="energy-partner-list">
-          {visible.length === 0 ? (
+          {loadState === 'loading' ? (
+            <div className="energy-partner-empty">Partner werden geladen…</div>
+          ) : loadState === 'error' ? (
+            <div className="energy-partner-empty">
+              Partner konnten nicht geladen werden.{' '}
+              <button
+                type="button"
+                className="broker-text-btn"
+                onClick={() => { setError(''); setLoadState('loading'); load(); }}
+              >
+                Erneut laden
+              </button>
+            </div>
+          ) : visible.length === 0 ? (
             <div className="energy-partner-empty">Keine Partner in diesem Filter.</div>
           ) : visible.map((partner) => {
             const busy = busyId === partner.id;
             const pages = Array.isArray(partner.pages) && partner.pages.length
               ? partner.pages
-              : ENERGY_DEFAULT_PAGE_IDS;
-            const isAccepted = partner.inviteStatus === 'accepted';
+              : DEFAULT_PARTNER_PAGE_IDS;
             const isActive = partner.active !== false;
             const avatar = initials({
               firstName: partner.firstName,
@@ -528,24 +1037,7 @@ export function EnergyPartners() {
                     <Mail size={13} />
                     {partner.email}
                   </a>
-                  <div className="energy-partner-meta-row">
-                    <span className="broker-lead-type">{ENERGY_ROLE_LABELS[partner.energyRole] || partner.energyRole}</span>
-                    <span className={`broker-status${isAccepted ? '' : ' is-reported'}`}>
-                      {isAccepted ? 'Angenommen' : 'Ausstehend'}
-                    </span>
-                  </div>
                 </div>
-
-                <button
-                  type="button"
-                  className="energy-partner-access-btn"
-                  disabled={busy}
-                  onClick={() => openAccess(partner)}
-                >
-                  <KeyRound size={15} />
-                  <span>Seitenzugriff</span>
-                  <em>{pages.length}/{ENERGY_PAGE_OPTIONS.length}</em>
-                </button>
 
                 <button
                   type="button"
@@ -558,6 +1050,46 @@ export function EnergyPartners() {
                   <span className="energy-partner-toggle-track" aria-hidden />
                   <span>{isActive ? 'Aktiv' : 'Inaktiv'}</span>
                 </button>
+
+                <div className="energy-partner-card-actions">
+                  <button
+                    type="button"
+                    className="energy-partner-icon-btn"
+                    aria-label={`${partner.fullName} ansehen`}
+                    title="Ansehen"
+                    onClick={() => setViewPartnerId(partner.id)}
+                  >
+                    <Eye size={15} />
+                  </button>
+                  <button
+                    type="button"
+                    className="energy-partner-icon-btn"
+                    disabled={busy}
+                    aria-label={`${partner.fullName} bearbeiten`}
+                    title="Bearbeiten"
+                    onClick={() => openEdit(partner)}
+                  >
+                    <Pencil size={15} />
+                  </button>
+                  <button
+                    type="button"
+                    className="energy-partner-icon-btn is-danger"
+                    disabled={busy}
+                    aria-label={`${partner.fullName} löschen`}
+                    title="Löschen"
+                    onClick={() => openRemove(partner)}
+                  >
+                    <Trash2 size={15} />
+                  </button>
+                  <PartnerMoreMenu
+                    partner={partner}
+                    disabled={busy}
+                    pagesLabel={`${pages.filter((id) => pageOptions.some((option) => option.id === id)).length}/${pageOptions.length}`}
+                    onAccess={() => openAccess(partner)}
+                    onSendLink={() => sendPasswordLink(partner)}
+                    onNewPassword={() => openNewPassword(partner)}
+                  />
+                </div>
               </article>
             );
           })}
@@ -566,6 +1098,10 @@ export function EnergyPartners() {
 
       {createModal ? createPortal(createModal, document.body) : null}
       {accessModal ? createPortal(accessModal, document.body) : null}
+      {editModal ? createPortal(editModal, document.body) : null}
+      {removeModal ? createPortal(removeModal, document.body) : null}
+      {viewModal ? createPortal(viewModal, document.body) : null}
+      {passwordModal ? createPortal(passwordModal, document.body) : null}
     </div>
   );
 }

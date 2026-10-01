@@ -15,55 +15,6 @@ async function parse(response) {
   return payload;
 }
 
-export const ENERGY_ROLE_LABELS = {
-  main: 'Hauptfirma',
-  dispatcher: 'Dispatcher',
-  sub_partner: 'Untervertriebspartner',
-  field_rep: 'Außendienst',
-};
-
-export const ENERGY_PAGE_OPTIONS = [
-  { id: 'dashboard', label: 'Dashboard' },
-  { id: 'leads', label: 'Meine Leads' },
-  { id: 'kalender', label: 'Kalender' },
-  { id: 'paket', label: 'Meine Pakete' },
-  { id: 'academy', label: 'Akademie' },
-  { id: 'support', label: 'Support' },
-];
-
-export const ENERGY_PAGE_IDS = ENERGY_PAGE_OPTIONS.map((item) => item.id);
-
-/** Default access for new Unterpartner — Meine Pakete is off until granted. */
-export const ENERGY_DEFAULT_PAGE_IDS = ENERGY_PAGE_IDS.filter((id) => id !== 'paket');
-
-export async function fetchEnergyPartners() {
-  return parse(await fetch(apiUrl('/api/energy/partners'), { headers: authHeaders() }));
-}
-
-export async function createEnergyPartner(payload) {
-  return parse(await fetch(apiUrl('/api/energy/partners'), {
-    method: 'POST',
-    headers: authHeaders(true),
-    body: JSON.stringify(payload),
-  }));
-}
-
-export async function updateEnergyPartner(partnerId, payload) {
-  return parse(await fetch(apiUrl(`/api/energy/partners/${partnerId}`), {
-    method: 'PATCH',
-    headers: authHeaders(true),
-    body: JSON.stringify(payload),
-  }));
-}
-
-export async function assignEnergyHolder(leadId, holderId) {
-  return parse(await fetch(apiUrl(`/api/energy/leads/${leadId}/assign`), {
-    method: 'POST',
-    headers: authHeaders(true),
-    body: JSON.stringify({ holderId }),
-  }));
-}
-
 export async function fetchCalendarStatus() {
   return parse(await fetch(apiUrl('/api/energy/calendar/status'), { headers: authHeaders() }));
 }

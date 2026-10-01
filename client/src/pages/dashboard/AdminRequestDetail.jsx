@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, startTransition } from 'react';
+import { createPortal } from 'react-dom';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import {
   fetchAllRequests,
@@ -22,10 +23,22 @@ import {
   statusLabel,
 } from '../../lib/leads';
 import { leadScopeLabel } from '../../lib/scopes';
+import {
+  EXISTING_PV_OPTIONS,
+  energyLeadTypeOf,
+  energyTypeLabel,
+  normalizeVertical,
+} from '../../lib/vertical';
 import { sortLeadsByProximity } from '../../lib/googleMaps';
 import { useDashboard } from '../../hooks/useDashboard';
 import { formatDateTime, initials } from './helpers';
 import { formatDistance } from './leads';
+import {
+  MATCH_TIERS,
+  isAppointmentRequest,
+  matchTierLabel,
+  pickBestLeads,
+} from './leadMatching';
 import {
   beraterBusinessAddress,
   beraterName,
@@ -40,9 +53,9 @@ import {
   requestWorkflowStep,
 } from './requestHelpers';
 import {
+  AlertTriangle,
   ArrowLeft,
   Check,
-  CheckSquare,
   Pause,
   Radio,
   Search,
@@ -50,6 +63,7 @@ import {
   Sparkles,
   StickyNote,
   Wand2,
+  X,
 } from 'lucide-react';
 
 const WORKFLOW_STEPS = [
@@ -69,6 +83,129 @@ function DetailRow({ label, children }) {
       <strong>{value}</strong>
     </div>
   );
+}
+
+function isEnergyLead(lead) {
+  return normalizeVertical(lead?.vertical) === 'energy';
+}
+
+function isAppointmentLead(lead) {
+  return lead?.deliveryType === 'appointment';
+}
+
+function energyPackageLabel(lead) {
+  const type = energyLeadTypeOf(lead);
+  return type ? energyTypeLabel(type) : '';
+}
+
+function existingPvLabel(value) {
+  return EXISTING_PV_OPTIONS.find((option) => option.id === value)?.label || '';
+}
+
+function EnergyPreviewGroups({ lead }) {
+  const appointment = isAppointmentLead(lead);
+  const showHeating = lead.energyProduct === 'heat_pump'
+    || Boolean(lead.heatingSystem || lead.energySource || lead.replacementTimeframe);
+
+  return (
+    <>
+      <section className="dash-req-lead-panel__group">
+        <h3>Kontakt</h3>
+        <div className="dash-req-lead-panel__list">
+          <DetailRow label="E-Mail">{lead.email}</DetailRow>
+          <DetailRow label="Telefon">{lead.phone}</DetailRow>
+          <DetailRow label="Bundesland">{lead.state}</DetailRow>
+        </div>
+      </section>
+
+      <section className="dash-req-lead-panel__group">
+        <h3>{appointment ? 'Termin' : 'Lead'}</h3>
+        <div className="dash-req-lead-panel__list">
+          <DetailRow label="Paket">{energyPackageLabel(lead)}</DetailRow>
+          <DetailRow label="Art">{appointment ? 'Termin' : 'Lead'}</DetailRow>
+          {appointment ? (
+            <DetailRow label="Termin am">
+              {lead.appointmentAt ? formatDateTime(lead.appointmentAt) : null}
+            </DetailRow>
+          ) : null}
+          <DetailRow label="Zeitrahmen">{lead.timeframe}</DetailRow>
+          <DetailRow label="Bedarf">{lead.energyNeed}</DetailRow>
+        </div>
+      </section>
+
+      {lead.callSummary ? (
+        <section className="dash-req-lead-panel__group">
+          <h3>Gesprächszusammenfassung</h3>
+          <p className="dash-req-lead-panel__note">{lead.callSummary}</p>
+        </section>
+      ) : null}
+
+      <section className="dash-req-lead-panel__group">
+        <h3>Objekt &amp; Verbrauch</h3>
+        <div className="dash-req-lead-panel__list">
+          <DetailRow label="Eigentümer">{lead.ownerStatus}</DetailRow>
+          <DetailRow label="Baujahr">{lead.constructionYear}</DetailRow>
+          <DetailRow label="Stromverbrauch">{lead.annualConsumption}</DetailRow>
+          <DetailRow label="PV vorhanden">{existingPvLabel(lead.existingPv)}</DetailRow>
+          <DetailRow label="Dach / Gebäude">{lead.roofNotes}</DetailRow>
+        </div>
+      </section>
+
+      {showHeating ? (
+        <section className="dash-req-lead-panel__group">
+          <h3>Heizung</h3>
+          <div className="dash-req-lead-panel__list">
+            <DetailRow label="Aktuelle Heizung">{lead.heatingSystem}</DetailRow>
+            <DetailRow label="Energieträger">{lead.energySource}</DetailRow>
+            <DetailRow label="Austausch">{lead.replacementTimeframe}</DetailRow>
+          </div>
+        </section>
+      ) : null}
+    </>
+  );
+}
+
+function InsurancePreviewGroups({ lead }) {
+  return (
+    <>
+      <section className="dash-req-lead-panel__group">
+        <h3>Kontakt</h3>
+        <div className="dash-req-lead-panel__list">
+          <DetailRow label="E-Mail">{lead.email}</DetailRow>
+          <DetailRow label="Telefon">{lead.phone}</DetailRow>
+          <DetailRow label="Geburtsdatum">{formatLeadDate(lead.dateOfBirth)}</DetailRow>
+        </div>
+      </section>
+
+      <section className="dash-req-lead-panel__group">
+        <h3>Profil</h3>
+        <div className="dash-req-lead-panel__list">
+          <DetailRow label="Beruf">{employmentLabel(lead.employmentStatus)}</DetailRow>
+          <DetailRow label="Beitrag">{formatPremium(lead.monthlyPremium)}</DetailRow>
+          <DetailRow label="Personenkreis">{listLabels(lead.coverageCircle, 'coverage')}</DetailRow>
+        </div>
+      </section>
+
+      <section className="dash-req-lead-panel__group">
+        <h3>Versicherung</h3>
+        <div className="dash-req-lead-panel__list">
+          <DetailRow label="Status">{listLabels(lead.insuranceStatus, 'insurance')}</DetailRow>
+          <DetailRow label="Anliegen">{listLabels(lead.mainConcerns, 'concern')}</DetailRow>
+          <DetailRow label="Gesellschaft">{lead.currentInsurer}</DetailRow>
+        </div>
+      </section>
+    </>
+  );
+}
+
+function poolRowMeta(lead) {
+  const detail = isEnergyLead(lead)
+    ? [
+      energyPackageLabel(lead),
+      isAppointmentLead(lead) && lead.appointmentAt ? formatDateTime(lead.appointmentAt) : '',
+    ]
+    : [listLabels(lead.insuranceStatus, 'insurance')];
+  return [formatLeadAddress(lead), ...detail].filter((value) => value && value !== '—');
 }
 
 function LeadPreviewPanel({ lead, onClose }) {
@@ -92,6 +229,8 @@ function LeadPreviewPanel({ lead, onClose }) {
   }
 
   const distance = formatDistance(lead.distanceKm);
+  const energy = isEnergyLead(lead);
+  const packageChip = energy ? energyPackageLabel(lead) : leadScopeLabel(lead.scope);
 
   return (
     <section className="dash-panel dash-req-lead-panel">
@@ -115,39 +254,17 @@ function LeadPreviewPanel({ lead, onClose }) {
             <small>{formatLeadAddress(lead)}</small>
             <div className="dash-req-lead-panel__chips">
               <span className="dash-badge dash-badge--muted">{statusLabel(lead.status)}</span>
-              <span className="dash-badge dash-badge--muted">{leadScopeLabel(lead.scope)}</span>
+              {packageChip ? <span className="dash-badge dash-badge--muted">{packageChip}</span> : null}
+              {energy && isAppointmentLead(lead) ? (
+                <span className="dash-badge dash-badge--ok">Termin</span>
+              ) : null}
               {distance ? <span className="dash-badge dash-badge--muted">{distance}</span> : null}
             </div>
           </div>
         </div>
 
         <div className="dash-req-lead-panel__groups">
-          <section className="dash-req-lead-panel__group">
-            <h3>Kontakt</h3>
-            <div className="dash-req-lead-panel__list">
-              <DetailRow label="E-Mail">{lead.email}</DetailRow>
-              <DetailRow label="Telefon">{lead.phone}</DetailRow>
-              <DetailRow label="Geburtsdatum">{formatLeadDate(lead.dateOfBirth)}</DetailRow>
-            </div>
-          </section>
-
-          <section className="dash-req-lead-panel__group">
-            <h3>Profil</h3>
-            <div className="dash-req-lead-panel__list">
-              <DetailRow label="Beruf">{employmentLabel(lead.employmentStatus)}</DetailRow>
-              <DetailRow label="Beitrag">{formatPremium(lead.monthlyPremium)}</DetailRow>
-              <DetailRow label="Personenkreis">{listLabels(lead.coverageCircle, 'coverage')}</DetailRow>
-            </div>
-          </section>
-
-          <section className="dash-req-lead-panel__group">
-            <h3>Versicherung</h3>
-            <div className="dash-req-lead-panel__list">
-              <DetailRow label="Status">{listLabels(lead.insuranceStatus, 'insurance')}</DetailRow>
-              <DetailRow label="Anliegen">{listLabels(lead.mainConcerns, 'concern')}</DetailRow>
-              <DetailRow label="Gesellschaft">{lead.currentInsurer}</DetailRow>
-            </div>
-          </section>
+          {energy ? <EnergyPreviewGroups lead={lead} /> : <InsurancePreviewGroups lead={lead} />}
 
           {lead.notes ? (
             <section className="dash-req-lead-panel__group">
@@ -247,6 +364,118 @@ function RequestProgress({ request }) {
   );
 }
 
+function AiPickModal({ request, result, checkedIds, saving, error, onToggle, onSend, onClose }) {
+  const unit = isAppointmentRequest(request) ? 'Termine' : 'Leads';
+  const code = requestCode(request);
+
+  return createPortal(
+    <div className="dash-confirm-root dash-assign-modal-root" role="dialog" aria-modal="true" aria-labelledby="ai-pick-title">
+      <button
+        type="button"
+        className="dash-confirm-overlay"
+        aria-label="Schließen"
+        onClick={saving ? undefined : onClose}
+      />
+      <div className={`dash-assign-modal dash-ai-pick${result.ok ? '' : ' is-short'}`}>
+        <header className="dash-assign-modal__head">
+          <div>
+            <div className="dash-lead-kicker">
+              KI-Auswahl{code ? ` · ${code}` : ''}
+            </div>
+            <h3 id="ai-pick-title">
+              {result.ok ? `${result.picks.length} ${unit} ausgewählt` : 'Nicht genug Leads für den KI-Generator'}
+            </h3>
+            <p>
+              {result.ok
+                ? `Beste Treffer für ${result.needed} offene Plätze aus ${result.available} ${unit} im Pool`
+                : `${result.available} von ${result.needed} benötigten ${unit} im Pool`}
+            </p>
+          </div>
+          <button
+            type="button"
+            className="dash-assign-modal__close"
+            aria-label="Schließen"
+            onClick={onClose}
+            disabled={saving}
+          >
+            <X size={18} aria-hidden="true" />
+          </button>
+        </header>
+
+        {result.ok ? (
+          <div className="dash-ai-pick__legend">
+            {MATCH_TIERS.map((tier) => (
+              <span key={tier.id} className={`dash-ai-pick__chip is-${tier.id}`}>
+                {tier.label}
+              </span>
+            ))}
+          </div>
+        ) : (
+          <div className="dash-ai-pick__warning">
+            <AlertTriangle size={18} aria-hidden="true" />
+            <p>
+              Der KI-Generator braucht mindestens so viele passende {unit} im Pool, wie offene Plätze vorhanden sind.
+              Füllen Sie den Pool auf oder wählen Sie die vorhandenen {unit} manuell aus.
+            </p>
+          </div>
+        )}
+
+        {result.ok ? (
+          <div className="dash-assign-modal__list dash-ai-pick__list">
+            {result.picks.map(({ lead, tier, score, reasons }) => {
+              const checked = checkedIds.includes(lead.id);
+              return (
+                <label
+                  key={lead.id}
+                  className={`dash-ai-pick__row is-${tier}${checked ? ' is-checked' : ''}`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => onToggle(lead.id)}
+                    disabled={saving}
+                  />
+                  <span className="dash-ai-pick__copy">
+                    <strong>{lead.fullName || '—'}</strong>
+                    <small>{formatLeadAddress(lead)}</small>
+                    <span className="dash-ai-pick__reasons">
+                      {reasons.map((reason) => <em key={reason}>{reason}</em>)}
+                    </span>
+                  </span>
+                  <span className={`dash-ai-pick__badge is-${tier}`} title={`${score} / 100`}>
+                    {matchTierLabel(tier)}
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+        ) : null}
+
+        <footer className="dash-assign-modal__foot">
+          {error ? <div className="dash-alert">{error}</div> : null}
+          <div className="dash-confirm-actions">
+            <button type="button" className="dash-btn dash-btn--ghost" onClick={onClose} disabled={saving}>
+              {result.ok ? 'Abbrechen' : 'Schließen'}
+            </button>
+            {result.ok ? (
+              <button
+                type="button"
+                className="dash-btn dash-btn--ok"
+                disabled={saving || !checkedIds.length}
+                onClick={onSend}
+              >
+                <Send size={15} aria-hidden="true" />
+                {saving ? 'Wird gesendet…' : `Senden (${checkedIds.length})`}
+              </button>
+            ) : null}
+          </div>
+        </footer>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
 export function AdminRequestDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -268,6 +497,8 @@ export function AdminRequestDetail() {
   const [previewLeadId, setPreviewLeadId] = useState('');
   const [notesDraft, setNotesDraft] = useState('');
   const [notesDirty, setNotesDirty] = useState(false);
+  const [aiResult, setAiResult] = useState(null);
+  const [aiCheckedIds, setAiCheckedIds] = useState([]);
   const poolScrollRef = useRef(null);
 
   const canFill = request?.status === 'active' && request?.remaining > 0;
@@ -284,6 +515,7 @@ export function AdminRequestDetail() {
         statusLabel(lead.status),
         formatDistance(lead.distanceKm),
         ...(lead.insuranceStatus || []),
+        energyPackageLabel(lead),
       ].join(' ').toLowerCase();
       return haystack.includes(q);
     });
@@ -510,27 +742,10 @@ export function AdminRequestDetail() {
     setError('');
     setNotice('');
     try {
-      const result = await updateBeraterRequest(request.id, payload);
+      await updateBeraterRequest(request.id, payload);
       const next = await loadRequest(request.id);
       if (next) await loadFillData(next);
-      const fill = result?.autoFill;
-      const sent = Number(fill?.selectedCount) || (fill?.leads || []).length || 0;
-      if (payload?.fulfillmentMode === 'auto' || payload?.fulfillment_mode === 'auto') {
-        if (sent > 0) {
-          const left = Number(result?.request?.remaining ?? next?.remaining) || 0;
-          setNotice(
-            left > 0
-              ? `${sent} Lead${sent === 1 ? '' : 's'} sofort zugestellt · noch ${left} offen (werden nachgeliefert, sobald Pool-Leads da sind).`
-              : `${sent} Lead${sent === 1 ? '' : 's'} sofort zugestellt — Anforderung ist erfüllt.`,
-          );
-        } else {
-          setNotice(
-            'Automatik aktiv — passende Leads werden sofort zugestellt, sobald sie im Pool verfügbar sind.',
-          );
-        }
-      } else if (typeof success === 'string' && success) {
-        setNotice(success);
-      }
+      if (typeof success === 'string' && success) setNotice(success);
       return true;
     } catch (err) {
       setError(err.message);
@@ -550,8 +765,10 @@ export function AdminRequestDetail() {
       const next = await loadRequest(request.id);
       if (next) await loadFillData(next);
       if (success) setNotice(success);
+      return true;
     } catch (err) {
       setError(err.message);
+      return false;
     } finally {
       setSaving(false);
     }
@@ -565,57 +782,6 @@ export function AdminRequestDetail() {
     });
   }
 
-  function clearSelection() {
-    setSelectedLeadIds([]);
-  }
-
-  const neededSelectCount = Math.min(
-    Number(request?.remaining) || 0,
-    filteredPool.length,
-  );
-  const selectionComplete = neededSelectCount > 0 && selectedLeadIds.length >= neededSelectCount;
-
-  function selectNeededLeads() {
-    if (!neededSelectCount) return;
-    setSelectedLeadIds(filteredPool.slice(0, neededSelectCount).map((lead) => lead.id));
-  }
-
-  function fillNeededSelection() {
-    if (!neededSelectCount) return;
-    setSelectedLeadIds((current) => {
-      const selected = new Set(current);
-      for (const lead of filteredPool) {
-        if (selected.size >= neededSelectCount) break;
-        selected.add(lead.id);
-      }
-      return [...selected].slice(0, neededSelectCount);
-    });
-  }
-
-  function toggleOpenSelection() {
-    if (!selectedLeadIds.length) {
-      selectNeededLeads();
-      return;
-    }
-    if (selectionComplete) {
-      clearSelection();
-      return;
-    }
-    // Partial: keep current picks and fill up to the open count from closest pool order
-    fillNeededSelection();
-  }
-
-  const openSelectLabel = !selectedLeadIds.length
-    ? 'Offene wählen'
-    : selectionComplete
-      ? 'Auswahl aufheben'
-      : 'Rest wählen';
-  const openSelectTitle = !selectedLeadIds.length
-    ? `Die nächsten ${neededSelectCount} offenen Leads auswählen`
-    : selectionComplete
-      ? 'Auswahl vollständig aufheben'
-      : `Auswahl auf ${neededSelectCount} offene Leads ergänzen`;
-
   function sendSelected() {
     if (!request || !selectedLeadIds.length) return;
     const count = selectedLeadIds.length;
@@ -625,8 +791,34 @@ export function AdminRequestDetail() {
     );
   }
 
-  function enableAutoFulfillment() {
-    return runUpdate({ fulfillmentMode: 'auto' });
+  function openAiPick() {
+    if (!request) return;
+    const result = pickBestLeads(pool, request);
+    setError('');
+    setAiResult(result);
+    setAiCheckedIds(result.ok ? result.picks.map((entry) => entry.lead.id) : []);
+  }
+
+  function closeAiPick() {
+    setAiResult(null);
+    setAiCheckedIds([]);
+  }
+
+  function toggleAiPick(leadId) {
+    setAiCheckedIds((current) => (
+      current.includes(leadId) ? current.filter((item) => item !== leadId) : [...current, leadId]
+    ));
+  }
+
+  async function sendAiPicks() {
+    if (!request || !aiCheckedIds.length) return;
+    const ids = [...aiCheckedIds];
+    const unit = isAppointmentRequest(request) ? 'Termin' : 'Lead';
+    const ok = await runFill(
+      () => sendBeraterLeads(request.id, ids),
+      `${ids.length} ${unit}${ids.length === 1 ? '' : unit === 'Termin' ? 'e' : 's'} per KI-Auswahl gesendet.`,
+    );
+    if (ok) closeAiPick();
   }
 
   function disableAutoFulfillment() {
@@ -728,7 +920,7 @@ export function AdminRequestDetail() {
           {request.status === 'active' ? (
             <button
               type="button"
-              className="dash-btn dash-btn--ghost"
+              className="dash-btn dash-btn--red"
               disabled={saving}
               onClick={() => runUpdate({ status: 'cancelled' }, 'Auftrag pausiert.')}
             >
@@ -746,7 +938,7 @@ export function AdminRequestDetail() {
             </button>
           ) : null}
           {beraterPath ? (
-            <Link className="dash-btn dash-btn--ghost" to={beraterPath}>
+            <Link className="dash-btn dash-btn--green" to={beraterPath}>
               Berater öffnen
             </Link>
           ) : null}
@@ -897,12 +1089,13 @@ export function AdminRequestDetail() {
               {request.status === 'active' && request.remaining > 0 ? (
                 <button
                   type="button"
-                  className="dash-btn dash-btn--ghost"
-                  disabled={Boolean(saving)}
-                  onClick={enableAutoFulfillment}
+                  className="dash-btn dash-ai-btn"
+                  disabled={Boolean(saving) || fillLoading || proximitySorting}
+                  onClick={openAiPick}
+                  title="Die passendsten Leads für diese Anforderung automatisch vorschlagen"
                 >
                   <Sparkles size={14} aria-hidden="true" />
-                  Sofort automatisch zustellen
+                  KI-Auswahl
                 </button>
               ) : null}
             </div>
@@ -929,19 +1122,6 @@ export function AdminRequestDetail() {
                       <span>{proximityMessage}</span>
                     </p>
                   </div>
-                  <div className="dash-req-send__selects">
-                    <button
-                      type="button"
-                      className={`dash-btn dash-btn--ghost dash-req-send__action${selectedLeadIds.length ? ' is-active' : ''}`}
-                      disabled={Boolean(saving) || !canFill || (!selectedLeadIds.length && !neededSelectCount)}
-                      onClick={toggleOpenSelection}
-                      title={openSelectTitle}
-                      aria-pressed={selectionComplete}
-                    >
-                      <CheckSquare size={14} aria-hidden="true" />
-                      {openSelectLabel}
-                    </button>
-                  </div>
                 </div>
 
                 {fillLoading ? (
@@ -957,11 +1137,11 @@ export function AdminRequestDetail() {
                       const atLimit = !checked && selectedLeadIds.length >= request.remaining;
                       const disabled = Boolean(saving) || !canFill || atLimit;
                       const previewed = previewLeadId === lead.id;
-                      const meta = [
-                        formatLeadAddress(lead),
-                        listLabels(lead.insuranceStatus, 'insurance'),
-                      ].filter((value) => value && value !== '—');
+                      const meta = poolRowMeta(lead);
                       const distance = formatDistance(lead.distanceKm);
+                      const distanceTone = distance
+                        ? (Number(lead.distanceKm) < 10 ? ' is-near' : ' is-far')
+                        : ' is-empty';
                       return (
                         <div
                           key={lead.id}
@@ -992,7 +1172,7 @@ export function AdminRequestDetail() {
                               <strong>{lead.fullName || '—'}</strong>
                               <small>{meta.length ? meta.join(' · ') : '—'}</small>
                             </span>
-                            <span className={`dash-req-pool__distance${distance ? '' : ' is-empty'}`}>
+                            <span className={`dash-req-pool__distance${distanceTone}`}>
                               {distance || '—'}
                             </span>
                             <span className="dash-req-pool__status">{statusLabel(lead.status)}</span>
@@ -1108,6 +1288,19 @@ export function AdminRequestDetail() {
             )}
           </section>
       </div>
+
+      {aiResult ? (
+        <AiPickModal
+          request={request}
+          result={aiResult}
+          checkedIds={aiCheckedIds}
+          saving={Boolean(saving)}
+          error={error}
+          onToggle={toggleAiPick}
+          onSend={sendAiPicks}
+          onClose={closeAiPick}
+        />
+      ) : null}
     </div>
   );
 }

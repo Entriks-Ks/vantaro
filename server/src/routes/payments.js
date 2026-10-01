@@ -12,8 +12,61 @@ import {
 } from '../lib/payments.js';
 import { buildInvoicePdf, invoiceDownloadName } from '../lib/invoice.js';
 import { handleLeadError, tableMissingResponse } from '../lib/leads.js';
+import { isMockPayments } from '../lib/paymentGateway.js';
+import { decideMockOrder, getMockOrder } from '../lib/mockGateway.js';
 
 const router = Router();
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+/** Fake Hosted Payment Page — only when PAYMENT_PROVIDER=mock outside production. */
+router.get('/mock-hpp', (req, res) => {
+  if (!isMockPayments()) return res.status(404).send('Not found');
+  const id = String(req.query?.id || '');
+  const password = String(req.query?.password || '');
+  const order = getMockOrder(id, password);
+  if (!order) return res.status(404).send('Mock-Order nicht gefunden (Server neu gestartet?). Bitte Checkout neu starten.');
+
+  const amount = (order.amountCents / 100).toFixed(2).replace('.', ',');
+  const link = (outcome) => {
+    const params = new URLSearchParams({ id, password, outcome });
+    return `/api/payments/mock-hpp/decide?${params.toString()}`;
+  };
+
+  res.setHeader('Cache-Control', 'no-store');
+  res.send(`<!doctype html>
+<html lang="de"><head><meta charset="utf-8"><title>Mock-Zahlung</title>
+<style>
+  body{font-family:system-ui,sans-serif;background:#f4f5f7;display:flex;justify-content:center;padding:60px 16px;margin:0}
+  .card{background:#fff;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,.08);padding:32px;max-width:420px;width:100%}
+  .badge{display:inline-block;background:#fff3cd;color:#8a6d00;border-radius:6px;padding:4px 10px;font-size:12px;font-weight:600}
+  .amount{font-size:32px;font-weight:700;margin:16px 0 4px}
+  .desc{color:#555;margin-bottom:24px}
+  a{display:block;text-align:center;padding:12px;border-radius:8px;text-decoration:none;font-weight:600;margin-top:10px}
+  .pay{background:#16a34a;color:#fff}.fail{background:#dc2626;color:#fff}.cancel{background:#e5e7eb;color:#111}
+</style></head>
+<body><div class="card">
+  <span class="badge">TESTMODUS — keine echte Zahlung</span>
+  <div class="amount">${escapeHtml(amount)} €</div>
+  <div class="desc">${escapeHtml(order.description)}</div>
+  <a class="pay" href="${escapeHtml(link('paid'))}">Zahlung erfolgreich</a>
+  <a class="fail" href="${escapeHtml(link('failed'))}">Zahlung abgelehnt</a>
+  <a class="cancel" href="${escapeHtml(link('cancel'))}">Abbrechen</a>
+</div></body></html>`);
+});
+
+router.get('/mock-hpp/decide', (req, res) => {
+  if (!isMockPayments()) return res.status(404).send('Not found');
+  const back = decideMockOrder(req.query?.id, req.query?.password, String(req.query?.outcome || ''));
+  if (!back) return res.status(404).send('Mock-Order nicht gefunden. Bitte Checkout neu starten.');
+  res.redirect(303, back);
+});
 
 function handleError(res, error) {
   if (paymentTableMissing(error)) {

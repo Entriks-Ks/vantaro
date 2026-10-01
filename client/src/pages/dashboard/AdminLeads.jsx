@@ -1,18 +1,33 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Copy, Mail, MoreHorizontal, Phone, Pencil, Trash2, UserPlus, UserRound } from 'lucide-react';
+import {
+  ArrowLeft,
+  ArrowRight,
+  CalendarClock,
+  ChevronDown,
+  Download,
+  FileSpreadsheet,
+  MapPin,
+  MessageSquareText,
+  Package,
+  Phone,
+  Plus,
+  ShieldCheck,
+  SunMedium,
+  Upload,
+  UserRound,
+} from 'lucide-react';
 import PhoneField from '../../components/PhoneField';
 import { useDashboard } from '../../hooks/useDashboard';
-import { fetchBeraterPipelines, leadTypeLabel } from '../../lib/berater';
 import {
   CONCERN_OPTIONS,
   COVERAGE_OPTIONS,
   EMPLOYMENT_OPTIONS,
   INSURANCE_OPTIONS,
   STATUS_OPTIONS,
-  assignLeadToBerater,
   createLead,
   deleteLead,
+  downloadAppointmentCsvTemplate,
   downloadLeadCsvTemplate,
   emptyLeadForm,
   employmentLabel,
@@ -25,64 +40,63 @@ import {
   isLeadDeliveryLocked,
   leadToForm,
   listLabels,
+  parseAppointmentCsv,
   parseLeadCsv,
   statusLabel,
   toggleListValue,
   updateLead,
 } from '../../lib/leads';
-import { leadScopeOrDefault } from './requestHelpers';
 import { complaintReasonLabel, fetchComplaints, sendComplaintReplacement } from '../../lib/complaints';
 import { DashSeg } from './DashboardLayout';
 import { formatDate } from './helpers';
 import { DEFAULT_LEAD_SCOPE, LEAD_SCOPE_OPTIONS, leadScopeLabel } from '../../lib/scopes';
-import { energyLeadTypeOf, energyTypeLabel, territoryMatches, verticalLabel } from '../../lib/vertical';
+import {
+  energyLeadTypeOf,
+  energyTypeLabel,
+  isAppointmentExpired,
+  verticalLabel,
+  verticalOrInsurance,
+} from '../../lib/vertical';
 import { isReplacementPending } from './ComplaintReplacementStatus';
+import {
+  CopyableValue,
+  Field,
+  LeadAssignPanel,
+  LeadCompletenessPanel,
+  LeadHero,
+  LeadOriginPanel,
+  LeadSection,
+  LeadText,
+  LeadTile,
+  SteppedLeadForm,
+  canAssignLead,
+  isBlank,
+  isEmptyValue,
+  leadInitials,
+  leadPlace,
+  returnLabel,
+  returnTo,
+  statusTone,
+} from './LeadDetail';
 
-function statusTone(status) {
-  if (status === 'zugewiesen') return 'ok';
-  if (status === 'erledigt') return 'muted';
-  if (status === 'in_bearbeitung') return 'warn';
-  return 'new';
+const APPOINTMENT_FORMAT = new Intl.DateTimeFormat('de-DE', {
+  weekday: 'short',
+  day: '2-digit',
+  month: '2-digit',
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23',
+});
+
+function appointmentTime(lead) {
+  const at = new Date(lead?.appointmentAt || '');
+  return Number.isNaN(at.getTime()) ? null : at;
 }
 
-const SOURCE_LABELS = {
-  csv: 'CSV',
-  manual: 'Manuell',
-  api: 'API',
-};
-
-function sourceLabel(lead) {
-  if (lead?.externalSource === 'tcdial') return 'TC-Dial';
-  return SOURCE_LABELS[lead?.source] || lead?.source || '—';
-}
-
-function leadPlace(lead) {
-  return [lead?.zip, lead?.city].filter(Boolean).join(' ') || '';
-}
-
-function leadInitials(lead) {
-  const first = String(lead?.firstName || '').trim();
-  const last = String(lead?.lastName || '').trim();
-  return `${first[0] || ''}${last[0] || ''}`.toUpperCase() || 'L';
-}
-
-function returnTo(location, fallback = '/dashboard/leads') {
-  const from = location?.state?.from;
-  if (typeof from !== 'string' || !from.startsWith('/dashboard')) return fallback;
-  const path = from.split('?')[0];
-  if (/^\/dashboard\/leads\/[0-9a-f-]{36}$/i.test(path)) return fallback;
-  return from;
-}
-
-function returnLabel(path) {
-  if (path.startsWith('/dashboard/berater')) return 'Zurück zu Berater';
-  if (path.startsWith('/dashboard/reklamationen')) return 'Zurück zu Reklamationen';
-  if (path.startsWith('/dashboard/leads/ungueltig') || path.startsWith('/dashboard/leads/abgelehnt')) {
-    return 'Zurück zu Ungültige Leads';
-  }
-  if (path.startsWith('/dashboard/anfordern') || path.startsWith('/dashboard/anfragen')) return 'Zurück zu Anforderungen';
-  if (path === '/dashboard' || path.startsWith('/dashboard?')) return 'Zurück zur Übersicht';
-  return 'Zurück zur Liste';
+function formatAppointment(lead) {
+  const at = appointmentTime(lead);
+  return at ? `${APPOINTMENT_FORMAT.format(at)} Uhr` : 'Kein Termin hinterlegt';
 }
 
 export function LeadListItem({ lead }) {
@@ -99,9 +113,11 @@ export function LeadListItem({ lead }) {
   const detailPath = lead.vertical === 'energy'
     ? `/dashboard/leads/energy/${lead.id}`
     : `/dashboard/leads/${lead.id}`;
+  const isAppointment = isAppointmentLead(lead);
+  const expired = isAppointmentExpired(lead);
 
   return (
-    <Link className="dash-lead-row" to={detailPath} state={{ from }}>
+    <Link className={`dash-lead-row${expired ? ' is-expired' : ''}`} to={detailPath} state={{ from }}>
       <span className="dash-lead-avatar dash-lead-avatar--sm" aria-hidden="true">
         {leadInitials(lead)}
       </span>
@@ -111,9 +127,16 @@ export function LeadListItem({ lead }) {
           {[lead.email, place].filter(Boolean).join(' · ') || 'Keine Kontaktdaten'}
         </span>
         {tags.length ? <span className="dash-lead-row-tags">{tags.join(' · ')}</span> : null}
+        {isAppointment ? (
+          <span className={`dash-lead-row-appt${expired ? ' is-expired' : ''}`}>
+            <CalendarClock size={13} aria-hidden="true" />
+            Termin: {formatAppointment(lead)}
+          </span>
+        ) : null}
       </div>
       <div className="dash-lead-row-side">
         <div className="dash-lead-row-side-badges">
+          {expired ? <span className="dash-badge dash-badge--danger">Termin verstrichen</span> : null}
           <span className="dash-badge dash-badge--muted">
             {lead.vertical === 'energy' ? verticalLabel('energy') : leadScopeLabel(lead.scope)}
           </span>
@@ -314,27 +337,35 @@ function ReplacementFlowBanner({ complaint, loading, blocked, backTo }) {
   );
 }
 
-function Fact({ label, children }) {
-  return (
-    <div className="dash-fact">
-      <span>{label}</span>
-      <div>{children || '—'}</div>
-    </div>
-  );
+function hasListValue(ids, type) {
+  return Boolean(ids?.length) && listLabels(ids, type) !== '—';
 }
 
 function ChipList({ ids, type }) {
-  const text = listLabels(ids, type);
-  if (!ids?.length || text === '—') {
-    return <span className="dash-muted">—</span>;
-  }
+  if (!hasListValue(ids, type)) return null;
   return (
     <div className="dash-chips">
-      {text.split(', ').map((label) => (
+      {listLabels(ids, type).split(', ').map((label) => (
         <span key={label} className="is-active">{label}</span>
       ))}
     </div>
   );
+}
+
+function insuranceChecks(lead) {
+  return [
+    ['Geburtsdatum', !isBlank(lead.dateOfBirth), 'person'],
+    ['Berufliche Situation', !isBlank(lead.employmentStatus), 'person'],
+    ['Telefon', !isBlank(lead.phone), 'contact'],
+    ['E-Mail', !isBlank(lead.email), 'contact'],
+    ['PLZ', !isBlank(lead.zip), 'address'],
+    ['Ort', !isBlank(lead.city), 'address'],
+    ['Versicherungsstatus', hasListValue(lead.insuranceStatus, 'insurance'), 'insurance'],
+    ['Gesellschaft', !isBlank(lead.currentInsurer), 'insurance'],
+    ['Beitrag', !isBlank(lead.monthlyPremium), 'insurance'],
+    ['Personenkreis', hasListValue(lead.coverageCircle, 'coverage'), 'insurance'],
+    ['Hauptanliegen', hasListValue(lead.mainConcerns, 'concern'), 'need'],
+  ];
 }
 
 function leadAge(dateOfBirth) {
@@ -350,37 +381,257 @@ function leadAge(dateOfBirth) {
   return age >= 0 && age < 130 ? age : null;
 }
 
-function CopyableValue({ value, label }) {
-  const [copied, setCopied] = useState(false);
-  if (!value) return '—';
-
-  async function onCopy() {
-    try {
-      await navigator.clipboard.writeText(value);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1400);
-    } catch {
-      setCopied(false);
-    }
-  }
+function LeadView({
+  lead,
+  onEdit,
+  onDelete,
+  onAssigned,
+  saving,
+}) {
+  const age = leadAge(lead.dateOfBirth);
+  const employment = lead.employmentStatus === 'sonstiges' && lead.employmentOther
+    ? lead.employmentOther
+    : employmentLabel(lead.employmentStatus);
+  const locked = isLeadDeliveryLocked(lead);
+  const place = leadPlace(lead);
+  const premium = formatPremium(lead.monthlyPremium);
 
   return (
-    <span className={`dash-copyable${copied ? ' is-copied' : ''}`}>
-      <button
-        type="button"
-        className="dash-copyable__value"
-        onClick={onCopy}
-        title={copied ? 'Kopiert' : `${label} kopieren`}
-      >
-        {value}
-      </button>
-      <Copy size={13} className="dash-copyable__icon" aria-hidden="true" />
-      {copied ? <span className="dash-copyable__hint">Kopiert</span> : null}
-    </span>
+    <div className={`dash-lead-view${locked ? ' is-locked' : ''}`}>
+      <LeadHero
+        lead={lead}
+        kicker="Versicherungs-Lead"
+        facts={[place, age != null ? `${age} Jahre` : '']}
+        badges={<span className="dash-badge dash-badge--muted">{leadScopeLabel(lead.scope)}</span>}
+        onEdit={onEdit}
+        onDelete={onDelete}
+        saving={saving}
+        locked={locked}
+      />
+
+      <div className="dash-lead-layout">
+        <div className="dash-lead-main">
+          <LeadSection icon={UserRound} title="Person & Kontakt" subtitle="Wer ist der Kunde und wie ist er erreichbar">
+            <div className="dash-lead-tiles">
+              <LeadTile label="Telefon" empty={!lead.phone}>
+                <CopyableValue value={lead.phone} label="Telefonnummer" />
+              </LeadTile>
+              <LeadTile label="E-Mail" empty={!lead.email}>
+                <CopyableValue value={lead.email} label="E-Mail" />
+              </LeadTile>
+              <LeadTile label="Geburtsdatum" empty={!lead.dateOfBirth}>
+                {formatLeadDate(lead.dateOfBirth)}
+                {age != null ? <span className="dash-fact-hint">{age} Jahre</span> : null}
+              </LeadTile>
+              <LeadTile label="Berufliche Situation">{employment}</LeadTile>
+              <LeadTile label="Adresse" wide empty={!lead.street && !place}>
+                {lead.street ? <span className="dash-lead-tile__line">{lead.street}</span> : null}
+                {place ? <span className="dash-lead-tile__line">{place}</span> : null}
+              </LeadTile>
+            </div>
+          </LeadSection>
+
+          <LeadSection icon={ShieldCheck} title="Versicherung & Bedarf" subtitle="Aktuelle Absicherung und Anliegen des Kunden">
+            <div className="dash-lead-tiles dash-lead-tiles--highlight">
+              <LeadTile label="Versicherungsstatus" empty={!hasListValue(lead.insuranceStatus, 'insurance')}>
+                <ChipList ids={lead.insuranceStatus} type="insurance" />
+              </LeadTile>
+              <LeadTile label="Beitrag / Monat" empty={isBlank(premium)}>
+                <span className="dash-lead-tile__big">{premium}</span>
+              </LeadTile>
+            </div>
+            <div className="dash-lead-tiles">
+              <LeadTile label="Aktuelle Gesellschaft">{lead.currentInsurer}</LeadTile>
+              <LeadTile label="Personenkreis" empty={!hasListValue(lead.coverageCircle, 'coverage')}>
+                <ChipList ids={lead.coverageCircle} type="coverage" />
+              </LeadTile>
+              <LeadTile label="Hauptanliegen" wide empty={!hasListValue(lead.mainConcerns, 'concern')}>
+                <ChipList ids={lead.mainConcerns} type="concern" />
+              </LeadTile>
+            </div>
+          </LeadSection>
+
+          <LeadSection icon={MessageSquareText} title="Gesprächsnotizen" subtitle="Hinweise aus dem Qualifizierungsgespräch">
+            <LeadText value={lead.notes} empty="Keine Notizen hinterlegt." />
+          </LeadSection>
+        </div>
+
+        <aside className="dash-lead-aside">
+          {canAssignLead(lead, locked) ? (
+            <LeadAssignPanel lead={lead} disabled={saving} onAssigned={onAssigned} />
+          ) : null}
+          <LeadCompletenessPanel checks={insuranceChecks(lead)} />
+          <LeadOriginPanel lead={lead} packageLabel={leadScopeLabel(lead.scope)} />
+        </aside>
+      </div>
+    </div>
   );
 }
 
-function LeadActionsMenu({ onEdit, onDelete, disabled, locked }) {
+function CheckGroup({ legend, options, values, onToggle, missing = false }) {
+  return (
+    <fieldset className={`dash-toggle-group is-full${missing ? ' is-missing' : ''}`}>
+      <legend className="dash-field-label">{legend}</legend>
+      <div className="dash-toggle-group__options">
+        {options.map((option) => {
+          const checked = values.includes(option.id);
+          return (
+            <label key={option.id} className={`dash-toggle-chip${checked ? ' is-checked' : ''}`}>
+              <input type="checkbox" checked={checked} onChange={() => onToggle(option.id)} />
+              {option.label}
+            </label>
+          );
+        })}
+      </div>
+    </fieldset>
+  );
+}
+
+const INSURANCE_FORM_STEPS = [
+  { id: 'package', label: 'Paket', icon: Package },
+  { id: 'person', label: 'Person', icon: UserRound },
+  { id: 'contact', label: 'Kontakt', icon: Phone },
+  { id: 'address', label: 'Adresse', icon: MapPin },
+  { id: 'insurance', label: 'Versicherung', icon: ShieldCheck },
+  { id: 'need', label: 'Bedarf', icon: MessageSquareText },
+];
+
+function InsuranceStepFields({ step, form, setField, isNew }) {
+  const bind = (key) => ({ value: form[key], onChange: (event) => setField(key, event.target.value) });
+  const toggle = (key) => (id) => setField(key, toggleListValue(form[key], id));
+  const miss = (key) => isEmptyValue(form[key]);
+
+  if (step === 'package') {
+    return (
+      <div className="dash-form">
+        <Field label="Paket" required>
+          <select value={form.scope || DEFAULT_LEAD_SCOPE} onChange={(event) => setField('scope', event.target.value)} required>
+            {LEAD_SCOPE_OPTIONS.map((option) => (
+              <option key={option.id} value={option.id}>{option.label}</option>
+            ))}
+          </select>
+        </Field>
+        {!isNew ? (
+          <Field label="Status">
+            <select {...bind('status')}>
+              {STATUS_OPTIONS.map((option) => (
+                <option key={option.id} value={option.id}>{option.label}</option>
+              ))}
+            </select>
+          </Field>
+        ) : null}
+      </div>
+    );
+  }
+  if (step === 'person') {
+    return (
+      <div className="dash-form">
+        <Field label="Vorname" required missing={miss('firstName')}>
+          <input {...bind('firstName')} autoComplete="off" required />
+        </Field>
+        <Field label="Nachname" required missing={miss('lastName')}>
+          <input {...bind('lastName')} autoComplete="off" required />
+        </Field>
+        <Field label="Geburtsdatum" missing={miss('dateOfBirth')}><input type="date" {...bind('dateOfBirth')} /></Field>
+        <Field label="Berufliche Situation" missing={miss('employmentStatus')}>
+          <select {...bind('employmentStatus')}>
+            <option value="">Bitte wählen</option>
+            {EMPLOYMENT_OPTIONS.map((option) => (
+              <option key={option.id} value={option.id}>{option.label}</option>
+            ))}
+          </select>
+        </Field>
+        {form.employmentStatus === 'sonstiges' ? (
+          <Field label="Berufliche Situation, sonstiges" full>
+            <input {...bind('employmentOther')} />
+          </Field>
+        ) : null}
+      </div>
+    );
+  }
+  if (step === 'contact') {
+    return (
+      <div className="dash-form">
+        <Field label="Mobilnummer / Telefon" missing={miss('phone')}>
+          <PhoneField value={form.phone} onChange={(value) => setField('phone', value)} />
+        </Field>
+        <Field label="E-Mail-Adresse" missing={miss('email')}><input type="email" {...bind('email')} /></Field>
+      </div>
+    );
+  }
+  if (step === 'address') {
+    return (
+      <div className="dash-form">
+        <Field label="PLZ" missing={miss('zip')}><input {...bind('zip')} inputMode="numeric" maxLength={5} /></Field>
+        <Field label="Ort" missing={miss('city')}><input {...bind('city')} /></Field>
+        <Field label="Straße" optional full><input {...bind('street')} /></Field>
+      </div>
+    );
+  }
+  if (step === 'insurance') {
+    return (
+      <div className="dash-form">
+        <CheckGroup
+          legend="Versicherungsstatus"
+          options={INSURANCE_OPTIONS}
+          values={form.insuranceStatus}
+          onToggle={toggle('insuranceStatus')}
+          missing={miss('insuranceStatus')}
+        />
+        <Field label="Aktuelle Gesellschaft / Krankenkasse" missing={miss('currentInsurer')}>
+          <input {...bind('currentInsurer')} />
+        </Field>
+        <Field label="Monatlicher Beitrag (€)" missing={miss('monthlyPremium')}>
+          <input inputMode="decimal" {...bind('monthlyPremium')} placeholder="z. B. 420" />
+        </Field>
+        <CheckGroup
+          legend="Personenkreis"
+          options={COVERAGE_OPTIONS}
+          values={form.coverageCircle}
+          onToggle={toggle('coverageCircle')}
+          missing={miss('coverageCircle')}
+        />
+      </div>
+    );
+  }
+  return (
+    <div className="dash-form">
+      <CheckGroup
+        legend="Hauptanliegen"
+        options={CONCERN_OPTIONS}
+        values={form.mainConcerns}
+        onToggle={toggle('mainConcerns')}
+        missing={miss('mainConcerns')}
+      />
+      <Field label="Gesprächsnotizen" optional full>
+        <textarea rows={3} {...bind('notes')} />
+      </Field>
+    </div>
+  );
+}
+
+function InsuranceLeadForm({ form, setForm, isNew, saving, onSubmit, onCancel }) {
+  const setField = (key, value) => setForm((current) => ({ ...current, [key]: value }));
+  const name = [form.firstName, form.lastName].map((part) => String(part || '').trim()).filter(Boolean).join(' ');
+  const nameCheck = ['Vor- & Nachname', Boolean(String(form.firstName || '').trim() && String(form.lastName || '').trim()), 'person'];
+
+  return (
+    <SteppedLeadForm
+      kicker={isNew ? 'Neuer Versicherungs-Lead' : 'Versicherungs-Lead bearbeiten'}
+      title={name || (isNew ? 'Kontakt anlegen' : '—')}
+      submitLabel={isNew ? 'Lead anlegen' : 'Änderungen speichern'}
+      saving={saving}
+      steps={INSURANCE_FORM_STEPS}
+      checks={[nameCheck, ...insuranceChecks(form)]}
+      required={[nameCheck]}
+      onSubmit={onSubmit}
+      onCancel={onCancel}
+      renderStep={(step) => <InsuranceStepFields step={step} form={form} setField={setField} isNew={isNew} />}
+    />
+  );
+}
+
+function ToolbarMenu({ label, icon: Icon, variant = 'ghost', disabled = false, children }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef(null);
 
@@ -400,550 +651,47 @@ function LeadActionsMenu({ onEdit, onDelete, disabled, locked }) {
     };
   }, [open]);
 
-  if (locked) return null;
-
   return (
-    <div className={`dash-lead-menu${open ? ' is-open' : ''}`} ref={rootRef}>
+    <div className={`dash-tmenu${open ? ' is-open' : ''}`} ref={rootRef}>
       <button
         type="button"
-        className="dash-lead-menu__trigger"
+        className={`dash-btn dash-btn--${variant} dash-tmenu__trigger`}
         aria-haspopup="menu"
         aria-expanded={open}
-        aria-label="Aktionen"
+        disabled={disabled}
         onClick={() => setOpen((value) => !value)}
       >
-        <MoreHorizontal size={18} aria-hidden="true" />
+        {Icon ? <Icon size={15} aria-hidden="true" /> : null}
+        {label}
+        <ChevronDown size={15} className="dash-tmenu__chevron" aria-hidden="true" />
       </button>
       {open ? (
-        <div className="dash-lead-menu__panel" role="menu">
-          <button
-            type="button"
-            role="menuitem"
-            className="dash-lead-menu__item"
-            onClick={() => {
-              setOpen(false);
-              onEdit();
-            }}
-          >
-            <Pencil size={15} aria-hidden="true" />
-            Bearbeiten
-          </button>
-          <button
-            type="button"
-            role="menuitem"
-            className="dash-lead-menu__item dash-lead-menu__item--danger"
-            disabled={disabled}
-            onClick={() => {
-              setOpen(false);
-              onDelete();
-            }}
-          >
-            <Trash2 size={15} aria-hidden="true" />
-            Löschen
-          </button>
+        <div className="dash-tmenu__panel" role="menu">
+          {children(() => setOpen(false))}
         </div>
       ) : null}
     </div>
   );
 }
 
-function beraterLabel(user) {
-  return user?.fullName || user?.email || 'Berater';
-}
-
-function openRequestsForLead(berater, lead) {
-  const leadVertical = lead?.vertical === 'energy' ? 'energy' : 'insurance';
-  const beraterVertical = berater?.vertical === 'energy' ? 'energy' : 'insurance';
-  if (leadVertical !== beraterVertical) return [];
-  if (leadVertical === 'energy') {
-    const type = energyLeadTypeOf(lead);
-    return (berater?.requests || []).filter((request) => (
-      request.status === 'active'
-      && request.leadType === type
-      && territoryMatches(request.territory, lead)
-      && Number(request.remaining) > 0
-    ));
-  }
-  const scope = leadScopeOrDefault(lead?.scope);
-  return (berater?.requests || []).filter((request) => (
-    request.status === 'active'
-    && leadScopeOrDefault(request.scope) === scope
-    && Number(request.remaining) > 0
-  ));
-}
-
-function requestAssignLabel(request) {
-  const code = request?.code || String(request?.id || '').slice(0, 8).toUpperCase();
-  const remaining = Number(request?.remaining) || 0;
-  const requested = Number(request?.requestedCount) || 0;
-  return {
-    code,
-    detail: [
-      leadTypeLabel(request?.leadType),
-      leadScopeLabel(request?.scope),
-      `${request?.validCount || 0}/${requested} gültig`,
-      `${remaining} offen`,
-    ].filter(Boolean).join(' · '),
-  };
-}
-
-function LeadAssignPanel({ lead, disabled, onAssigned }) {
-  const [beraters, setBeraters] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [beraterId, setBeraterId] = useState('');
-  const [requestId, setRequestId] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
-
-  useEffect(() => {
-    let active = true;
-    setLoading(true);
-    fetchBeraterPipelines()
-      .then((payload) => {
-        if (!active) return;
-        setBeraters(payload.beraters || []);
-      })
-      .catch((err) => {
-        if (active) setError(err.message);
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
-    return () => {
-      active = false;
-    };
-  }, [lead?.id]);
-
-  const options = useMemo(() => (
-    beraters
-      .map((entry) => {
-        const requests = openRequestsForLead(entry, lead)
-          .slice()
-          .sort((left, right) => new Date(left.createdAt || 0) - new Date(right.createdAt || 0));
-        const remaining = requests.reduce((sum, request) => sum + (Number(request.remaining) || 0), 0);
-        return { id: entry.id, name: beraterLabel(entry), remaining, requests };
-      })
-      .filter((entry) => entry.requests.length)
-      .sort((left, right) => left.name.localeCompare(right.name, 'de'))
-  ), [beraters, lead]);
-
-  const selectedBerater = options.find((entry) => entry.id === beraterId) || null;
-  const requestChoices = selectedBerater?.requests || [];
-
-  function selectBerater(nextId) {
-    setBeraterId(nextId);
-    const next = options.find((entry) => entry.id === nextId);
-    const requests = next?.requests || [];
-    setRequestId(requests.length === 1 ? requests[0].id : '');
-  }
-
-  async function onAssign(event) {
-    event.preventDefault();
-    if (!beraterId || !requestId || saving || disabled) return;
-    setSaving(true);
-    setError('');
-    try {
-      const result = await assignLeadToBerater(lead.id, { beraterId, requestId });
-      onAssigned?.(result.lead);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setSaving(false);
-    }
-  }
-
+function ToolbarMenuItem({ icon: Icon, title, description, tone = 'neutral', onSelect }) {
   return (
-    <section className="dash-panel dash-lead-assign">
-      <div className="dash-panel-head"><strong>Zuweisung</strong></div>
-      <form className="dash-lead-assign-body" onSubmit={onAssign}>
-        <div className="dash-lead-assign-current">
-          <span>Aktuell</span>
-          <strong>Nicht zugewiesen</strong>
-        </div>
-        {loading ? (
-          <p className="dash-muted">Berater werden geladen…</p>
-        ) : options.length ? (
-          <>
-            <label className="dash-lead-assign-field">
-              Berater
-              <select
-                value={beraterId}
-                onChange={(event) => selectBerater(event.target.value)}
-                disabled={saving || disabled}
-                required
-              >
-                <option value="">Berater wählen</option>
-                {options.map((entry) => (
-                  <option key={entry.id} value={entry.id}>
-                    {entry.name} · {entry.remaining} offen
-                  </option>
-                ))}
-              </select>
-            </label>
-            {beraterId ? (
-              <fieldset className="dash-lead-assign-field dash-lead-assign-requests">
-                <legend>Anforderung</legend>
-                <div className="dash-pick-list dash-lead-assign-picks">
-                  {requestChoices.map((request) => {
-                    const label = requestAssignLabel(request);
-                    const checked = requestId === request.id;
-                    return (
-                      <label
-                        key={request.id}
-                        className={`dash-pick-row${checked ? ' is-checked' : ''}${saving || disabled ? ' is-disabled' : ''}`}
-                      >
-                        <input
-                          type="radio"
-                          name="lead-assign-request"
-                          value={request.id}
-                          checked={checked}
-                          onChange={() => setRequestId(request.id)}
-                          disabled={saving || disabled}
-                          required
-                        />
-                        <span>
-                          <strong>{label.code}</strong>
-                          <small>{label.detail}</small>
-                        </span>
-                      </label>
-                    );
-                  })}
-                </div>
-              </fieldset>
-            ) : (
-              <p className="dash-lead-assign-hint">
-                Zuerst Berater wählen, dann die passende Anforderung.
-              </p>
-            )}
-          </>
-        ) : error ? null : (
-          <p className="dash-muted">
-            Kein Berater mit offenem Auftrag für dieses Paket.
-          </p>
-        )}
-        {error ? <div className="dash-alert">{error}</div> : null}
-        {options.length ? (
-          <button
-            type="submit"
-            className="dash-btn dash-lead-assign-submit"
-            disabled={!beraterId || !requestId || saving || disabled}
-          >
-            <UserPlus size={15} aria-hidden="true" />
-            {saving ? 'Wird zugewiesen…' : 'An Anforderung senden'}
-          </button>
-        ) : null}
-      </form>
-    </section>
+    <button type="button" role="menuitem" className="dash-tmenu__item" onClick={onSelect}>
+      <span className={`dash-tmenu__icon is-${tone}`} aria-hidden="true"><Icon size={16} /></span>
+      <span className="dash-tmenu__text">
+        <strong>{title}</strong>
+        <small>{description}</small>
+      </span>
+    </button>
   );
 }
 
-function LeadView({
-  lead,
-  onEdit,
-  onDelete,
-  onAssigned,
-  saving,
-}) {
-  const age = leadAge(lead.dateOfBirth);
-  const employment = lead.employmentStatus === 'sonstiges' && lead.employmentOther
-    ? lead.employmentOther
-    : employmentLabel(lead.employmentStatus);
-  const assigneeName = lead.assignedToName || lead.assignedToEmail || '';
-  const locked = isLeadDeliveryLocked(lead);
-  const hasContactActions = Boolean(lead.phone || lead.email);
-
-  return (
-    <div className={`dash-lead-view${locked ? ' is-locked' : ''}`}>
-      <section className="dash-panel dash-lead-hero">
-        <div className="dash-lead-identity">
-          <span className="dash-lead-avatar" aria-hidden="true">{leadInitials(lead)}</span>
-          <div className="dash-lead-identity__body">
-            <div className="dash-lead-kicker">Lead-Akte</div>
-            <h3>{lead.fullName || '—'}</h3>
-            <div className="dash-lead-hero-meta">
-              <span className={`dash-badge dash-badge--${statusTone(lead.status)}`}>
-                {statusLabel(lead.status)}
-              </span>
-              <span className="dash-badge dash-badge--muted">
-            {lead.vertical === 'energy' ? verticalLabel('energy') : leadScopeLabel(lead.scope)}
-          </span>
-              <span className={`dash-lead-assign-pill${assigneeName ? ' is-assigned' : ''}`}>
-                <UserRound size={13} aria-hidden="true" />
-                {assigneeName || 'Nicht zugewiesen'}
-              </span>
-              {locked ? (
-                <span className="dash-badge dash-badge--muted">Nur Ansicht</span>
-              ) : null}
-            </div>
-          </div>
-        </div>
-
-        <div className="dash-lead-hero-actions">
-          {hasContactActions ? (
-            <div className="dash-lead-reach dash-lead-reach--hero">
-              {lead.phone ? (
-                <a className="dash-btn dash-lead-reach__btn dash-lead-reach__btn--call" href={`tel:${lead.phone}`}>
-                  <Phone size={15} aria-hidden="true" />
-                  Anrufen
-                </a>
-              ) : null}
-              {lead.email ? (
-                <a className="dash-btn dash-lead-reach__btn dash-lead-reach__btn--mail" href={`mailto:${lead.email}`}>
-                  <Mail size={15} aria-hidden="true" />
-                  E-Mail
-                </a>
-              ) : null}
-            </div>
-          ) : null}
-          <LeadActionsMenu onEdit={onEdit} onDelete={onDelete} disabled={saving} locked={locked} />
-        </div>
-      </section>
-
-      {locked ? (
-        <div className="dash-alert dash-alert--ok dash-lead-lock-note">
-          Dieser Lead ist zugestellt und gesperrt. Details können angesehen werden — bearbeiten ist erst nach einer
-          Reklamation wieder möglich.
-        </div>
-      ) : null}
-
-      <div className="dash-lead-layout">
-        <div className="dash-lead-main">
-          <section className="dash-panel">
-            <div className="dash-panel-head">
-              <strong>Kontakt</strong>
-            </div>
-            <div className="dash-facts dash-facts--grid">
-              <Fact label="E-Mail">
-                <CopyableValue value={lead.email} label="E-Mail" />
-              </Fact>
-              <Fact label="Telefon">
-                <CopyableValue value={lead.phone} label="Telefonnummer" />
-              </Fact>
-              <Fact label="Berufliche Situation">{employment}</Fact>
-              <Fact label="Geburtsdatum">
-                {formatLeadDate(lead.dateOfBirth)}
-                {age != null ? <span className="dash-fact-hint">{age} Jahre</span> : null}
-              </Fact>
-            </div>
-            <div className="dash-facts dash-facts--address">
-              <Fact label="PLZ">{lead.zip || '—'}</Fact>
-              <Fact label="Ort">{lead.city || '—'}</Fact>
-              <Fact label="Straße">{lead.street || '—'}</Fact>
-            </div>
-          </section>
-
-          <section className="dash-panel">
-            <div className="dash-panel-head"><strong>Versicherung</strong></div>
-            <div className="dash-facts dash-facts--grid">
-              <Fact label="Status"><ChipList ids={lead.insuranceStatus} type="insurance" /></Fact>
-              <Fact label="Gesellschaft">{lead.currentInsurer || '—'}</Fact>
-              <Fact label="Beitrag / Monat">{formatPremium(lead.monthlyPremium)}</Fact>
-              <Fact label="Personenkreis"><ChipList ids={lead.coverageCircle} type="coverage" /></Fact>
-            </div>
-          </section>
-        </div>
-
-        <aside className="dash-lead-aside">
-          {!locked && !lead.refundedAt && lead.status !== 'erledigt' ? (
-            <LeadAssignPanel lead={lead} disabled={saving} onAssigned={onAssigned} />
-          ) : null}
-          <section className="dash-panel dash-lead-meta">
-            <div className="dash-panel-head"><strong>Übersicht</strong></div>
-            <dl className="dash-lead-meta-list">
-              <div>
-                <dt>Paket</dt>
-                <dd>{leadScopeLabel(lead.scope)}</dd>
-              </div>
-              <div>
-                <dt>Status</dt>
-                <dd>{statusLabel(lead.status)}</dd>
-              </div>
-              <div>
-                <dt>Berater</dt>
-                <dd>{assigneeName || 'Nicht zugewiesen'}</dd>
-              </div>
-              {lead.requestCode || lead.requestId ? (
-                <div>
-                  <dt>Anforderung</dt>
-                  <dd>{lead.requestCode || String(lead.requestId).slice(0, 8).toUpperCase()}</dd>
-                </div>
-              ) : null}
-              <div>
-                <dt>Quelle</dt>
-                <dd>{sourceLabel(lead)}</dd>
-              </div>
-              {lead.externalId ? (
-                <div>
-                  <dt>TC-Dial ID</dt>
-                  <dd>{lead.externalId}</dd>
-                </div>
-              ) : null}
-              <div>
-                <dt>Angelegt</dt>
-                <dd>{formatDate(lead.createdAt)}</dd>
-              </div>
-              {lead.updatedAt ? (
-                <div>
-                  <dt>Aktualisiert</dt>
-                  <dd>{formatDate(lead.updatedAt)}</dd>
-                </div>
-              ) : null}
-            </dl>
-          </section>
-
-          <section className="dash-panel">
-            <div className="dash-panel-head"><strong>Hauptanliegen</strong></div>
-            <ChipList ids={lead.mainConcerns} type="concern" />
-          </section>
-
-          <section className="dash-panel">
-            <div className="dash-panel-head"><strong>Gesprächsnotizen</strong></div>
-            {lead.notes ? (
-              <p className="dash-lead-notes">{lead.notes}</p>
-            ) : (
-              <p className="dash-muted">Keine Notizen hinterlegt.</p>
-            )}
-          </section>
-        </aside>
-      </div>
-    </div>
-  );
+function isAppointmentLead(lead) {
+  return lead.deliveryType === 'appointment';
 }
 
-function CheckGroup({ legend, options, values, onToggle }) {
-  return (
-    <fieldset className="dash-checks is-full">
-      <legend>{legend}</legend>
-      <div>
-        {options.map((option) => (
-          <label key={option.id}>
-            <input
-              type="checkbox"
-              checked={values.includes(option.id)}
-              onChange={() => onToggle(option.id)}
-            />
-            {option.label}
-          </label>
-        ))}
-      </div>
-    </fieldset>
-  );
-}
-
-function LeadFormFields({ form, setForm }) {
-  const setField = (key, value) => setForm((current) => ({ ...current, [key]: value }));
-
-  return (
-    <div className="dash-form">
-      <label className="is-full">
-        Paket
-        <select
-          value={form.scope || DEFAULT_LEAD_SCOPE}
-          onChange={(event) => setField('scope', event.target.value)}
-          required
-        >
-          {LEAD_SCOPE_OPTIONS.map((option) => (
-            <option key={option.id} value={option.id}>{option.label}</option>
-          ))}
-        </select>
-      </label>
-      <label>
-        Vorname
-        <input value={form.firstName} onChange={(event) => setField('firstName', event.target.value)} required />
-      </label>
-      <label>
-        Nachname
-        <input value={form.lastName} onChange={(event) => setField('lastName', event.target.value)} required />
-      </label>
-      <label>
-        Geburtsdatum
-        <input type="date" value={form.dateOfBirth} onChange={(event) => setField('dateOfBirth', event.target.value)} />
-      </label>
-      <label>
-        Berufliche Situation
-        <select
-          value={form.employmentStatus}
-          onChange={(event) => setField('employmentStatus', event.target.value)}
-        >
-          <option value="">Bitte wählen</option>
-          {EMPLOYMENT_OPTIONS.map((option) => (
-            <option key={option.id} value={option.id}>{option.label}</option>
-          ))}
-        </select>
-      </label>
-      {form.employmentStatus === 'sonstiges' ? (
-        <label className="is-full">
-          Berufliche Situation, sonstiges
-          <input
-            value={form.employmentOther}
-            onChange={(event) => setField('employmentOther', event.target.value)}
-          />
-        </label>
-      ) : null}
-      <label>
-        E-Mail-Adresse
-        <input type="email" value={form.email} onChange={(event) => setField('email', event.target.value)} />
-      </label>
-      <label>
-        Mobilnummer / Telefon
-        <PhoneField value={form.phone} onChange={(value) => setField('phone', value)} />
-      </label>
-      <CheckGroup
-        legend="Versicherungsstatus"
-        options={INSURANCE_OPTIONS}
-        values={form.insuranceStatus}
-        onToggle={(id) => setField('insuranceStatus', toggleListValue(form.insuranceStatus, id))}
-      />
-      <label>
-        Aktuelle Gesellschaft / Krankenkasse
-        <input value={form.currentInsurer} onChange={(event) => setField('currentInsurer', event.target.value)} />
-      </label>
-      <label>
-        Monatlicher Beitrag (€)
-        <input
-          inputMode="decimal"
-          value={form.monthlyPremium}
-          onChange={(event) => setField('monthlyPremium', event.target.value)}
-          placeholder="z. B. 420"
-        />
-      </label>
-      <CheckGroup
-        legend="Personenkreis"
-        options={COVERAGE_OPTIONS}
-        values={form.coverageCircle}
-        onToggle={(id) => setField('coverageCircle', toggleListValue(form.coverageCircle, id))}
-      />
-      <CheckGroup
-        legend="Hauptanliegen"
-        options={CONCERN_OPTIONS}
-        values={form.mainConcerns}
-        onToggle={(id) => setField('mainConcerns', toggleListValue(form.mainConcerns, id))}
-      />
-      <label>
-        PLZ
-        <input value={form.zip} onChange={(event) => setField('zip', event.target.value)} maxLength={5} />
-      </label>
-      <label>
-        Ort
-        <input value={form.city} onChange={(event) => setField('city', event.target.value)} />
-      </label>
-      <label className="is-full">
-        Straße (freiwillig)
-        <input value={form.street} onChange={(event) => setField('street', event.target.value)} />
-      </label>
-      <label className="is-full">
-        Gesprächsnotizen
-        <textarea
-          rows={4}
-          value={form.notes}
-          onChange={(event) => setField('notes', event.target.value)}
-        />
-      </label>
-    </div>
-  );
-}
-
-export function AdminLeads() {
+export function AdminLeads({ mode = 'leads' }) {
+  const termine = mode === 'termine';
   const location = useLocation();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -959,8 +707,10 @@ export function AdminLeads() {
   const [assignedTo, setAssignedTo] = useState('');
   const [search, setSearch] = useState('');
   const [scope, setScope] = useState('');
-  const [vertical, setVertical] = useState('');
+  const [vertical, setVertical] = useState(termine ? 'energy' : '');
+  const [appointmentTiming, setAppointmentTiming] = useState('upcoming');
   const [importing, setImporting] = useState(false);
+  const csvInputRef = useRef(null);
   const [replacementComplaint, setReplacementComplaint] = useState(null);
   const [replacementLoading, setReplacementLoading] = useState(replacementMode);
   const [selectedLeadId, setSelectedLeadId] = useState('');
@@ -969,16 +719,42 @@ export function AdminLeads() {
   const [pageSize, setPageSize] = useState(10);
 
   const beraters = useMemo(
-    () => (admin?.directory || []).filter((user) => user.role === 'berater'),
-    [admin?.directory],
+    () => (admin?.directory || []).filter((user) => (
+      user.role === 'berater'
+      && (!vertical || verticalOrInsurance(user.vertical) === vertical)
+    )),
+    [admin?.directory, vertical],
   );
 
   const pickableLeads = useMemo(
-    () => leads.filter((lead) => !lead.assignedTo && lead.status !== 'erledigt' && !lead.refundedAt),
+    () => leads.filter((lead) => (
+      !lead.assignedTo && lead.status !== 'erledigt' && !lead.refundedAt && !isAppointmentExpired(lead)
+    )),
     [leads],
   );
 
-  const listSource = replacementMode ? pickableLeads : leads;
+  const appointmentGroups = useMemo(() => {
+    if (!termine) return { upcoming: [], expired: [] };
+    const time = (lead) => appointmentTime(lead)?.getTime() ?? Number.POSITIVE_INFINITY;
+    const appointments = leads.filter(isAppointmentLead);
+    return {
+      upcoming: appointments
+        .filter((lead) => !isAppointmentExpired(lead))
+        .sort((left, right) => time(left) - time(right)),
+      expired: appointments
+        .filter((lead) => isAppointmentExpired(lead))
+        .sort((left, right) => time(right) - time(left)),
+    };
+  }, [leads, termine]);
+
+  const visibleLeads = useMemo(
+    () => (termine
+      ? appointmentGroups[appointmentTiming]
+      : leads.filter((lead) => !isAppointmentLead(lead))),
+    [leads, termine, appointmentGroups, appointmentTiming],
+  );
+
+  const listSource = replacementMode ? pickableLeads : visibleLeads;
   const totalPages = Math.max(1, Math.ceil(listSource.length / pageSize));
   const pageItems = useMemo(() => {
     const start = (page - 1) * pageSize;
@@ -987,7 +763,7 @@ export function AdminLeads() {
 
   useEffect(() => {
     setPage(1);
-  }, [status, assignedTo, search, scope, pageSize, replacementMode, leads.length]);
+  }, [status, assignedTo, search, scope, pageSize, replacementMode, appointmentTiming, listSource.length]);
 
   useEffect(() => {
     setPage((current) => Math.min(current, totalPages));
@@ -1115,16 +891,20 @@ export function AdminLeads() {
     setError('');
     setNotice('');
     try {
-      const rows = await parseLeadCsv(file);
+      const rows = termine ? await parseAppointmentCsv(file) : await parseLeadCsv(file);
       const result = await importLeads(rows);
       const skipped = result.errors?.length || 0;
-      if (!result.createdCount && !skipped) {
+      const count = result.createdCount;
+      const noun = termine
+        ? `Termin${count === 1 ? '' : 'e'}`
+        : `Lead${count === 1 ? '' : 's'}`;
+      if (!count && !skipped) {
         setNotice('Keine gültigen Zeilen in der CSV-Datei gefunden.');
       } else {
         setNotice(
           skipped
-            ? `${result.createdCount} Lead${result.createdCount === 1 ? '' : 's'} importiert, ${skipped} Zeile${skipped === 1 ? '' : 'n'} übersprungen.`
-            : `${result.createdCount} Lead${result.createdCount === 1 ? '' : 's'} importiert.`,
+            ? `${count} ${noun} importiert, ${skipped} Zeile${skipped === 1 ? '' : 'n'} übersprungen.`
+            : `${count} ${noun} importiert.`,
         );
       }
       if (skipped) {
@@ -1147,18 +927,116 @@ export function AdminLeads() {
           blocked={replacementBlocked}
           backTo={backTo}
         />
+      ) : termine ? (
+        <div className="dash-toolbar dash-toolbar--end">
+          <div className="dash-intro-actions">
+            <input
+              ref={csvInputRef}
+              type="file"
+              accept=".csv,text/csv"
+              onChange={onImport}
+              disabled={importing}
+              hidden
+            />
+            <ToolbarMenu label={importing ? 'Importiere…' : 'CSV'} icon={FileSpreadsheet} disabled={importing}>
+              {(close) => (
+                <>
+                  <div className="dash-tmenu__group">Energie-Termine</div>
+                  <ToolbarMenuItem
+                    icon={Download}
+                    title="Vorlage herunterladen"
+                    description="CSV mit allen Termin-Spalten"
+                    onSelect={() => {
+                      close();
+                      downloadAppointmentCsvTemplate();
+                    }}
+                  />
+                  <ToolbarMenuItem
+                    icon={Upload}
+                    title="CSV importieren"
+                    description="Ausgefüllte Termin-Vorlage hochladen"
+                    onSelect={() => {
+                      close();
+                      csvInputRef.current?.click();
+                    }}
+                  />
+                </>
+              )}
+            </ToolbarMenu>
+            <Link
+              className="dash-btn dash-btn--ok"
+              to="/dashboard/leads/energy/new?delivery=appointment"
+              state={{ from: `${location.pathname}${location.search}` }}
+            >
+              <Plus size={15} aria-hidden="true" />
+              Neuer Termin
+            </Link>
+          </div>
+        </div>
       ) : (
         <div className="dash-toolbar dash-toolbar--end">
           <div className="dash-intro-actions">
-            <button type="button" className="dash-btn dash-btn--ghost" onClick={downloadLeadCsvTemplate}>
-              CSV-Vorlage
-            </button>
-            <label className="dash-btn dash-btn--ghost dash-file-btn">
-              {importing ? 'Importiere…' : 'CSV importieren'}
-              <input type="file" accept=".csv,text/csv" onChange={onImport} disabled={importing} />
-            </label>
-            <Link className="dash-btn" to="/dashboard/leads/new">Neuer Lead</Link>
-            <Link className="dash-btn dash-btn--ghost" to="/dashboard/leads/energy/new">Energie-Lead</Link>
+            <input
+              ref={csvInputRef}
+              type="file"
+              accept=".csv,text/csv"
+              onChange={onImport}
+              disabled={importing}
+              hidden
+            />
+            <ToolbarMenu label={importing ? 'Importiere…' : 'CSV'} icon={FileSpreadsheet} disabled={importing}>
+              {(close) => (
+                <>
+                  <div className="dash-tmenu__group">Versicherungs-Leads</div>
+                  <ToolbarMenuItem
+                    icon={Download}
+                    title="Vorlage herunterladen"
+                    description="Leere CSV mit allen Spalten"
+                    onSelect={() => {
+                      close();
+                      downloadLeadCsvTemplate();
+                    }}
+                  />
+                  <ToolbarMenuItem
+                    icon={Upload}
+                    title="CSV importieren"
+                    description="Ausgefüllte Vorlage hochladen"
+                    onSelect={() => {
+                      close();
+                      csvInputRef.current?.click();
+                    }}
+                  />
+                </>
+              )}
+            </ToolbarMenu>
+            <ToolbarMenu label="Neuer Lead" icon={Plus} variant="ok">
+              {(close) => {
+                const open = (path) => {
+                  close();
+                  navigate(path, { state: { from: `${location.pathname}${location.search}` } });
+                };
+                return (
+                  <>
+                    <div className="dash-tmenu__group">Versicherung</div>
+                    <ToolbarMenuItem
+                      icon={ShieldCheck}
+                      tone="insurance"
+                      title="Versicherungs-Lead"
+                      description="PKV, bAV oder BU – qualifizierter Kontakt"
+                      onSelect={() => open('/dashboard/leads/new')}
+                    />
+                    <div className="dash-tmenu__group">Energie</div>
+                    <ToolbarMenuItem
+                      icon={SunMedium}
+                      tone="energy"
+                      title="Energie-Lead"
+                      description="Photovoltaik oder Wärmepumpe"
+                      onSelect={() => open('/dashboard/leads/energy/new')}
+                    />
+                  </>
+                );
+              }}
+            </ToolbarMenu>
           </div>
         </div>
       )}
@@ -1183,6 +1061,22 @@ export function AdminLeads() {
                 { id: 'all', label: 'Alle' },
               ]}
             />
+            {termine ? (
+              <DashSeg
+                value={appointmentTiming}
+                onChange={setAppointmentTiming}
+                options={[
+                  { id: 'upcoming', label: 'Anstehend', count: appointmentGroups.upcoming.length },
+                  { id: 'expired', label: 'Verstrichen', count: appointmentGroups.expired.length },
+                ]}
+              />
+            ) : null}
+          </div>
+        ) : null}
+        {termine && appointmentTiming === 'expired' && appointmentGroups.expired.length ? (
+          <div className="dash-alert dash-appt-expired-note">
+            Diese Termine liegen in der Vergangenheit und können nicht mehr an Berater gesendet werden.
+            Öffnen Sie einen Termin und tragen Sie ein neues Datum ein, um ihn wieder zu versenden.
           </div>
         ) : null}
         <div className={`dash-filters${replacementMode ? ' dash-filters--compact' : ''}`}>
@@ -1199,35 +1093,48 @@ export function AdminLeads() {
           </label>
           {!replacementMode ? (
             <>
-              <label>
-                Bereich
-                <select
-                  value={vertical}
-                  onChange={(event) => {
-                    setVertical(event.target.value);
-                    load({ vertical: event.target.value });
-                  }}
-                >
-                  <option value="">Alle Bereiche</option>
-                  <option value="insurance">Versicherung</option>
-                  <option value="energy">Energie</option>
-                </select>
-              </label>
-              <label>
-                Paket
-                <select
-                  value={scope}
-                  onChange={(event) => {
-                    setScope(event.target.value);
-                    load({ scope: event.target.value });
-                  }}
-                >
-                  <option value="">Alle Pakete</option>
-                  {LEAD_SCOPE_OPTIONS.map((option) => (
-                    <option key={option.id} value={option.id}>{option.label}</option>
-                  ))}
-                </select>
-              </label>
+              {!termine ? (
+                <>
+                  <label>
+                    Bereich
+                    <select
+                      value={vertical}
+                      onChange={(event) => {
+                        const nextVertical = event.target.value;
+                        const keepAssigned = !assignedTo
+                          || assignedTo === 'unassigned'
+                          || (admin?.directory || []).some((user) => (
+                            user.id === assignedTo
+                            && (!nextVertical || verticalOrInsurance(user.vertical) === nextVertical)
+                          ));
+                        const nextAssigned = keepAssigned ? assignedTo : '';
+                        setVertical(nextVertical);
+                        setAssignedTo(nextAssigned);
+                        load({ vertical: nextVertical, assignedTo: nextAssigned });
+                      }}
+                    >
+                      <option value="">Alle Bereiche</option>
+                      <option value="insurance">Versicherung</option>
+                      <option value="energy">Energie</option>
+                    </select>
+                  </label>
+                  <label>
+                    Paket
+                    <select
+                      value={scope}
+                      onChange={(event) => {
+                        setScope(event.target.value);
+                        load({ scope: event.target.value });
+                      }}
+                    >
+                      <option value="">Alle Pakete</option>
+                      {LEAD_SCOPE_OPTIONS.map((option) => (
+                        <option key={option.id} value={option.id}>{option.label}</option>
+                      ))}
+                    </select>
+                  </label>
+                </>
+              ) : null}
               <label>
                 Zuweisung
                 <select
@@ -1295,7 +1202,7 @@ export function AdminLeads() {
               </p>
             </div>
           )
-        ) : leads.length ? (
+        ) : visibleLeads.length ? (
           <>
             <div className="dash-lead-list">
               {pageItems.map((lead) => (
@@ -1306,14 +1213,20 @@ export function AdminLeads() {
               page={page}
               totalPages={totalPages}
               pageSize={pageSize}
-              total={leads.length}
+              total={visibleLeads.length}
               onPageChange={setPage}
               onPageSizeChange={setPageSize}
             />
           </>
         ) : (
           <div className="dash-empty">
-            <p>Noch keine Leads. Legen Sie einen an oder importieren Sie eine CSV-Datei.</p>
+            <p>
+              {!termine
+                ? 'Noch keine Leads. Legen Sie einen an oder importieren Sie eine CSV-Datei.'
+                : appointmentTiming === 'expired'
+                  ? 'Keine verstrichenen Termine.'
+                  : 'Keine anstehenden Termine. Legen Sie einen neuen Termin an.'}
+            </p>
           </div>
         )}
       </section>
@@ -1370,6 +1283,11 @@ export function AdminLeadEditor() {
     fetchLead(id)
       .then((payload) => {
         if (!active) return;
+        if (payload.lead?.vertical === 'energy') {
+          active = false;
+          navigate(`/dashboard/leads/energy/${payload.lead.id}`, { replace: true, state: location.state });
+          return;
+        }
         setLead(payload.lead);
         setForm(leadToForm(payload.lead));
       })
@@ -1449,11 +1367,6 @@ export function AdminLeadEditor() {
   }
 
   const deliveryLocked = !isNew && isLeadDeliveryLocked(lead);
-  const subtitle = isNew
-    ? 'Qualifizierten Kontakt manuell anlegen.'
-    : (editing ? 'Daten anpassen und speichern.' : deliveryLocked
-      ? 'Zugestellt — nur Ansicht, bis eine Reklamation vorliegt.'
-      : 'Kontakt prüfen und Bestand pflegen.');
 
   return (
     <div className="dash-stack">
@@ -1461,10 +1374,6 @@ export function AdminLeadEditor() {
         <ArrowLeft size={16} />
         {returnLabel(backTo)}
       </Link>
-
-      {isNew || editing ? (
-        <p className="dash-lede">{subtitle}</p>
-      ) : null}
 
       {notice ? <div className="dash-alert dash-alert--ok">{notice}</div> : null}
       {error ? <div className="dash-alert">{error}</div> : null}
@@ -1487,36 +1396,14 @@ export function AdminLeadEditor() {
           saving={saving}
         />
       ) : (
-        <form className="dash-panel dash-lead-form" onSubmit={onSave}>
-          <LeadFormFields form={form} setForm={setForm} />
-
-          {!isNew ? (
-            <div className="dash-form dash-form--workflow">
-              <label>
-                Status
-                <select
-                  value={form.status}
-                  onChange={(event) => setForm((current) => ({ ...current, status: event.target.value }))}
-                >
-                  {STATUS_OPTIONS.map((option) => (
-                    <option key={option.id} value={option.id}>{option.label}</option>
-                  ))}
-                </select>
-              </label>
-            </div>
-          ) : null}
-
-          <div className="dash-form-actions">
-            <button type="submit" className="dash-btn" disabled={saving}>
-              {saving ? 'Speichern…' : isNew ? 'Lead anlegen' : 'Speichern'}
-            </button>
-            {!isNew ? (
-              <button type="button" className="dash-btn dash-btn--ghost" onClick={cancelEdit} disabled={saving}>
-                Abbrechen
-              </button>
-            ) : null}
-          </div>
-        </form>
+        <InsuranceLeadForm
+          form={form}
+          setForm={setForm}
+          isNew={isNew}
+          saving={saving}
+          onSubmit={onSave}
+          onCancel={isNew ? () => navigate(backTo) : cancelEdit}
+        />
       )}
     </div>
   );

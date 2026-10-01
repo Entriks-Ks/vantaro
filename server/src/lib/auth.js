@@ -1,6 +1,6 @@
 import { supabase } from './supabase.js';
 import { hasCompletedOnboarding, isCanonicalCustomerNumber, readProfileFields } from './profile.js';
-import { getUserRole } from './roles.js';
+import { PARTNER_ROLE_IDS, getUserRole } from './roles.js';
 import { ensureUserRole, isEmailVerified } from './users.js';
 import { normalizeVertical, verticalOrInsurance } from './vertical.js';
 
@@ -22,6 +22,33 @@ export function normalizeEnergyPages(value) {
   const list = Array.isArray(value) ? value.map((item) => String(item || '').trim()).filter(Boolean) : [];
   const unique = [...new Set(list.filter((id) => ENERGY_PAGE_IDS.includes(id)))];
   return unique.length ? unique : [...ENERGY_DEFAULT_PAGE_IDS];
+}
+
+export { PARTNER_ROLE_IDS };
+
+// Insurance partners cannot buy packages: purchases would create leads outside the company.
+export function partnerPageOptions(vertical) {
+  return verticalOrInsurance(vertical) === 'energy'
+    ? ENERGY_PAGE_OPTIONS
+    : ENERGY_PAGE_OPTIONS.filter((item) => item.id !== 'paket');
+}
+
+export function normalizePartnerPages(value, vertical) {
+  const pages = normalizeEnergyPages(value);
+  if (verticalOrInsurance(vertical) === 'energy') return pages;
+  const allowed = pages.filter((id) => id !== 'paket');
+  return allowed.length ? allowed : [...ENERGY_DEFAULT_PAGE_IDS];
+}
+
+// Company/partner metadata keeps the energy_ prefix for all verticals so existing accounts stay valid.
+function partnerFields(user, metadata, vertical) {
+  const partnerRole = PARTNER_ROLE_IDS.includes(metadata.energy_role) ? metadata.energy_role : 'main';
+  return {
+    partnerRole,
+    companyId: partnerRole === 'main' ? user.id : (metadata.energy_company_id || null),
+    partnerActive: partnerRole === 'main' || metadata.energy_active !== false,
+    partnerPages: normalizePartnerPages(metadata.energy_pages, vertical),
+  };
 }
 
 export function publicUser(user) {
@@ -53,6 +80,7 @@ export function publicUser(user) {
     energyPages: verticalOrInsurance(metadata.vertical) === 'energy'
       ? normalizeEnergyPages(metadata.energy_pages)
       : null,
+    ...partnerFields(user, metadata, metadata.vertical),
     onboardingComplete: hasCompletedOnboarding(metadata),
     customerNumber: isCanonicalCustomerNumber(profile.customerNumber) ? profile.customerNumber : '',
     profile: {
@@ -134,12 +162,7 @@ export async function requireAuth(req, res, next) {
     const user = await ensureUserRole(data.user);
     req.authUser = user;
     req.user = publicUser(user);
-    if (
-      req.user.vertical === 'energy'
-      && req.user.energyRole
-      && req.user.energyRole !== 'main'
-      && req.user.energyActive === false
-    ) {
+    if (req.user.partnerRole !== 'main' && req.user.partnerActive === false) {
       return res.status(403).json({ error: 'Dieser Zugang ist deaktiviert. Bitte wenden Sie sich an die Hauptfirma.' });
     }
     next();

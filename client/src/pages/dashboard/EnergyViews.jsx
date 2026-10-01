@@ -22,6 +22,7 @@ import {
   X,
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
+import { isComplaintFlowLead } from '../../lib/complaints';
 import { fetchMyLeads } from '../../lib/leads';
 import { formatAddress } from '../../lib/profile';
 import {
@@ -121,7 +122,7 @@ export function EnergyHome() {
     fetchMyLeads()
       .then((payload) => {
         if (active) {
-          setLeads((payload.leads || []).map((lead) => ({
+          setLeads((payload.leads || []).filter((lead) => !isComplaintFlowLead(lead)).map((lead) => ({
             ...presentLead(lead),
             status: pipelineStatusOf(lead, leadStatuses),
           })));
@@ -451,9 +452,9 @@ export function EnergyLeads() {
                   <span className={`broker-kanban-icon broker-kanban-icon--${column.id}`} aria-hidden="true">
                     <Icon size={16} />
                   </span>
-                  <div>
-                    <strong>{column.label}</strong>
-                    <small>{column.hint}</small>
+                  <div className="broker-kanban-title">
+                    <strong tabIndex={0} aria-describedby={`kanban-hint-${column.id}`}>{column.label}</strong>
+                    <small id={`kanban-hint-${column.id}`} role="tooltip">{column.hint}</small>
                   </div>
                   <span className="broker-count">{items.length}</span>
                 </header>
@@ -683,8 +684,11 @@ export function EnergyOrders() {
         </div>
         <div className="broker-status-divider" />
         <div className="broker-status-stat broker-status-stat--link">
-          <Link to="/dashboard/unternehmen" className="broker-text-btn">
-            <Building2 size={15} /> Rechnungsadresse
+          <span className="broker-stat-label">Rechnungsadresse</span>
+          <Link to="/dashboard/unternehmen" className="broker-status-action">
+            <Building2 size={15} aria-hidden="true" />
+            <span>Bearbeiten</span>
+            <ArrowRight size={14} aria-hidden="true" />
           </Link>
         </div>
       </div>
@@ -868,6 +872,10 @@ export function EnergyOrders() {
             <h2>Rechnungen</h2>
             <p>Übersicht Ihrer bisherigen Zahlungen</p>
           </div>
+          <Link to="/dashboard/zahlung" className="broker-pipeline-open">
+            <span>Alle Zahlungen</span>
+            <ArrowRight size={14} strokeWidth={2.25} aria-hidden="true" />
+          </Link>
         </div>
         {payments.length ? (
           <div className="broker-invoice-table-wrap">

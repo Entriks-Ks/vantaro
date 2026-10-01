@@ -126,13 +126,13 @@ export default function ThemeMode({ variant = 'broker' }) {
   return (
     <section className="broker-settings-section theme-mode" id="darstellung">
       <header>
-        <h3>
-          <span className="broker-settings-section__icon" aria-hidden="true">
-            <Sun size={16} strokeWidth={2.2} />
-          </span>
-          Darstellung
-        </h3>
-        <p>Dunkel, Hell oder die Einstellung Ihres Geräts. Der Wechsel gilt sofort für die ganze Plattform.</p>
+        <span className="broker-settings-section__icon" aria-hidden="true">
+          <Sun size={16} strokeWidth={2.2} />
+        </span>
+        <div className="broker-settings-section__heading">
+          <h3>Darstellung</h3>
+          <p>Dunkel, Hell oder die Einstellung Ihres Geräts. Der Wechsel gilt sofort für die ganze Plattform.</p>
+        </div>
       </header>
       {error ? <div className="broker-alert">{error}</div> : null}
       {options}

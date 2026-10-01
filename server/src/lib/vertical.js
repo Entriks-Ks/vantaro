@@ -1,3 +1,5 @@
+import { leadState, territoryState } from './germanRegions.js';
+
 export const VERTICALS = ['insurance', 'energy'];
 export const DEFAULT_VERTICAL = 'insurance';
 
@@ -57,16 +59,38 @@ export function energyLeadTypeOf(lead) {
   return '';
 }
 
+export function isAppointmentExpired(lead, now = Date.now()) {
+  const delivery = lead?.delivery_type || lead?.deliveryType || '';
+  if (delivery !== 'appointment') return false;
+  const at = new Date(lead?.appointment_at || lead?.appointmentAt || '').getTime();
+  return Number.isFinite(at) && at < now;
+}
+
+function containsWord(text, word) {
+  if (!word) return false;
+  const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`(^|[^\\p{L}\\d])${escaped}($|[^\\p{L}\\d])`, 'u').test(text);
+}
+
+/**
+ * Territory may be a PLZ prefix ("10", strict), a place ("Berlin", "Bayern")
+ * or a full address ("Kaiserstraße 110, 10785 Berlin"); places and addresses cover their whole Bundesland.
+ */
 export function territoryMatches(territory, lead) {
   const raw = String(territory || '').trim();
   if (!raw) return true;
   const zip = String(lead?.zip || '').trim();
-  const city = String(lead?.city || '').trim();
-  const state = String(lead?.state || '').trim();
+  const city = String(lead?.city || '').trim().toLowerCase();
+  const state = String(lead?.state || '').trim().toLowerCase();
   const compact = raw.replace(/\s+/g, '');
   if (/^\d{2,5}$/.test(compact)) return zip.startsWith(compact);
-  const needle = raw.toLowerCase();
-  return [zip, city, state].some((value) => value.toLowerCase().includes(needle));
+  const text = raw.toLowerCase();
+  const zips = text.match(/(?<!\d)\d{5}(?!\d)/g) || [];
+  if (zip && zips.includes(zip)) return true;
+  if (containsWord(text, city) || containsWord(text, state)) return true;
+  const areaState = territoryState(raw);
+  if (areaState && areaState === leadState(lead)) return true;
+  return [zip.toLowerCase(), city, state].some((value) => value && value.includes(text));
 }
 
 export function verticalColumnMissing(error) {

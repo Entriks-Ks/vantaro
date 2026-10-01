@@ -16,14 +16,14 @@ import {
   BeraterCalendar,
   BeraterSupport,
   BeraterAcademy,
-  BeraterPartners,
 } from './dashboard/BeraterViews';
+import { BeraterBilling } from './dashboard/BeraterBilling';
 import {
   AdminOverview,
   AdminUsers,
-  AdminPayment,
   AdminProfile,
 } from './dashboard/AdminViews';
+import { AdminPayment } from './dashboard/AdminPayments';
 import { AdminLeadEditor, AdminLeads } from './dashboard/AdminLeads';
 import { AdminBeraterDetail, AdminBeraterList } from './dashboard/AdminBerater';
 import { AdminRequests } from './dashboard/AdminRequests';
@@ -35,8 +35,9 @@ import {
   EnergyHome,
   EnergyOrders,
 } from './dashboard/EnergyViews';
-import { EnergyPartners } from './dashboard/EnergyOps';
+import { PartnersPage } from './dashboard/EnergyOps';
 import VerticalChoice from './VerticalChoice';
+import { allowedPartnerPages } from '../lib/partners';
 
 function RedirectAnfordernDetail() {
   const { id } = useParams();
@@ -46,13 +47,10 @@ function RedirectAnfordernDetail() {
 export default function Dashboard() {
   const { isAdmin, user } = useAuth();
   const energy = !isAdmin && user?.vertical === 'energy';
-  const energyMain = energy && (user?.energyRole || 'main') === 'main';
-  const energyPages = energy && !energyMain
-    ? (Array.isArray(user?.energyPages) && user.energyPages.length
-      ? user.energyPages
-      : ['dashboard', 'leads', 'kalender', 'academy', 'support'])
-    : null;
-  const canEnergyPage = (pageId) => !energyPages || energyPages.includes(pageId);
+  const partnerPages = isAdmin ? null : allowedPartnerPages(user);
+  const companyMain = !isAdmin && !partnerPages;
+  const canPage = (pageId) => !partnerPages || partnerPages.includes(pageId);
+  const firstPage = `/dashboard/${partnerPages?.find((id) => id !== 'dashboard') || 'profil'}`;
 
   if (!isAdmin && user?.needsVertical) return <VerticalChoice />;
 
@@ -66,9 +64,9 @@ export default function Dashboard() {
               element={
                 isAdmin
                   ? <AdminOverview />
-                  : (energy
-                    ? (canEnergyPage('dashboard') ? <EnergyHome /> : <Navigate to={`/dashboard/${energyPages.find((id) => id !== 'dashboard') || 'profil'}`} replace />)
-                    : <BeraterHome />)
+                  : (!canPage('dashboard')
+                    ? <Navigate to={firstPage} replace />
+                    : (energy ? <EnergyHome /> : <BeraterHome />))
               }
             />
             {isAdmin ? (
@@ -81,7 +79,8 @@ export default function Dashboard() {
                 <Route path="anfragen" element={<Navigate to="/dashboard/anfordern" replace />} />
                 <Route path="anfragen/:id" element={<RedirectAnfordernDetail />} />
                 <Route path="reklamationen" element={<AdminComplaints />} />
-                <Route path="leads" element={<AdminLeads />} />
+                <Route path="leads" element={<AdminLeads key="leads" />} />
+                <Route path="termine" element={<AdminLeads key="termine" mode="termine" />} />
                 <Route path="leads/energy/new" element={<EnergyLeadEditor />} />
                 <Route path="leads/energy/:leadId" element={<EnergyLeadEditor />} />
                 <Route path="leads/new" element={<AdminLeadEditor />} />
@@ -99,23 +98,23 @@ export default function Dashboard() {
               </>
             ) : (
               <>
-                <Route path="leads" element={canEnergyPage('leads') ? <BeraterLeads /> : <Navigate to="/dashboard" replace />} />
-                <Route path="leads/:leadId" element={canEnergyPage('leads') ? <BeraterLeadDetail /> : <Navigate to="/dashboard" replace />} />
-                <Route path="kalender" element={canEnergyPage('kalender') ? <BeraterCalendar /> : <Navigate to="/dashboard" replace />} />
+                <Route path="leads" element={canPage('leads') ? <BeraterLeads /> : <Navigate to="/dashboard" replace />} />
+                <Route path="leads/:leadId" element={canPage('leads') ? <BeraterLeadDetail /> : <Navigate to="/dashboard" replace />} />
+                <Route path="kalender" element={canPage('kalender') ? <BeraterCalendar /> : <Navigate to="/dashboard" replace />} />
                 <Route path="bestellung" element={<Navigate to="/dashboard/paket" replace />} />
-                <Route path="team" element={energyMain ? <EnergyPartners /> : <Navigate to="/dashboard" replace />} />
+                <Route path="team" element={companyMain ? <PartnersPage /> : <Navigate to="/dashboard" replace />} />
                 <Route path="abrechnung" element={<Navigate to="/dashboard/paket" replace />} />
                 <Route path="reklamationen" element={energy ? <Navigate to="/dashboard/leads" replace /> : <Navigate to="/dashboard" replace />} />
                 <Route path="paket" element={
-                  energy
-                    ? ((energyMain || canEnergyPage('paket')) ? <EnergyOrders /> : <Navigate to="/dashboard" replace />)
-                    : <BeraterPayments />
+                  !canPage('paket')
+                    ? <Navigate to="/dashboard" replace />
+                    : (energy ? <EnergyOrders /> : <BeraterPayments />)
                 } />
-                <Route path="zahlung" element={<Navigate to="/dashboard/paket" replace />} />
-                <Route path="partner" element={energy ? <Navigate to="/dashboard" replace /> : <BeraterPartners />} />
-                <Route path="academy" element={canEnergyPage('academy') ? <BeraterAcademy /> : <Navigate to="/dashboard" replace />} />
+                <Route path="zahlung" element={canPage('paket') ? <BeraterBilling /> : <Navigate to="/dashboard" replace />} />
+                <Route path="partner" element={companyMain ? <PartnersPage /> : <Navigate to="/dashboard" replace />} />
+                <Route path="academy" element={canPage('academy') ? <BeraterAcademy /> : <Navigate to="/dashboard" replace />} />
                 <Route path="profil" element={<BeraterProfile />} />
-                <Route path="support" element={canEnergyPage('support') ? <BeraterSupport /> : <Navigate to="/dashboard" replace />} />
+                <Route path="support" element={canPage('support') ? <BeraterSupport /> : <Navigate to="/dashboard" replace />} />
                 <Route path="pakete" element={<Navigate to="/dashboard/paket" replace />} />
                 <Route path="unternehmen" element={<BeraterCompany />} />
                 <Route path="sicherheit" element={<BeraterSecurity />} />

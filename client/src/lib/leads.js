@@ -1,6 +1,7 @@
 import Papa from 'papaparse';
 import { apiUrl } from './api';
 import { readStoredSession } from './auth';
+import { ENERGY_STATES } from './vertical';
 
 export const EMPLOYMENT_OPTIONS = [
   { id: 'selbststaendig', label: 'hauptberuflich selbstständig' },
@@ -378,7 +379,7 @@ function cleanCsvRow(row) {
   return cleaned;
 }
 
-export function parseLeadCsv(file) {
+function readCsvRows(file, headerLookup) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onerror = () => reject(reader.error || new Error('CSV konnte nicht gelesen werden.'));
@@ -388,13 +389,13 @@ export function parseLeadCsv(file) {
         header: true,
         skipEmptyLines: 'greedy',
         delimiter: detectCsvDelimiter(text),
-        transformHeader: (header) => CSV_HEADER_LOOKUP[normalizeHeader(header)] || header.trim(),
+        transformHeader: (header) => headerLookup[normalizeHeader(header)] || header.trim(),
         complete(result) {
           if (result.errors?.length && !result.data?.length) {
             reject(new Error(result.errors[0].message || 'CSV konnte nicht gelesen werden.'));
             return;
           }
-          resolve((result.data || []).map(cleanCsvRow));
+          resolve(result.data || []);
         },
         error(error) {
           reject(error);
@@ -403,6 +404,214 @@ export function parseLeadCsv(file) {
     };
     reader.readAsText(file);
   });
+}
+
+function downloadCsv(filename, fields, data) {
+  const csv = Papa.unparse({ fields, data });
+  const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+export async function parseLeadCsv(file) {
+  const rows = await readCsvRows(file, CSV_HEADER_LOOKUP);
+  return rows.map(cleanCsvRow);
+}
+
+export const APPOINTMENT_CSV_COLUMNS = [
+  { header: 'Produkt', key: 'energyProduct' },
+  { header: 'Termin Datum', key: 'appointmentDate' },
+  { header: 'Termin Uhrzeit', key: 'appointmentTime' },
+  { header: 'Vorname', key: 'firstName' },
+  { header: 'Nachname', key: 'lastName' },
+  { header: 'Telefon', key: 'phone' },
+  { header: 'E-Mail', key: 'email' },
+  { header: 'Straße', key: 'street' },
+  { header: 'Hausnummer', key: 'houseNumber' },
+  { header: 'PLZ', key: 'zip' },
+  { header: 'Ort', key: 'city' },
+  { header: 'Bundesland', key: 'state' },
+  { header: 'Eigentümerstatus', key: 'ownerStatus' },
+  { header: 'Zeitrahmen', key: 'timeframe' },
+  { header: 'Bedarf', key: 'energyNeed' },
+  { header: 'Gesprächszusammenfassung', key: 'callSummary' },
+  { header: 'Einwilligungsstatus', key: 'consentStatus' },
+  { header: 'Nachweisquelle', key: 'evidenceSource' },
+  { header: 'Jahresstromverbrauch', key: 'annualConsumption' },
+  { header: 'Bestehende PV-Anlage', key: 'existingPv' },
+  { header: 'Dach- oder Gebäudehinweise', key: 'roofNotes' },
+  { header: 'Aktuelle Heizung', key: 'heatingSystem' },
+  { header: 'Energieträger', key: 'energySource' },
+  { header: 'Baujahr oder Gebäudeinfo', key: 'constructionYear' },
+  { header: 'Gewünschter Austauschzeitraum', key: 'replacementTimeframe' },
+];
+
+const APPOINTMENT_HEADER_LOOKUP = {
+  ...Object.fromEntries(APPOINTMENT_CSV_COLUMNS.map((column) => [normalizeHeader(column.header), column.key])),
+  paket: 'energyProduct',
+  product: 'energyProduct',
+  termin: 'appointmentDate',
+  datum: 'appointmentDate',
+  terminzeit: 'appointmentTime',
+  uhrzeit: 'appointmentTime',
+  zeit: 'appointmentTime',
+  mobilnummer: 'phone',
+  email: 'email',
+  hausnr: 'houseNumber',
+  'hausnr.': 'houseNumber',
+  stadt: 'city',
+};
+
+function csvText(value) {
+  return String(value ?? '').trim();
+}
+
+function csvEnergyProduct(value) {
+  const text = csvText(value).toLowerCase();
+  if (/^(pv|photovoltaik|photovoltaic|solar)/.test(text)) return 'photovoltaic';
+  if (/^(wp|wärmepumpe|waermepumpe|heat[ _-]?pump)/.test(text)) return 'heat_pump';
+  return csvText(value);
+}
+
+function csvExistingPv(value) {
+  const text = csvText(value).toLowerCase();
+  if (['ja', 'yes', 'j', 'y'].includes(text)) return 'yes';
+  if (['nein', 'no', 'n'].includes(text)) return 'no';
+  if (['unbekannt', 'unknown', 'weiß nicht', 'weiss nicht'].includes(text)) return 'unknown';
+  return csvText(value);
+}
+
+function csvState(value) {
+  const text = csvText(value);
+  if (text.toLowerCase() === 'nrw') return 'Nordrhein-Westfalen';
+  return ENERGY_STATES.find((name) => name.toLowerCase() === text.toLowerCase()) || text;
+}
+
+const INVALID_APPOINTMENT = 'ungültig';
+
+/** Local date/time from "TT.MM.JJJJ" or "JJJJ-MM-TT" plus "HH:MM"; anything else is rejected by the server. */
+function csvAppointmentAt(dateValue, timeValue) {
+  let dateText = csvText(dateValue);
+  let timeText = csvText(timeValue);
+  if (!dateText && !timeText) return null;
+  if (!timeText) {
+    const combined = dateText.match(/^(\S+)[\sT]+(\d{1,2}[:.]\d{2})/);
+    if (combined) [, dateText, timeText] = combined;
+  }
+  const german = dateText.match(/^(\d{1,2})\.(\d{1,2})\.(\d{2,4})$/);
+  const iso = dateText.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  const time = timeText.match(/^(\d{1,2})(?:[:.](\d{2}))?/);
+  if (!(german || iso) || !time) return INVALID_APPOINTMENT;
+  const [day, month, year] = german
+    ? [Number(german[1]), Number(german[2]), Number(german[3].length === 2 ? `20${german[3]}` : german[3])]
+    : [Number(iso[3]), Number(iso[2]), Number(iso[1])];
+  const at = new Date(year, month - 1, day, Number(time[1]), Number(time[2] || 0));
+  if (Number.isNaN(at.getTime()) || at.getDate() !== day || at.getMonth() !== month - 1) {
+    return INVALID_APPOINTMENT;
+  }
+  return at.toISOString();
+}
+
+export async function parseAppointmentCsv(file) {
+  const rows = await readCsvRows(file, APPOINTMENT_HEADER_LOOKUP);
+  return rows.map((row) => {
+    const product = csvEnergyProduct(row.energyProduct);
+    const isPv = product === 'photovoltaic';
+    const text = (key) => csvText(row[key]);
+    return {
+      vertical: 'energy',
+      deliveryType: 'appointment',
+      energyProduct: product,
+      appointmentAt: csvAppointmentAt(row.appointmentDate, row.appointmentTime),
+      firstName: text('firstName'),
+      lastName: text('lastName'),
+      phone: text('phone'),
+      email: text('email'),
+      street: text('street'),
+      houseNumber: text('houseNumber'),
+      zip: text('zip'),
+      city: text('city'),
+      state: csvState(row.state),
+      ownerStatus: text('ownerStatus'),
+      timeframe: text('timeframe'),
+      energyNeed: text('energyNeed'),
+      callSummary: text('callSummary'),
+      consentStatus: text('consentStatus'),
+      evidenceSource: text('evidenceSource'),
+      annualConsumption: isPv ? text('annualConsumption') : '',
+      existingPv: isPv ? csvExistingPv(row.existingPv) : '',
+      roofNotes: isPv ? text('roofNotes') : '',
+      heatingSystem: isPv ? '' : text('heatingSystem'),
+      energySource: isPv ? '' : text('energySource'),
+      constructionYear: isPv ? '' : text('constructionYear'),
+      replacementTimeframe: isPv ? '' : text('replacementTimeframe'),
+    };
+  });
+}
+
+function templateDate(daysAhead) {
+  const date = new Date();
+  date.setDate(date.getDate() + daysAhead);
+  return date.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
+export function downloadAppointmentCsvTemplate() {
+  const headers = APPOINTMENT_CSV_COLUMNS.map((column) => column.header);
+  const photovoltaic = {
+    energyProduct: 'Photovoltaik',
+    appointmentDate: templateDate(7),
+    appointmentTime: '14:00',
+    firstName: 'Max',
+    lastName: 'Mustermann',
+    phone: '+4915112345678',
+    email: 'max.mustermann@example.de',
+    street: 'Invalidenstraße',
+    houseNumber: '12',
+    zip: '10115',
+    city: 'Berlin',
+    state: 'Berlin',
+    ownerStatus: 'Eigentümer',
+    timeframe: 'In den nächsten 3 Monaten',
+    energyNeed: 'PV-Anlage mit Speicher',
+    callSummary: 'Interessiert an PV mit Speicher, Dach nach Süden',
+    consentStatus: 'Telefonisch eingewilligt',
+    evidenceSource: 'Telefonat',
+    annualConsumption: '4500 kWh',
+    existingPv: 'nein',
+    roofNotes: 'Satteldach, ca. 60 m²',
+  };
+  const heatPump = {
+    energyProduct: 'Wärmepumpe',
+    appointmentDate: templateDate(10),
+    appointmentTime: '10:30',
+    firstName: 'Anna',
+    lastName: 'Schulz',
+    phone: '+491701234567',
+    email: 'anna.schulz@example.de',
+    street: 'Obere Königsstraße',
+    houseNumber: '22',
+    zip: '34117',
+    city: 'Kassel',
+    state: 'Hessen',
+    ownerStatus: 'Eigentümerin',
+    timeframe: 'Dieses Jahr',
+    energyNeed: 'Gasheizung durch Wärmepumpe ersetzen',
+    callSummary: 'Alte Gasheizung, möchte Förderung nutzen',
+    consentStatus: 'Telefonisch eingewilligt',
+    evidenceSource: 'Telefonat',
+    heatingSystem: 'Gasheizung',
+    energySource: 'Erdgas',
+    constructionYear: '1995',
+    replacementTimeframe: 'In 6 Monaten',
+  };
+  const toRow = (entry) => APPOINTMENT_CSV_COLUMNS.map((column) => entry[column.key] || '');
+  downloadCsv('vantaro-termine-vorlage.csv', headers, [toRow(photovoltaic), toRow(heatPump)]);
 }
 
 export function downloadLeadCsvTemplate() {
@@ -445,16 +654,7 @@ export function downloadLeadCsvTemplate() {
     'regional',
     'Regionaler Familientarif prüfen',
   ];
-  const csv = Papa.unparse({ fields: headers, data: [example, regional] });
-  const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = 'vantaro-leads-vorlage.csv';
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
+  downloadCsv('vantaro-leads-vorlage.csv', headers, [example, regional]);
 }
 
 export function toggleListValue(list, value) {

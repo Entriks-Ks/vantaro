@@ -10,16 +10,19 @@ import {
   Flag,
   Ban,
   Calendar,
+  CalendarClock,
   CreditCard,
   Handshake,
   GraduationCap,
   MessageCircle,
   PanelLeftClose,
   PanelLeftOpen,
+  Wallet,
 } from 'lucide-react';
 import Brand from '../../components/Brand';
 import { useAuth } from '../../hooks/useAuth';
 import { useDashboard } from '../../hooks/useDashboard';
+import { allowedPartnerPages } from '../../lib/partners';
 import { roleLabel } from '../../lib/roles';
 import { displayName, firstName, greeting, initials } from './helpers';
 import ScheduleBell from './ScheduleBell';
@@ -54,6 +57,7 @@ function energyLinks(role, allowedPages) {
     links.push(
       { divider: true },
       { to: '/dashboard/paket', match: 'paket', label: 'Meine Pakete', icon: CreditCard },
+      { to: '/dashboard/zahlung', match: 'zahlung', label: 'Zahlungen', icon: Wallet },
       { to: '/dashboard/team', match: 'team', label: 'Partner', icon: Handshake },
       { to: '/dashboard/academy', match: 'academy', label: 'Akademie', icon: GraduationCap },
       { to: '/dashboard/support', match: 'support', label: 'Support', icon: MessageCircle },
@@ -62,12 +66,22 @@ function energyLinks(role, allowedPages) {
     links.push(
       { divider: true },
       { to: '/dashboard/paket', match: 'paket', label: 'Meine Pakete', icon: CreditCard },
+      { to: '/dashboard/zahlung', match: 'zahlung', label: 'Zahlungen', icon: Wallet },
       { to: '/dashboard/academy', match: 'academy', label: 'Akademie', icon: GraduationCap },
       { to: '/dashboard/support', match: 'support', label: 'Support', icon: MessageCircle },
     );
   }
 
-  if (role === 'main' || !Array.isArray(allowedPages)) return links;
+  return filterLinksByPages(links, allowedPages);
+}
+
+function filterLinksByPages(links, allowedPages) {
+  if (!Array.isArray(allowedPages)) return links;
+  const pageOf = (link) => {
+    if (link.match === 'home') return 'dashboard';
+    if (link.match === 'zahlung') return 'paket';
+    return link.match;
+  };
 
   const filtered = [];
   for (const link of links) {
@@ -75,10 +89,10 @@ function energyLinks(role, allowedPages) {
       if (filtered.length && !filtered[filtered.length - 1].divider) filtered.push(link);
       continue;
     }
-    if (allowedPages.includes(link.match)) filtered.push(link);
+    if (allowedPages.includes(pageOf(link))) filtered.push(link);
   }
   while (filtered.length && filtered[filtered.length - 1].divider) filtered.pop();
-  return filtered.length ? filtered : links.filter((link) => link.match === 'dashboard');
+  return filtered.length ? filtered : links.filter((link) => pageOf(link) === 'dashboard');
 }
 
 const BERATER_LINKS = [
@@ -87,6 +101,7 @@ const BERATER_LINKS = [
   { to: '/dashboard/kalender', match: 'kalender', label: 'Kalender', icon: Calendar },
   { divider: true },
   { to: '/dashboard/paket', match: 'paket', label: 'Mein Paket', icon: CreditCard },
+  { to: '/dashboard/zahlung', match: 'zahlung', label: 'Zahlungen', icon: Wallet },
   { to: '/dashboard/partner', match: 'partner', label: 'Partner', icon: Handshake },
   { to: '/dashboard/academy', match: 'academy', label: 'Akademie', icon: GraduationCap },
   { to: '/dashboard/support', match: 'support', label: 'Support', icon: MessageCircle },
@@ -97,6 +112,7 @@ function isBeraterNavActive(match, pathname) {
   if (match === 'leads') return pathname.startsWith('/dashboard/leads');
   if (match === 'kalender') return pathname.startsWith('/dashboard/kalender');
   if (match === 'paket') return pathname.startsWith('/dashboard/paket');
+  if (match === 'zahlung') return pathname.startsWith('/dashboard/zahlung');
   if (match === 'partner') return pathname.startsWith('/dashboard/partner');
   if (match === 'academy') return pathname.startsWith('/dashboard/academy');
   if (match === 'support') return pathname.startsWith('/dashboard/support');
@@ -140,6 +156,7 @@ const ADMIN_NAV = [
     label: 'Bestand',
     links: [
       { to: '/dashboard/leads', end: true, label: 'Leads', icon: ListChecks },
+      { to: '/dashboard/termine', end: true, label: 'Termine', icon: CalendarClock },
       { to: '/dashboard/berater', label: 'Berater', icon: UserRound },
       { to: '/dashboard/nutzer', label: 'Nutzer', icon: Users },
     ],
@@ -186,6 +203,9 @@ function adminPageCopy(pathname, user) {
   }
   if (pathname.startsWith('/dashboard/leads')) {
     return { kicker: 'Bestand', title: 'Leads', subtitle: 'Bestand filtern, importieren und pflegen.' };
+  }
+  if (pathname.startsWith('/dashboard/termine')) {
+    return { kicker: 'Bestand', title: 'Termine', subtitle: 'Energie-Termine mit Datum und Uhrzeit filtern und pflegen.' };
   }
   return {
     kicker: greeting(),
@@ -414,8 +434,8 @@ function BeraterShell({ user, children }) {
         </div>
         <nav className="broker-nav" id="broker-sidebar-nav" aria-label="Portal">
           {(user?.vertical === 'energy'
-            ? energyLinks(user.energyRole || 'main', user.energyPages)
-            : BERATER_LINKS
+            ? energyLinks(user.partnerRole || 'main', allowedPartnerPages(user))
+            : filterLinksByPages(BERATER_LINKS, allowedPartnerPages(user))
           ).map((link) => {
             if (link.divider) {
               return <div className="broker-nav-divider" key="divider" />;
