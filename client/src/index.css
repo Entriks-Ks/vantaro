@@ -435,7 +435,7 @@ p + p {
     gap: 10px;
     min-height: 52px;
     border: 1px solid transparent;
-    border-radius: 12px;
+    border-radius: 9px;
     padding: 0 28px;
     font-family: var(--font-body);
     font-weight: 700;
@@ -2125,7 +2125,7 @@ body.menu-open .site-header {
 .metric-spark i {
     display: block;
     min-height: 7px;
-    border-radius: 999px;
+    border-radius: 9px;
     background: linear-gradient(180deg, rgba(55, 205, 190, .24), rgba(55, 205, 190, .92));
 }
 .metric:nth-child(1) .metric-spark i:nth-child(1) { height: 8px; }
@@ -2286,7 +2286,7 @@ body.menu-open .site-header {
     align-items: center;
     gap: 7px;
     padding: 10px 12px;
-    border-radius: 999px;
+    border-radius: 9px;
     color: var(--lm-c7f5ef);
     background: rgba(29, 194, 175, .1);
     border: 1px solid rgba(29, 194, 175, .16);
@@ -4863,7 +4863,7 @@ body.auth-page {
 
 .auth-steps span {
     height: 4px;
-    border-radius: 999px;
+    border-radius: 9px;
     background: var(--wash-12);
 }
 
@@ -6407,7 +6407,7 @@ body.dashboard-page .dash-lede {
     min-width: 18px;
     height: 18px;
     padding: 0 5px;
-    border-radius: 999px;
+    border-radius: 9px;
     background: rgba(255, 117, 90, .92);
     color: var(--text-strong);
     font: 700 10px/18px var(--font-mono);
@@ -6845,7 +6845,7 @@ body.dashboard-page .dash-lede {
     width: 88px;
     height: 6px;
     overflow: hidden;
-    border-radius: 999px;
+    border-radius: 9px;
     background: rgba(149, 175, 209, .16);
 }
 .dash-mini-progress span,
@@ -7064,7 +7064,7 @@ body.dashboard-page .dash-lede {
 .dash-chart-legend i {
     width: 10px;
     height: 10px;
-    border-radius: 999px;
+    border-radius: 9px;
     flex-shrink: 0;
 }
 .dash-chart-legend span {
@@ -7112,7 +7112,7 @@ body.dashboard-page .dash-lede {
 .dash-hbar-track {
     height: 10px;
     overflow: hidden;
-    border-radius: 999px;
+    border-radius: 9px;
     background: rgba(149, 175, 209, .14);
 }
 .dash-hbar-track span {
@@ -7130,7 +7130,7 @@ body.dashboard-page .dash-lede {
     display: flex;
     overflow: hidden;
     height: 14px;
-    border-radius: 999px;
+    border-radius: 9px;
     background: rgba(149, 175, 209, .14);
 }
 .dash-stack-seg {
@@ -7275,7 +7275,7 @@ body.dashboard-page .dash-lede {
 }
 .dash-chips span {
     padding: 7px 12px;
-    border-radius: 999px;
+    border-radius: 9px;
     border: 1px solid var(--field-border);
     color: var(--muted-blue);
     font-size: 12px;
@@ -7320,7 +7320,7 @@ body.dashboard-page .dash-lede {
 .dash-badge {
     display: inline-flex;
     padding: 3px 8px;
-    border-radius: 999px;
+    border-radius: 9px;
     font-size: 11px;
     font-weight: 700;
 }
@@ -7865,7 +7865,7 @@ body.dashboard-page .dash-lede {
     align-items: center;
     gap: 6px;
     padding: 5px 10px;
-    border-radius: 999px;
+    border-radius: 9px;
     border: 1px solid rgba(152, 178, 210, .18);
     background: rgba(8, 16, 30, .55);
     color: var(--lm-a9bbd2);
@@ -8579,7 +8579,7 @@ body.dashboard-page .dash-lede {
     min-width: 22px;
     height: 22px;
     padding: 0 6px;
-    border-radius: 999px;
+    border-radius: 9px;
     background: var(--wash-08);
     color: inherit;
     font: 700 11px/1 var(--font-mono);
@@ -8761,7 +8761,7 @@ body.dashboard-page .dash-lede {
 }
 .dash-bv-chips > span {
     padding: 4px 9px;
-    border-radius: 999px;
+    border-radius: 9px;
     border: 1px solid var(--input-border);
     background: var(--wash-04);
     color: var(--lm-d7e4f4);
@@ -8849,7 +8849,7 @@ body.dashboard-page .dash-lede {
 }
 .dash-bv-inline-stats > span {
     padding: 5px 9px;
-    border-radius: 999px;
+    border-radius: 9px;
     border: 1px solid var(--panel-border);
     background: rgba(8, 16, 30, .4);
     color: var(--muted-4);
@@ -8880,7 +8880,7 @@ body.dashboard-page .dash-lede {
     display: block;
     height: 10px;
     overflow: hidden;
-    border-radius: 999px;
+    border-radius: 9px;
     background: rgba(149, 175, 209, .14);
 }
 .dash-bv-fulfill__track > span {
@@ -8926,7 +8926,7 @@ body.dashboard-page .dash-lede {
     display: block;
     height: 8px;
     overflow: hidden;
-    border-radius: 999px;
+    border-radius: 9px;
     background: rgba(149, 175, 209, .14);
 }
 .dash-bv-bars__fill {
@@ -8996,7 +8996,7 @@ body.dashboard-page .dash-lede {
 .dash-bv-composition__legend i {
     width: 8px;
     height: 8px;
-    border-radius: 999px;
+    border-radius: 9px;
 }
 .dash-bv-composition__legend span {
     color: var(--muted-4);
@@ -9126,7 +9126,7 @@ body.dashboard-page .dash-lede {
     display: block;
     height: 4px;
     overflow: hidden;
-    border-radius: 999px;
+    border-radius: 9px;
     background: rgba(149, 175, 209, .14);
 }
 .dash-bv-request__bar > span {
@@ -9456,7 +9456,7 @@ body.dashboard-page .dash-lede {
 }
 .dash-lead-complete__count {
     padding: 3px 9px;
-    border-radius: 999px;
+    border-radius: 9px;
     font: 600 12px var(--font-mono);
 }
 .dash-lead-complete__count.is-ok {
@@ -9474,7 +9474,7 @@ body.dashboard-page .dash-lede {
 .dash-lead-complete__bar {
     height: 6px;
     overflow: hidden;
-    border-radius: 999px;
+    border-radius: 9px;
     background: var(--wash-08);
 }
 .dash-lead-complete__bar > span {
@@ -9512,7 +9512,7 @@ body.dashboard-page .dash-lede {
 .dash-lead-complete__missing em {
     padding: 3px 9px;
     border: 1px dashed var(--panel-border);
-    border-radius: 999px;
+    border-radius: 9px;
     color: var(--text-soft);
     font-size: 12px;
     font-style: normal;
@@ -9580,7 +9580,7 @@ body.dashboard-page .dash-lede {
 .dash-lead-appt__when {
     flex-shrink: 0;
     padding: 5px 11px;
-    border-radius: 999px;
+    border-radius: 9px;
     background: rgba(232, 176, 74, .16);
     color: var(--lm-ffe7b8);
     font-size: 12px;
@@ -9683,7 +9683,7 @@ body.dashboard-page .dash-lede {
 .dash-lead-complete__missing button {
     padding: 3px 9px;
     border: 1px dashed rgba(228, 90, 66, .45);
-    border-radius: 999px;
+    border-radius: 9px;
     background: rgba(228, 90, 66, .06);
     color: var(--text-soft);
     font: 500 12px var(--font-body);
@@ -10418,7 +10418,7 @@ html[data-theme="light"] .dash-lead-edit .dash-form input[type="datetime-local"]
     display: inline-block;
     margin-left: 8px;
     padding: 1px 6px;
-    border-radius: 999px;
+    border-radius: 9px;
     background: rgba(255, 117, 90, .18);
     color: var(--lm-ffb39f);
     font-family: var(--font-mono);
@@ -10508,7 +10508,7 @@ html[data-theme="light"] .dash-lead-edit .dash-form input[type="datetime-local"]
     width: min(180px, 100%);
     height: 5px;
     overflow: hidden;
-    border-radius: 999px;
+    border-radius: 9px;
     background: rgba(149, 175, 209, .16);
 }
 .dash-request-meta {
@@ -10918,7 +10918,7 @@ html[data-theme="light"] .dash-lead-edit .dash-form input[type="datetime-local"]
     left: calc(50% + 14px);
     right: calc(-50% + 14px);
     height: 2px;
-    border-radius: 999px;
+    border-radius: 9px;
     background: var(--input-border);
 }
 .dash-req-steps__step.is-done:not(:last-child)::after,
@@ -10932,7 +10932,7 @@ html[data-theme="light"] .dash-lead-edit .dash-form input[type="datetime-local"]
     place-content: center;
     width: 22px;
     height: 22px;
-    border-radius: 999px;
+    border-radius: 9px;
     border: 1px solid rgba(101, 130, 173, .28);
     background: var(--nv-18);
     color: var(--lm-a9b9ce);
@@ -11882,7 +11882,7 @@ html[data-theme="light"] .dash-lead-edit .dash-form input[type="datetime-local"]
 .dash-ai-pick__badge {
     padding: 4px 10px;
     border: 1px solid currentColor;
-    border-radius: 999px;
+    border-radius: 9px;
     font-size: 11px;
     font-weight: 700;
     white-space: nowrap;
@@ -12409,7 +12409,7 @@ html[data-theme="light"] .dash-lead-edit .dash-form input[type="datetime-local"]
     align-self: center;
     width: 36px;
     height: 36px;
-    border-radius: 999px;
+    border-radius: 9px;
     border: 1px solid var(--panel-border);
     background: var(--wash-03);
     color: var(--muted-blue);
@@ -12719,7 +12719,7 @@ button.dash-lead-row.dash-replacement-row.is-selected {
     border: 1px solid var(--field-border);
     background: var(--input-bg);
     color: var(--text-soft);
-    border-radius: 999px;
+    border-radius: 9px;
     padding: 8px 12px;
     font-size: 12px;
     font-weight: 700;
@@ -13016,7 +13016,7 @@ button.dash-lead-row.dash-replacement-row.is-selected {
     align-items: center;
     gap: 8px;
     padding: 8px 14px;
-    border-radius: 999px;
+    border-radius: 9px;
     background: rgba(86, 211, 196, .16);
     border: 1px solid rgba(86, 211, 196, .28);
     color: var(--lm-56d3c4);
@@ -13143,7 +13143,7 @@ button.dash-lead-row.dash-replacement-row.is-selected {
     min-width: 18px;
     height: 18px;
     padding: 0 5px;
-    border-radius: 999px;
+    border-radius: 9px;
     background: #ef4444;
     color: var(--text-pure);
     font-size: 10px;
@@ -13816,7 +13816,7 @@ button.dash-lead-row.dash-replacement-row.is-selected {
     align-items: center;
     gap: 7px;
     padding: 7px 14px;
-    border-radius: 999px;
+    border-radius: 9px;
     background: var(--wash-06);
     border: 1px solid var(--wash-10);
     color: var(--text);
@@ -13960,7 +13960,7 @@ html[data-theme="light"] .broker-cal-view-btn.is-active {
     align-items: center;
     gap: 6px;
     padding: 6px 13px;
-    border-radius: 999px;
+    border-radius: 9px;
     font-size: 12px;
     font-weight: 600;
     background: var(--wash-03);
@@ -14048,7 +14048,7 @@ html[data-theme="light"] .broker-cal-view-btn.is-active {
     height: 36px;
     overflow: hidden;
     border: 1px solid var(--wash-09);
-    border-radius: 999px;
+    border-radius: 9px;
     background: var(--nv-25);
     transition: width .22s ease, border-color .2s ease;
 }
@@ -14071,7 +14071,7 @@ html[data-theme="light"] .broker-cal-view-btn.is-active {
     height: 34px;
     padding: 0;
     border: 0;
-    border-radius: 999px;
+    border-radius: 9px;
     background: none;
     color: var(--muted);
     cursor: pointer;
@@ -14105,7 +14105,7 @@ html[data-theme="light"] .broker-cal-view-btn.is-active {
     margin-right: 8px;
     padding: 3px;
     border: 0;
-    border-radius: 999px;
+    border-radius: 9px;
     background: var(--wash-08);
     color: var(--muted);
     cursor: pointer;
@@ -14662,7 +14662,7 @@ html[data-theme="light"] .broker-cal-view-btn.is-active {
     font-size: 11px;
     font-weight: 600;
     padding: 2px 8px;
-    border-radius: 999px;
+    border-radius: 9px;
 }
 
 .broker-badge-pill.is-termin {
@@ -14682,7 +14682,7 @@ html[data-theme="light"] .broker-cal-view-btn.is-active {
     color: var(--muted);
     background: var(--wash-05);
     padding: 2px 8px;
-    border-radius: 999px;
+    border-radius: 9px;
 }
 
 .broker-cal-overdue-tag {
@@ -14694,7 +14694,7 @@ html[data-theme="light"] .broker-cal-view-btn.is-active {
     color: var(--lm-ff755a);
     background: rgba(255, 117, 90, .12);
     padding: 2px 8px;
-    border-radius: 999px;
+    border-radius: 9px;
 }
 
 .broker-cal-agenda-card-cta {
@@ -15368,7 +15368,7 @@ html[data-theme="light"] .broker-cal-view-btn.is-active {
     min-height: 40px;
     padding: 0 14px;
     border: 1px solid var(--wash-10);
-    border-radius: 999px;
+    border-radius: 9px;
     background: var(--surface);
     color: var(--text-muted);
     font: inherit;
@@ -15899,7 +15899,7 @@ html[data-theme="light"] .broker-cal-view-btn.is-active {
     height: 36px;
     border: 1px solid var(--wash-12);
     background: var(--wash-06);
-    border-radius: 999px;
+    border-radius: 9px;
     color: var(--ink);
     transition: background var(--transition), border-color var(--transition), color var(--transition);
 }
@@ -15950,7 +15950,7 @@ html[data-theme="light"] .broker-cal-view-btn.is-active {
     height: 20px;
     padding: 0 6px;
     margin-left: auto;
-    border-radius: 999px;
+    border-radius: 9px;
     background: var(--signal);
     color: var(--text-pure);
     font-family: var(--font-mono);
@@ -15999,7 +15999,7 @@ html[data-theme="light"] .broker-cal-view-btn.is-active {
     padding: 0 5px;
     background: #ff755a;
     color: var(--text-pure);
-    border-radius: 999px;
+    border-radius: 9px;
     font-size: 11px;
     font-weight: 700;
     display: flex;
@@ -16330,7 +16330,7 @@ html[data-theme="light"] .broker-ins-filter__box {
     height: 40px;
     padding: 0 12px 0 14px;
     border: 1px solid var(--line);
-    border-radius: 999px;
+    border-radius: 9px;
     background: var(--wash-03);
     color: var(--text);
     font: inherit;
@@ -16441,7 +16441,7 @@ html[data-theme="light"] .broker-filter-dd__box {
 .broker-filter-dd__count {
     min-width: 24px;
     padding: 2px 7px;
-    border-radius: 999px;
+    border-radius: 9px;
     background: var(--wash-06);
     color: var(--text-muted);
     font-family: var(--font-mono);
@@ -16475,7 +16475,7 @@ html[data-theme="light"] .broker-filter-dd__box {
 }
 .broker-filter-dd__done {
     border: 0;
-    border-radius: 999px;
+    border-radius: 9px;
     padding: 7px 16px;
     background: #56d3c4;
     color: #070b14;
@@ -16548,7 +16548,7 @@ html[data-theme="light"] .broker-filter-dd__box {
     height: 30px;
     padding: 0 10px 0 12px;
     border: 1px solid rgba(86, 211, 196, .35);
-    border-radius: 999px;
+    border-radius: 9px;
     background: rgba(86, 211, 196, .1);
     color: var(--ink);
     font: inherit;
@@ -16569,7 +16569,7 @@ html[data-theme="light"] .broker-filter-dd__box {
     padding: 5px;
     background: var(--wash-06);
     border: 1px solid var(--wash-08);
-    border-radius: 999px;
+    border-radius: 9px;
     font-family: var(--font-body);
 }
 .broker-pills button {
@@ -16579,7 +16579,7 @@ html[data-theme="light"] .broker-filter-dd__box {
     border: 0;
     color: var(--text-muted);
     padding: 8px 14px;
-    border-radius: 999px;
+    border-radius: 9px;
     font-size: 14px;
     font-weight: 600;
     background: transparent;
@@ -16605,7 +16605,7 @@ html[data-theme="light"] .broker-filter-dd__box {
     min-width: 20px;
     height: 20px;
     padding: 0 6px;
-    border-radius: 999px;
+    border-radius: 9px;
     background: var(--wash-08);
     color: var(--text-muted);
     font-family: var(--font-mono);
@@ -16929,7 +16929,7 @@ html[data-theme="light"] .broker-kanban-title small {
 }
 .broker-kanban-stack::-webkit-scrollbar-thumb {
     background: rgba(148, 163, 184, .45);
-    border-radius: 999px;
+    border-radius: 9px;
 }
 .broker-kanban-stack::-webkit-scrollbar-track {
     background: transparent;
@@ -17141,7 +17141,7 @@ html[data-theme="light"] .broker-kanban-title small {
     gap: 6px;
     padding: 4px 10px;
     border: 1px solid transparent;
-    border-radius: 999px;
+    border-radius: 9px;
     font-size: 12px;
     font-weight: 700;
     white-space: nowrap;
@@ -17289,7 +17289,7 @@ html[data-theme="light"] .broker-kanban-title small {
     display: inline-flex;
     align-items: center;
     padding: 7px 12px;
-    border-radius: 999px;
+    border-radius: 9px;
     border: 1px solid var(--line);
     background: var(--broker-panel);
     color: var(--ink);
@@ -17789,7 +17789,7 @@ html[data-theme="light"] .broker-kanban-title small {
     align-items: center;
     gap: 4px;
     padding: 3px 8px;
-    border-radius: 999px;
+    border-radius: 9px;
     font-size: 11px;
     font-weight: 700;
     line-height: 1.2;
@@ -18093,7 +18093,7 @@ html[data-theme="light"] .broker-kanban-title small {
     min-height: 32px;
     padding: 0 10px;
     border: 1px solid var(--line);
-    border-radius: 999px;
+    border-radius: 9px;
     background: var(--nv-28);
     color: var(--ink);
     font: inherit;
@@ -18305,7 +18305,7 @@ html[data-theme="light"] .broker-kanban-title small {
     display: inline-flex;
     width: fit-content;
     padding: 4px 8px;
-    border-radius: 999px;
+    border-radius: 9px;
     background: rgba(255, 117, 90, .14);
     color: var(--signal-dark);
     font-size: 10px;
@@ -18362,7 +18362,7 @@ html[data-theme="light"] .broker-kanban-title small {
     justify-content: center;
     width: 24px;
     height: 24px;
-    border-radius: 999px;
+    border-radius: 9px;
     background: var(--wash-08);
     font-size: 11px;
     font-family: var(--font-mono);
@@ -18550,7 +18550,7 @@ html[data-theme="light"] .broker-kanban-title small {
     width: 22px;
     height: 22px;
     margin-top: 1px;
-    border-radius: 999px;
+    border-radius: 9px;
     border: 1px solid var(--line);
     background: var(--surface);
     color: var(--text-strong);
@@ -19081,7 +19081,7 @@ html[data-theme="light"] .broker-kanban-title small {
     align-items: center;
     gap: 8px;
     padding: 8px 14px;
-    border-radius: 999px;
+    border-radius: 9px;
     border: 1px solid var(--wash-12);
     background: var(--nv-33);
     color: var(--ink);
@@ -20144,7 +20144,7 @@ html[data-theme="light"] .broker-profile-card__cover {
     max-width: 100%;
     padding: 5px 10px;
     border: 1px solid var(--wash-10);
-    border-radius: 999px;
+    border-radius: 9px;
     background: var(--wash-04);
     color: var(--text-soft);
     font-size: 12px;
@@ -20485,7 +20485,7 @@ html[data-theme="light"] .broker-profile-card__cover {
     flex-shrink: 0;
     margin: 2px 0 0;
     padding: 7px 11px 7px 13px;
-    border-radius: 999px;
+    border-radius: 10px;
     border: 1px solid rgba(86, 211, 196, 0.28);
     background: rgba(86, 211, 196, 0.12);
     color: var(--thread);
@@ -20525,7 +20525,7 @@ html[data-theme="light"] .broker-profile-card__cover {
     overflow: hidden;
     height: 12px;
     margin: 0 22px 18px;
-    border-radius: 999px;
+    border-radius: 9px;
     background: rgba(149, 175, 209, .14);
 }
 .broker-pipeline-seg {
@@ -20609,7 +20609,7 @@ html[data-theme="light"] .broker-pipeline-card:hover {
     color: var(--muted);
     background: var(--wash-06);
     padding: 3px 8px;
-    border-radius: 999px;
+    border-radius: 9px;
     border: 1px solid var(--wash-06);
 }
 .broker-pipeline-card-main {
@@ -20641,7 +20641,7 @@ html[data-theme="light"] .broker-pipeline-card:hover {
 }
 .broker-pipeline-card-bar {
     height: 3px;
-    border-radius: 999px;
+    border-radius: 9px;
     margin-top: auto;
     opacity: 0.85;
     box-shadow: 0 0 8px currentColor;
@@ -20854,6 +20854,7 @@ html[data-theme="light"] .broker-pipeline-card-bar {
 }
 .broker-panel-header h2 {
     font-size: 20px;
+    margin-top: 6px;
 }
 .broker-count {
     background: rgba(86, 211, 196, .16);
@@ -20906,7 +20907,7 @@ html[data-theme="light"] .broker-pipeline-card-bar {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    border-radius: 999px;
+    border-radius: 9px;
     padding: 6px 11px;
     font-size: 12px;
     font-weight: 700;
@@ -20935,7 +20936,7 @@ html[data-theme="light"] .broker-pipeline-card-bar {
 }
 .broker-lead-meta span {
     border: 1px solid var(--line);
-    border-radius: 999px;
+    border-radius: 9px;
     color: var(--text-muted);
     padding: 5px 8px;
     font-size: 12px;
@@ -20984,7 +20985,7 @@ html[data-theme="light"] .broker-pipeline-card-bar {
     display: inline-flex;
     align-items: center;
     padding: 5px 9px;
-    border-radius: 999px;
+    border-radius: 9px;
     background: rgba(86, 211, 196, .14);
     color: var(--lm-56d3c4);
     font-size: 12px;
@@ -21174,7 +21175,7 @@ html[data-theme="light"] .broker-pipeline-card-bar {
 }
 .broker-quota-bar {
     height: 8px;
-    border-radius: 999px;
+    border-radius: 9px;
     background: var(--wash-12);
     overflow: hidden;
     margin: 4px 0 12px;
@@ -21456,7 +21457,7 @@ html[data-theme="light"] .broker-pipeline-card-bar {
     align-items: center;
     margin-left: 0;
     padding: 3px 9px;
-    border-radius: 999px;
+    border-radius: 9px;
     font-size: 11.5px;
     font-weight: 700;
 }
@@ -21634,7 +21635,7 @@ html[data-theme="light"] .broker-pipeline-card-bar {
     justify-content: center;
     width: 24px;
     height: 24px;
-    border-radius: 999px;
+    border-radius: 9px;
     background: var(--wash-08);
     font-size: 11px;
     font-family: var(--font-mono);
@@ -21667,7 +21668,7 @@ html[data-theme="light"] .broker-pipeline-card-bar {
     width: 22px;
     height: 22px;
     margin-right: 8px;
-    border-radius: 999px;
+    border-radius: 9px;
     background: var(--signal);
     color: var(--text-strong);
     font-size: 11px;
@@ -23907,7 +23908,7 @@ html[data-theme="light"] {
   align-items: center;
   gap: 8px;
   border: 1px solid var(--panel-border);
-  border-radius: 999px;
+  border-radius: 9px;
   padding: 8px 12px;
   background: var(--wash-06);
   color: var(--text-muted);
@@ -23971,7 +23972,7 @@ html[data-theme="light"] {
   align-items: center;
   gap: 8px;
   border: 1px solid var(--panel-border);
-  border-radius: 999px;
+  border-radius: 9px;
   padding: 7px 11px 7px 9px;
   background: var(--wash-06);
   color: var(--text-muted);
@@ -23984,7 +23985,7 @@ html[data-theme="light"] {
 .energy-partner-toggle-track {
   width: 30px;
   height: 18px;
-  border-radius: 999px;
+  border-radius: 9px;
   background: rgba(148, 163, 184, .35);
   position: relative;
   flex-shrink: 0;
@@ -24386,7 +24387,7 @@ html[data-theme="light"] .energy-partner-page.is-on {
   width: 34px;
   height: 34px;
   border: 1px solid var(--panel-border);
-  border-radius: 999px;
+  border-radius: 9px;
   background: var(--wash-06);
   color: var(--text-muted);
   cursor: pointer;
@@ -24613,7 +24614,7 @@ html[data-theme="light"] .energy-partner-more-menu {
   gap: 5px;
   padding: 4px 10px;
   border: 1px solid var(--wash-08);
-  border-radius: 999px;
+  border-radius: 9px;
   background: var(--wash-03);
   color: var(--muted);
   font-size: 12px;
@@ -24810,7 +24811,7 @@ html[data-theme="light"] .energy-partner-view-grid > div {
     align-items: center;
     gap: 2px;
     padding: 3px 7px;
-    border-radius: 999px;
+    border-radius: 9px;
     font: 700 11px/1 var(--font-mono);
 }
 .dash-pay-trend.is-up {
@@ -25001,7 +25002,7 @@ html[data-theme="light"] .energy-partner-view-grid > div {
 .dash-pay-bars__track {
     height: 8px;
     overflow: hidden;
-    border-radius: 999px;
+    border-radius: 9px;
     background: var(--wash-06);
 }
 .dash-pay-bars__track > span {
@@ -25069,7 +25070,7 @@ html[data-theme="light"] .energy-partner-view-grid > div {
 .dash-pay-top__bar {
     height: 4px;
     overflow: hidden;
-    border-radius: 999px;
+    border-radius: 9px;
     background: var(--wash-06);
 }
 .dash-pay-top__bar > span {
@@ -25239,7 +25240,7 @@ html[data-theme="light"] .energy-partner-view-grid > div {
 .broker-pay-head-actions .btn {
     min-height: 40px;
     padding: 0 18px;
-    border-radius: 999px;
+    border-radius: 9px;
     box-shadow: none;
     white-space: nowrap;
 }
@@ -25253,7 +25254,7 @@ html[data-theme="light"] .energy-partner-view-grid > div {
     width: 42px;
     height: 42px;
     border: 1px solid var(--wash-12);
-    border-radius: 999px;
+    border-radius: 9px;
     background: var(--wash-04);
     color: var(--text-strong);
     cursor: pointer;
@@ -25449,7 +25450,7 @@ html[data-theme="light"] .energy-partner-view-grid > div {
 .broker-pay-quota__track {
     height: 10px;
     overflow: hidden;
-    border-radius: 999px;
+    border-radius: 9px;
     background: var(--wash-08);
 }
 .broker-pay-quota__track > span {
@@ -25539,7 +25540,7 @@ html[data-theme="light"] .energy-partner-view-grid > div {
     height: 40px;
     padding: 0 14px;
     border: 1px solid var(--input-border);
-    border-radius: 999px;
+    border-radius: 9px;
     background: var(--input-bg);
     color: var(--text-muted);
     transition: border-color .15s ease, box-shadow .15s ease;

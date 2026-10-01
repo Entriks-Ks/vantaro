@@ -3784,7 +3784,7 @@ export function BeraterLeadDetail() {
           <CopyableAction value={lead.phone} label="Telefonnummer" onCopied={showToast}>
             <a className="btn btn-primary" href={phoneHref}>
               <Phone size={16} aria-hidden="true" />
-              Anrufen · {lead.phone}
+              Anrufen
             </a>
           </CopyableAction>
         ) : (
