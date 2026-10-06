@@ -54,6 +54,7 @@ import {
 } from './leads';
 import { TEST_PACKAGE_PRICE_CENTS } from './packages';
 import { useBroker } from '../../hooks/useBroker';
+import { returnTo, returnLabel } from './LeadDetail';
 
 const MIN_LEADS = 10;
 const LEAD_STEP = 5;
@@ -112,6 +113,7 @@ function StatusMark({ status, complaint }) {
 
 export function EnergyHome() {
   const { user } = useAuth();
+  const location = useLocation();
   const { leadStatuses } = useBroker();
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -259,7 +261,7 @@ export function EnergyHome() {
             <h2>Aktuelle Leads</h2>
             <p>Neue Chancen in Ihrem Bestand</p>
           </div>
-          <Link to="/dashboard/leads" className="broker-text-btn">Alle anzeigen</Link>
+          <Link to="/dashboard/leads" state={{ from: location.pathname + location.search }} className="broker-text-btn">Alle anzeigen</Link>
         </div>
         {loading ? (
           <div className="broker-empty">
@@ -270,7 +272,7 @@ export function EnergyHome() {
           <ul className="broker-home-lead-list">
             {recent.map((lead) => (
               <li key={lead.id}>
-                <Link to={`/dashboard/leads/${lead.id}`}>
+                <Link to={`/dashboard/leads/${lead.id}`} state={{ from: location.pathname + location.search }}>
                   <span className="broker-home-lead-person">
                     <span className="broker-home-lead-avatar" aria-hidden="true">{leadInitials(lead)}</span>
                     <span className="broker-home-lead-copy">
@@ -302,6 +304,7 @@ export function EnergyHome() {
 
 export function EnergyLeads() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [leads, setLeads] = useState([]);
   const [packages, setPackages] = useState([]);
   const [view, setView] = useState('kanban');
@@ -420,7 +423,7 @@ export function EnergyLeads() {
             </div>
             <div className="broker-list-body">
               {pageItems.map((lead) => (
-                <button key={lead.id} type="button" className="broker-list-row" onClick={() => navigate(`/dashboard/leads/${lead.id}`)}>
+                <button key={lead.id} type="button" className="broker-list-row" onClick={() => navigate(`/dashboard/leads/${lead.id}`, { state: { from: location.pathname + location.search } })}>
                   <span className="broker-list-name">
                     <strong>{lead.name}</strong>
                     <small>{lead.address}</small>
@@ -465,9 +468,9 @@ export function EnergyLeads() {
                       className="broker-panel broker-lead-card is-clickable"
                       role="button"
                       tabIndex={0}
-                      onClick={() => navigate(`/dashboard/leads/${lead.id}`)}
+                      onClick={() => navigate(`/dashboard/leads/${lead.id}`, { state: { from: location.pathname + location.search } })}
                       onKeyDown={(event) => {
-                        if (event.key === 'Enter') navigate(`/dashboard/leads/${lead.id}`);
+                        if (event.key === 'Enter') navigate(`/dashboard/leads/${lead.id}`, { state: { from: location.pathname + location.search } });
                       }}
                     >
                       <strong>{lead.name}</strong>
@@ -685,7 +688,7 @@ export function EnergyOrders() {
         <div className="broker-status-divider" />
         <div className="broker-status-stat broker-status-stat--link">
           <span className="broker-stat-label">Rechnungsadresse</span>
-          <Link to="/dashboard/unternehmen" className="broker-status-action">
+          <Link to="/dashboard/unternehmen" state={{ from: '/dashboard/paket' }} className="broker-status-action">
             <Building2 size={15} aria-hidden="true" />
             <span>Bearbeiten</span>
             <ArrowRight size={14} aria-hidden="true" />
@@ -872,7 +875,7 @@ export function EnergyOrders() {
             <h2>Rechnungen</h2>
             <p>Übersicht Ihrer bisherigen Zahlungen</p>
           </div>
-          <Link to="/dashboard/zahlung" className="broker-pipeline-open">
+          <Link to="/dashboard/zahlung" state={{ from: '/dashboard/paket' }} className="broker-pipeline-open">
             <span>Alle Zahlungen</span>
             <ArrowRight size={14} strokeWidth={2.25} aria-hidden="true" />
           </Link>

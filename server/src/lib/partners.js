@@ -1,6 +1,6 @@
 import { randomInt } from 'node:crypto';
 import { supabase } from './supabase.js';
-import { normalizePartnerPages, publicUser } from './auth.js';
+import { mapAuthError, normalizePartnerPages, publicUser } from './auth.js';
 import { removeHolderCalendarEvent, syncLeadCalendar } from './energy.js';
 import { getLeadById, listMyLeads, withAssignee, withAssignees } from './leads.js';
 import { hasCustomMailer } from './mailer.js';
@@ -84,6 +84,7 @@ async function loadUser(id) {
 
 function toPartner(raw) {
   const user = publicUser(raw);
+  if (!user) throw fail('Zugang konnte nicht angelegt werden.');
   const metadata = raw.user_metadata || {};
   const accepted = metadata.energy_invite_accepted === true || Boolean(raw.last_sign_in_at);
   return {
@@ -179,7 +180,11 @@ export async function createPartner(actor, { firstName, lastName, email, partner
     },
     app_metadata: { role: ROLES.BERATER },
   });
-  if (error) throw fail(error.message || 'Zugang konnte nicht angelegt werden.');
+  if (error) {
+    console.error('createPartner failed:', error.message);
+    throw fail(mapAuthError(error) || 'Zugang konnte nicht angelegt werden.');
+  }
+  if (!data?.user) throw fail('Zugang konnte nicht angelegt werden.');
   return { user: toPartner(data.user), password };
 }
 

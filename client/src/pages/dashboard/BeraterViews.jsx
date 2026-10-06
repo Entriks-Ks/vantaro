@@ -47,6 +47,7 @@ import { connectEnergyCalendar, disconnectEnergyCalendar, fetchCalendarStatus } 
 import { CopyableAction, EnergyLeadFacts } from './EnergyLeadFacts';
 import { PartnerLeadActions } from './EnergyOps';
 import { SelectDropdown, useDropdownDismiss } from './SelectDropdown';
+import { returnTo, returnLabel } from './LeadDetail';
 import {
   checkoutLeadPackage,
   collectBrowserPaymentMeta,
@@ -1346,6 +1347,7 @@ function ReportModal({
 
 export function BeraterHome() {
   const { user } = useAuth();
+  const location = useLocation();
   const { leadStatuses } = useBroker();
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -1530,7 +1532,7 @@ export function BeraterHome() {
             <h2>Aktuelle Leads</h2>
             <p>Neue Chancen in Ihrem Bestand</p>
           </div>
-          <Link to="/dashboard/leads" className="broker-text-btn">Alle anzeigen</Link>
+          <Link to="/dashboard/leads" state={{ from: location.pathname + location.search }} className="broker-text-btn">Alle anzeigen</Link>
         </div>
         {loading ? (
           <div className="broker-empty">
@@ -1544,7 +1546,7 @@ export function BeraterHome() {
               const schedule = leadScheduleOf(lead);
               return (
                 <li key={lead.id}>
-                  <Link to={`/dashboard/leads/${lead.id}`}>
+                  <Link to={`/dashboard/leads/${lead.id}`} state={{ from: location.pathname + location.search }}>
                     <span className="broker-home-lead-person">
                       <span className="broker-home-lead-avatar" aria-hidden="true">
                         {leadInitials(lead)}
@@ -1850,6 +1852,7 @@ function leadMatchesEnergyPackage(lead, selected) {
 
 export function BeraterLeads() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
   const energy = verticalOrInsurance(user?.vertical) === 'energy';
   const { leadStatuses, setLeadStatus, showToast } = useBroker();
@@ -1960,7 +1963,7 @@ export function BeraterLeads() {
     return visible.slice(start, start + pageSize);
   }, [visible, page, pageSize]);
 
-  const openLead = (id) => navigate(`/dashboard/leads/${id}`);
+  const openLead = (id) => navigate(`/dashboard/leads/${id}`, { state: { from: location.pathname + location.search } });
 
   const handleDrop = (statusId, event) => {
     event.preventDefault();
@@ -2438,6 +2441,7 @@ export function BeraterCalendar() {
   const energy = user?.vertical === 'energy';
   const fieldRep = energy && (user?.energyRole || 'main') === 'field_rep';
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -2969,17 +2973,21 @@ export function BeraterCalendar() {
                         onClick={() => setSelectedEvent(ev)}
                       >
                         <div className="broker-cal-agenda-card-time">
-                          <span className="broker-cal-agenda-clock">
-                            {ev.kind === 'termin' ? <CalendarClock size={18} /> : <Clock size={18} />}
-                          </span>
-                          <strong>{ev.timeStr}</strong>
-                          <small>{ev.relative}</small>
+                          <div className="broker-cal-agenda-time-main">
+                            <span className="broker-cal-agenda-clock">
+                              {ev.kind === 'termin' ? <CalendarClock size={16} /> : <Clock size={16} />}
+                            </span>
+                            <strong>{ev.timeStr}</strong>
+                          </div>
+                          <small className="broker-cal-agenda-time-rel">{ev.relative}</small>
                         </div>
 
+                        <div className="broker-cal-agenda-card-divider" />
+
                         <div className="broker-cal-agenda-card-body">
-                          <div className="broker-cal-agenda-card-lead-row">
+                          <div className="broker-cal-agenda-card-user">
                             <span className="broker-cal-avatar">{calAvatarInitials(ev.leadName)}</span>
-                            <div>
+                            <div className="broker-cal-user-info">
                               <span className="broker-cal-lead-link">{ev.leadName}</span>
                               <div className="broker-cal-lead-meta">
                                 <span className={`broker-badge-pill is-${ev.kind}`}>
@@ -2998,23 +3006,23 @@ export function BeraterCalendar() {
 
                         <div className="broker-cal-agenda-card-cta" onClick={(e) => e.stopPropagation()}>
                           {ev.phone ? (
-                            <a href={`tel:${ev.phone}`} className="btn btn-sm btn-outline">
-                              <Phone size={13} /> {ev.phone}
+                            <a href={`tel:${ev.phone}`} className="btn btn-sm btn-ghost btn-icon-text">
+                              <Phone size={14} /> <span>Anrufen</span>
                             </a>
                           ) : null}
                           <button
                             type="button"
-                            className="btn btn-sm btn-outline"
+                            className="btn btn-sm btn-ghost btn-icon-text"
                             onClick={() => setScheduleTarget({ lead: ev.lead, kind: ev.kind })}
                           >
-                            Verschieben
+                            <CalendarIcon size={14} /> <span>Verschieben</span>
                           </button>
                           <button
                             type="button"
-                            className="btn btn-sm btn-primary"
-                            onClick={() => navigate(`/dashboard/leads/${ev.lead.id}`)}
+                            className="btn btn-sm btn-primary btn-icon-text"
+                            onClick={() => navigate(`/dashboard/leads/${ev.lead.id}`, { state: { from: location.pathname + location.search } })}
                           >
-                            Lead öffnen
+                            <ArrowRight size={14} /> <span>Lead öffnen</span>
                           </button>
                         </div>
                       </div>
@@ -3108,7 +3116,7 @@ export function BeraterCalendar() {
                 <button
                   type="button"
                   className="btn btn-primary btn-sm"
-                  onClick={() => navigate(`/dashboard/leads/${selectedEvent.lead.id}`)}
+                  onClick={() => navigate(`/dashboard/leads/${selectedEvent.lead.id}`, { state: { from: location.pathname + location.search } })}
                 >
                   Lead öffnen
                   <ArrowRight size={13} />
@@ -3573,6 +3581,7 @@ export function BeraterSupport() {
 export function BeraterLeadDetail() {
   const { leadId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { showToast, leadStatuses, setLeadStatus } = useBroker();
   const [lead, setLead] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -3745,16 +3754,18 @@ export function BeraterLeadDetail() {
   const mapsHref = energy && hasAddress
     ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(view.address)}`
     : '';
+  const backTo = returnTo(location, isComplaintFlowLead(lead) ? '/dashboard/leads?ansicht=reklamiert' : '/dashboard/leads');
+  const backLabel = returnLabel(backTo);
 
   return (
     <div className="broker-page">
       <button
         type="button"
         className="broker-back"
-        onClick={() => navigate(isComplaintFlowLead(lead) ? '/dashboard/leads?ansicht=reklamiert' : '/dashboard/leads')}
+        onClick={() => navigate(backTo)}
       >
         <ArrowLeft size={16} />
-        {isComplaintFlowLead(lead) ? 'Zurück zu reklamierten Leads' : 'Zurück zu Ihren Leads'}
+        {backLabel}
       </button>
 
       {error ? <div className="broker-alert">{error}</div> : null}
@@ -4186,7 +4197,7 @@ export function BeraterPayments() {
         <div className="broker-status-divider" />
         <div className="broker-status-stat broker-status-stat--link">
           <span className="broker-stat-label">Rechnungsadresse</span>
-          <Link to="/dashboard/unternehmen" className="broker-status-action">
+          <Link to="/dashboard/unternehmen" state={{ from: '/dashboard/paket' }} className="broker-status-action">
             <Building2 size={15} aria-hidden="true" />
             <span>Bearbeiten</span>
             <ArrowRight size={14} aria-hidden="true" />
@@ -4364,7 +4375,7 @@ export function BeraterPayments() {
             <h2>Rechnungen</h2>
             <p>Übersicht Ihrer bisherigen Zahlungen</p>
           </div>
-          <Link to="/dashboard/zahlung" className="broker-pipeline-open">
+          <Link to="/dashboard/zahlung" state={{ from: '/dashboard/paket' }} className="broker-pipeline-open">
             <span>Alle Zahlungen</span>
             <ArrowRight size={14} strokeWidth={2.25} aria-hidden="true" />
           </Link>
@@ -4523,9 +4534,10 @@ function ProfileNav({ active }) {
   );
 }
 
-function SettingsShell({ active, title, lede, children }) {
+function SettingsShell({ active, title, lede, children, backButton }) {
   return (
     <div className="broker-page broker-page--settings">
+      {backButton}
       <div className="broker-heading broker-heading--settings">
         <div>
           <div className="eyebrow">Konto & Einstellungen</div>
@@ -5196,6 +5208,8 @@ export function BeraterCompany() {
   const { user, updateProfile } = useAuth();
   const { showToast } = useBroker();
   const hash = useHashScroll();
+  const location = useLocation();
+  const navigate = useNavigate();
   const [form, setForm] = useState(() => companyForm(user));
   const [mapPin, setMapPin] = useState({ lat: null, lng: null });
   const [mapNotice, setMapNotice] = useState('');
@@ -5203,6 +5217,8 @@ export function BeraterCompany() {
   const [error, setError] = useState('');
   const needsPhone = !String(user?.phone || '').trim();
   const skipGeocodeRef = useRef(false);
+
+  const showBackButton = location.state?.from === '/dashboard/paket';
 
   const missingLive = useMemo(() => {
     const missing = [];
@@ -5344,6 +5360,17 @@ export function BeraterCompany() {
     }
   };
 
+  const backButton = showBackButton ? (
+    <button
+      type="button"
+      className="broker-back"
+      onClick={() => navigate('/dashboard/paket')}
+    >
+      <ArrowLeft size={16} aria-hidden="true" />
+      <span>Zurück zu Pakete & Guthaben</span>
+    </button>
+  ) : null;
+
   return (
     <SettingsShell
       active="unternehmen"
@@ -5353,6 +5380,7 @@ export function BeraterCompany() {
           ? 'Firma, Rechtsform und Adresse für Vertrag, Rechnung und Verifizierung.'
           : 'Firma und Adresse ergänzen — danach ist Ihr Konto vollständig.'
       }
+      backButton={backButton}
     >
       <form className="broker-panel broker-settings broker-settings--wide" onSubmit={save}>
         {error && <div className="broker-alert">{error}</div>}

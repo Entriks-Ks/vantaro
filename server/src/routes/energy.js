@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { requireAuth } from '../lib/auth.js';
-import { handleLeadError } from '../lib/leads.js';
+import { handleLeadError, isUuid } from '../lib/leads.js';
 import {
   calendarConnectUrl,
   calendarReturnUrl,
@@ -8,6 +8,7 @@ import {
   connectCalendarFromCode,
   disconnectCalendar,
 } from '../lib/energy.js';
+import { assignLeadHolder } from '../lib/partners.js';
 
 const router = Router();
 
@@ -45,6 +46,16 @@ router.get('/calendar/callback', async (req, res) => {
 router.post('/calendar/disconnect', requireAuth, async (req, res) => {
   try {
     res.json(await disconnectCalendar(req.user.id));
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+router.post('/leads/:id/assign', requireAuth, async (req, res) => {
+  try {
+    if (!isUuid(req.params.id)) return res.status(400).json({ error: 'Lead wurde nicht gefunden.' });
+    const lead = await assignLeadHolder(req.user, req.params.id, req.body?.holderId || req.body?.holder_id);
+    res.json({ lead });
   } catch (error) {
     handleError(res, error);
   }

@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   AlertCircle,
-  ArrowRight,
-  Building2,
+  ArrowLeft,
   CalendarRange,
   CheckCircle2,
   ChevronDown,
@@ -20,11 +19,9 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { leadTypeLabel } from '../../lib/berater';
-import { fetchMyLeads } from '../../lib/leads';
 import {
   downloadPaymentInvoice,
   fetchMyPayments,
-  formatCardExpiry,
   formatCardMask,
   openPaymentInvoice,
   paymentStatusLabel,
@@ -38,11 +35,9 @@ import { SelectDropdown } from './SelectDropdown';
 import {
   STATUS_IDS,
   STATUS_META,
-  TYPE_COLORS,
   addMonths,
   amountOf,
   niceMax,
-  smoothPath,
   startOfMonth,
   timeOf,
 } from './paymentStats';
@@ -227,120 +222,6 @@ function SpendChart({ buckets }) {
   );
 }
 
-function PackageLineChart({ buckets, series }) {
-  const [hover, setHover] = useState(null);
-  const width = 560;
-  const height = 250;
-  const pad = { left: 54, right: 16, top: 16, bottom: 30 };
-  const innerW = width - pad.left - pad.right;
-  const innerH = height - pad.top - pad.bottom;
-  const max = niceMax(Math.max(0, ...series.flatMap((row) => row.points)));
-  const step = buckets.length > 1 ? innerW / (buckets.length - 1) : 0;
-  const x = (index) => pad.left + (buckets.length > 1 ? index * step : innerW / 2);
-  const y = (value) => pad.top + innerH - (value / max) * innerH;
-  const baseline = pad.top + innerH;
-  const labelEvery = Math.max(1, Math.ceil(buckets.length / 6));
-  const colWidth = buckets.length > 1 ? step : innerW;
-  const total = series.reduce((sum, row) => sum + row.value, 0);
-  const tipTop = hover != null ? Math.min(...series.map((row) => y(row.points[hover]))) : 0;
-
-  return (
-    <div className="broker-pay-lines">
-      <div className="dash-pay-chart broker-pay-chart" onMouseLeave={() => setHover(null)}>
-        <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Ausgaben nach Paket im Verlauf">
-          <defs>
-            {series.map((row, index) => (
-              <linearGradient key={row.id} id={`broker-pay-line-${index}`} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={row.color} stopOpacity=".22" />
-                <stop offset="100%" stopColor={row.color} stopOpacity="0" />
-              </linearGradient>
-            ))}
-          </defs>
-          {[0, 0.25, 0.5, 0.75, 1].map((fraction) => {
-            const value = max * fraction;
-            return (
-              <g key={fraction} className="dash-pay-chart__grid">
-                <line x1={pad.left} x2={width - pad.right} y1={y(value)} y2={y(value)} />
-                <text x={pad.left - 10} y={y(value) + 4} textAnchor="end">{formatEuro(value)}</text>
-              </g>
-            );
-          })}
-          {buckets.map((bucket, index) => (
-            index % labelEvery === 0 || index === buckets.length - 1 ? (
-              <text key={bucket.start} className="dash-pay-chart__xlabel" x={x(index)} y={height - 8} textAnchor="middle">
-                {bucket.label}
-              </text>
-            ) : null
-          ))}
-          {series.map((row, index) => {
-            const points = row.points.map((value, pointIndex) => [x(pointIndex), y(value)]);
-            const line = smoothPath(points);
-            const area = `${line} L ${points[points.length - 1][0]} ${baseline} L ${points[0][0]} ${baseline} Z`;
-            return (
-              <g key={row.id}>
-                <path className="dash-pay-chart__area" d={area} fill={`url(#broker-pay-line-${index})`} />
-                <path
-                  className="dash-pay-chart__line"
-                  d={line}
-                  pathLength="1"
-                  style={{ stroke: row.color, animationDelay: `${index * 120}ms` }}
-                />
-              </g>
-            );
-          })}
-          {hover != null ? (
-            <g className="broker-pay-lines__focus">
-              <line x1={x(hover)} x2={x(hover)} y1={pad.top} y2={baseline} />
-              {series.map((row) => (
-                <circle key={row.id} cx={x(hover)} cy={y(row.points[hover])} r="4.5" style={{ fill: row.color }} />
-              ))}
-            </g>
-          ) : null}
-          {buckets.map((bucket, index) => (
-            <rect
-              key={bucket.start}
-              className="dash-pay-chart__hit"
-              x={x(index) - colWidth / 2}
-              y={pad.top}
-              width={colWidth}
-              height={innerH}
-              onMouseEnter={() => setHover(index)}
-            />
-          ))}
-        </svg>
-        {hover != null ? (
-          <div
-            className="dash-pay-chart__tip"
-            style={{ left: `${(x(hover) / width) * 100}%`, top: `${(tipTop / height) * 100}%` }}
-          >
-            <span>{buckets[hover].longLabel}</span>
-            {series.map((row) => (
-              <div key={row.id} className="broker-pay-lines__tip-row">
-                <i style={{ background: row.color }} aria-hidden="true" />
-                <small>{row.label}</small>
-                <strong>{formatEuroExact(row.points[hover])}</strong>
-              </div>
-            ))}
-          </div>
-        ) : null}
-      </div>
-      <ul className="broker-pay-lines__legend">
-        {series.map((row) => (
-          <li key={row.id}>
-            <i style={{ background: row.color }} aria-hidden="true" />
-            <span>
-              <strong>{row.label}</strong>
-              <small>{row.hint}</small>
-            </span>
-            <b>{formatEuroExact(row.value)}</b>
-            <em>{total ? Math.round((row.value / total) * 100) : 0}%</em>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
 function exportCsv(rows) {
   const escape = (value) => {
     const text = String(value ?? '');
@@ -389,9 +270,10 @@ function SortHead({ id, label, sort, onSort, align }) {
 
 export function BeraterBilling() {
   const { user } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
   const energy = user?.vertical === 'energy';
   const [payments, setPayments] = useState([]);
-  const [leadsUsed, setLeadsUsed] = useState(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [updatedAt, setUpdatedAt] = useState(null);
@@ -405,15 +287,13 @@ export function BeraterBilling() {
   const [syncingId, setSyncingId] = useState('');
   const [invoiceBusyId, setInvoiceBusyId] = useState('');
 
+  const showBackButton = location.state?.from === '/dashboard/paket';
+
   const load = useCallback(async (silent = false) => {
     if (silent) setRefreshing(true);
     try {
-      const [paymentPayload, leadPayload] = await Promise.all([
-        fetchMyPayments(),
-        fetchMyLeads().catch(() => ({ leads: [] })),
-      ]);
+      const paymentPayload = await fetchMyPayments();
       setPayments(paymentPayload.payments || []);
-      setLeadsUsed((leadPayload.leads || []).length);
       setUpdatedAt(new Date());
       setError('');
     } catch (err) {
@@ -452,7 +332,6 @@ export function BeraterBilling() {
     const units = sum(paid, (entry) => Number(entry.leadCount) || 0);
     const prevUnits = sum(prevPaid, (entry) => Number(entry.leadCount) || 0);
 
-    const byPackage = new Map();
     for (const entry of paid) {
       const time = timeOf(entry);
       const bucketIndex = buckets.findIndex((item) => time >= item.start && time < item.end);
@@ -462,22 +341,6 @@ export function BeraterBilling() {
         bucket.count += 1;
         bucket.units += Number(entry.leadCount) || 0;
       }
-
-      const label = packageName(entry);
-      const row = byPackage.get(label) || {
-        id: label,
-        label,
-        value: 0,
-        count: 0,
-        units: 0,
-        sample: entry,
-        points: buckets.map(() => 0),
-      };
-      row.value += amountOf(entry);
-      row.count += 1;
-      row.units += Number(entry.leadCount) || 0;
-      if (bucket) row.points[bucketIndex] += amountOf(entry);
-      byPackage.set(label, row);
     }
 
     const statusCounts = Object.fromEntries(STATUS_IDS.map((id) => [id, 0]));
@@ -503,31 +366,8 @@ export function BeraterBilling() {
       pendingCount: pending.length,
       pendingAmount: sum(pending, amountOf),
       successRate,
-      packages: [...byPackage.values()]
-        .sort((a, b) => b.value - a.value)
-        .map((row, index) => ({
-          ...row,
-          color: TYPE_COLORS[index % TYPE_COLORS.length],
-          hint: `${row.count} Zahlung${row.count === 1 ? '' : 'en'} · ${row.units} ${unitWord(row.sample, row.units)}`,
-        })),
     };
   }, [payments, range, updatedAt]);
-
-  const account = useMemo(() => {
-    const paid = payments
-      .filter((entry) => entry.status === 'paid')
-      .sort((a, b) => timeOf(b) - timeOf(a));
-    const quota = paid.reduce((total, entry) => total + (Number(entry.leadCount) || 0), 0);
-    return {
-      quota,
-      remaining: Math.max(0, quota - leadsUsed),
-      usedPct: quota ? Math.min(100, Math.round((leadsUsed / quota) * 100)) : 0,
-      lifetime: paid.reduce((total, entry) => total + amountOf(entry), 0),
-      lastPaid: paid[0] || null,
-      card: paid.find((entry) => entry.cardLast4) || paid[0] || null,
-      since: paid.length ? paid[paid.length - 1] : null,
-    };
-  }, [payments, leadsUsed]);
 
   const rows = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -601,6 +441,16 @@ export function BeraterBilling() {
 
   return (
     <div className="broker-page broker-pay">
+      {showBackButton && (
+        <button
+          type="button"
+          className="broker-back"
+          onClick={() => navigate('/dashboard/paket')}
+        >
+          <ArrowLeft size={16} aria-hidden="true" />
+          <span>Zurück zu Pakete & Guthaben</span>
+        </button>
+      )}
       <div className="broker-heading">
         <div>
           <div className="eyebrow">Abrechnung</div>
@@ -744,81 +594,7 @@ export function BeraterBilling() {
         </section>
       </div>
 
-      <div className="broker-pay-grid">
-        <section className="broker-panel">
-          <div className="broker-panel-header">
-            <div>
-              <div className="eyebrow">Aufteilung</div>
-              <h2>Ausgaben nach Paket</h2>
-              <p>Monatliche Ausgaben je Paket · {rangeLabel}</p>
-            </div>
-          </div>
-          <div className="broker-pay-body">
-            {loading ? (
-              <div className="dash-pay-skeleton" aria-hidden="true" />
-            ) : stats.packages.length ? (
-              <PackageLineChart key={range} buckets={stats.buckets} series={stats.packages} />
-            ) : (
-              <div className="broker-empty"><p>Keine bezahlten Buchungen im Zeitraum.</p></div>
-            )}
-          </div>
-        </section>
 
-        <section className="broker-panel">
-          <div className="broker-panel-header">
-            <div>
-              <div className="eyebrow">Konto</div>
-              <h2>Kontingent &amp; Zahlungsdaten</h2>
-              <p>Gesamtstand seit Ihrer ersten Buchung</p>
-            </div>
-          </div>
-          <div className="broker-pay-body">
-            <div className="broker-pay-quota">
-              <div className="broker-pay-quota__top">
-                <span>Verfügbar</span>
-                <strong>{loading ? '—' : account.remaining}</strong>
-                <small>von {account.quota} gebucht</small>
-              </div>
-              <span className="broker-pay-quota__track" aria-hidden="true">
-                <span style={{ width: loading ? 0 : `${account.usedPct}%` }} />
-              </span>
-              <small className="broker-pay-quota__hint">
-                {leadsUsed} zugewiesen · {account.usedPct}% verbraucht
-              </small>
-            </div>
-            <dl className="broker-pay-facts">
-              <div>
-                <dt>Gesamtausgaben</dt>
-                <dd>{formatEuroExact(account.lifetime)}</dd>
-              </div>
-              <div>
-                <dt>Letzte Zahlung</dt>
-                <dd>
-                  {account.lastPaid
-                    ? `${formatEuroExact(amountOf(account.lastPaid))} · ${formatDate(account.lastPaid.paidAt || account.lastPaid.createdAt)}`
-                    : '—'}
-                </dd>
-              </div>
-              <div>
-                <dt>Zahlungsmittel</dt>
-                <dd>
-                  {account.card ? formatCardMask(account.card) : '—'}
-                  {account.card?.cardExpMonth ? <small>gültig bis {formatCardExpiry(account.card)}</small> : null}
-                </dd>
-              </div>
-              <div>
-                <dt>Kunde seit</dt>
-                <dd>{account.since ? formatDate(account.since.paidAt || account.since.createdAt) : '—'}</dd>
-              </div>
-            </dl>
-            <Link to="/dashboard/unternehmen" className="broker-status-action broker-pay-address">
-              <Building2 size={15} aria-hidden="true" />
-              <span>Rechnungsadresse bearbeiten</span>
-              <ArrowRight size={14} aria-hidden="true" />
-            </Link>
-          </div>
-        </section>
-      </div>
 
       <section className="broker-panel broker-invoice-panel broker-pay-table-panel">
         <div className="broker-panel-header">

@@ -54,6 +54,9 @@ app.use(express.json({
 }));
 
 app.use('/api', routes);
+app.use('/api', (_req, res) => {
+  res.status(404).json({ error: 'Diese Schnittstelle wurde nicht gefunden.' });
+});
 
 app.use((error, _req, res, _next) => {
   console.error('API error:', error);

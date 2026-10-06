@@ -9,11 +9,30 @@ function authHeaders(json = false) {
   return headers;
 }
 
+function mapPartner(partner) {
+  if (!partner) return partner;
+  return {
+    ...partner,
+    partnerRole: partner.partnerRole || partner.energyRole,
+    pages: partner.pages || partner.energyPages,
+  };
+}
+
+function withRoleFields(payload) {
+  const role = payload?.partnerRole || payload?.energyRole;
+  return { ...payload, partnerRole: role, energyRole: role };
+}
+
 async function parse(response) {
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(payload.error || 'Etwas ist schiefgelaufen.');
+  if (Array.isArray(payload.partners)) payload.partners = payload.partners.map(mapPartner);
+  if (payload.partner) payload.partner = mapPartner(payload.partner);
+  if (payload.user) payload.user = mapPartner(payload.user);
   return payload;
 }
+
+const PARTNERS_API = '/api/energy/partners';
 
 const ROLE_OPTIONS = {
   energy: [
@@ -67,48 +86,48 @@ export function allowedPartnerPages(user) {
 }
 
 export async function fetchPartners() {
-  return parse(await fetch(apiUrl('/api/partners'), { headers: authHeaders() }));
+  return parse(await fetch(apiUrl(PARTNERS_API), { headers: authHeaders() }));
 }
 
 export async function createPartner(payload) {
-  return parse(await fetch(apiUrl('/api/partners'), {
+  return parse(await fetch(apiUrl(PARTNERS_API), {
     method: 'POST',
     headers: authHeaders(true),
-    body: JSON.stringify(payload),
+    body: JSON.stringify(withRoleFields(payload)),
   }));
 }
 
 export async function updatePartner(partnerId, payload) {
-  return parse(await fetch(apiUrl(`/api/partners/${partnerId}`), {
+  return parse(await fetch(apiUrl(`${PARTNERS_API}/${partnerId}`), {
     method: 'PATCH',
     headers: authHeaders(true),
-    body: JSON.stringify(payload),
+    body: JSON.stringify(withRoleFields(payload)),
   }));
 }
 
 export async function sendPartnerPasswordLink(partnerId) {
-  return parse(await fetch(apiUrl(`/api/partners/${partnerId}/password-link`), {
+  return parse(await fetch(apiUrl(`${PARTNERS_API}/${partnerId}/password-link`), {
     method: 'POST',
     headers: authHeaders(),
   }));
 }
 
 export async function resetPartnerPassword(partnerId) {
-  return parse(await fetch(apiUrl(`/api/partners/${partnerId}/password`), {
+  return parse(await fetch(apiUrl(`${PARTNERS_API}/${partnerId}/password`), {
     method: 'POST',
     headers: authHeaders(),
   }));
 }
 
 export async function deletePartner(partnerId) {
-  return parse(await fetch(apiUrl(`/api/partners/${partnerId}`), {
+  return parse(await fetch(apiUrl(`${PARTNERS_API}/${partnerId}`), {
     method: 'DELETE',
     headers: authHeaders(),
   }));
 }
 
 export async function assignLeadHolder(leadId, holderId) {
-  return parse(await fetch(apiUrl(`/api/partners/leads/${leadId}/assign`), {
+  return parse(await fetch(apiUrl(`/api/energy/leads/${leadId}/assign`), {
     method: 'POST',
     headers: authHeaders(true),
     body: JSON.stringify({ holderId }),

@@ -37,7 +37,7 @@ router.post('/', requireAuth, async (req, res) => {
       firstName: req.body?.firstName,
       lastName: req.body?.lastName,
       email: req.body?.email,
-      partnerRole: req.body?.partnerRole,
+      partnerRole: req.body?.partnerRole ?? req.body?.energyRole,
       pages: req.body?.pages,
     });
     res.status(201).json(created);
@@ -52,7 +52,7 @@ router.patch('/:id', requireAuth, async (req, res) => {
     const partner = await updatePartner(req.user, req.params.id, {
       active: req.body?.active,
       pages: req.body?.pages,
-      partnerRole: req.body?.partnerRole,
+      partnerRole: req.body?.partnerRole ?? req.body?.energyRole,
       firstName: req.body?.firstName,
       lastName: req.body?.lastName,
       email: req.body?.email,

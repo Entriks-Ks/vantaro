@@ -27,6 +27,7 @@ router.use('/complaints', complaintsRouter);
 router.use('/payments', paymentsRouter);
 router.use('/jobs', jobsRouter);
 router.use('/calendar', calendarRouter);
+router.use('/energy/partners', partnersRouter);
 router.use('/energy', energyRouter);
 router.use('/partners', partnersRouter);
 router.use('/webhooks/tcdial', tcdialWebhookRouter);
