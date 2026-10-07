@@ -6,6 +6,7 @@ import {
   resetPasswordWithToken,
   secondsUntilPasswordResetResend,
 } from '../lib/passwordReset.js';
+import { acceptPartnerInvite } from '../lib/partnerInvite.js';
 import {
   buildMetadataPatch,
   isCanonicalCustomerNumber,
@@ -616,6 +617,46 @@ router.post('/reset-password', async (req, res) => {
     });
   } catch (error) {
     console.error('Reset password failed:', error.message);
+    return res.status(400).json({ error: mapAuthError(error) });
+  }
+});
+
+router.post('/accept-partner-invite', async (req, res) => {
+  const email = String(req.body?.email ?? '').trim().toLowerCase();
+  const password = String(req.body?.password ?? '');
+  const token = String(req.body?.token ?? req.body?.confirm ?? '').trim();
+
+  if (!email || !EMAIL_PATTERN.test(email)) {
+    return res.status(400).json({ error: 'Bitte geben Sie eine gültige E-Mail-Adresse ein.' });
+  }
+  if (password.length < 8) {
+    return res.status(400).json({ error: 'Passwort muss mindestens 8 Zeichen lang sein.' });
+  }
+  const passwordError = validatePassword(password);
+  if (passwordError) {
+    return res.status(400).json({ error: passwordError });
+  }
+  if (!token) {
+    return res.status(400).json({
+      error: 'Bitte öffnen Sie den Link aus der Einladungs-E-Mail, um fortzufahren.',
+    });
+  }
+
+  try {
+    const user = await findUserByEmail(email);
+    if (!user) {
+      return res.status(400).json({ error: 'Der Einladungslink ist ungültig oder abgelaufen.' });
+    }
+
+    await acceptPartnerInvite(user, token, password);
+
+    return res.json({
+      ok: true,
+      message: 'Einladung angenommen. Bitte melden Sie sich an.',
+    });
+  } catch (error) {
+    console.error('Accept partner invite failed:', error.message);
+    if (error.code) return res.status(400).json({ error: error.message });
     return res.status(400).json({ error: mapAuthError(error) });
   }
 });

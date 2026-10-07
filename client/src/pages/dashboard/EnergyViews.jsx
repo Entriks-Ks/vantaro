@@ -22,7 +22,7 @@ import {
   X,
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
-import { isComplaintFlowLead } from '../../lib/complaints';
+import { isComplaintBlockedLead, isComplaintFlowLead } from '../../lib/complaints';
 import { fetchMyLeads } from '../../lib/leads';
 import { formatAddress } from '../../lib/profile';
 import {
@@ -35,6 +35,14 @@ import {
   paymentStatusLabel,
   syncMyPayment,
 } from '../../lib/payments';
+import {
+  discountLineLabel,
+  fetchMyDiscounts,
+  matchingOneTimes,
+  quoteForPackage,
+  remainingTimeLabel,
+  shopPriceUnits,
+} from '../../lib/discounts';
 import {
   ENERGY_DELIVERY_TYPES,
   ENERGY_PACKAGES,
@@ -55,6 +63,7 @@ import {
 import { TEST_PACKAGE_PRICE_CENTS } from './packages';
 import { useBroker } from '../../hooks/useBroker';
 import { returnTo, returnLabel } from './LeadDetail';
+import { OneTimeDiscountOffer, oneTimePickFor, visibleOneTimeOffers } from './OneTimeDiscountOffer';
 
 const MIN_LEADS = 10;
 const LEAD_STEP = 5;
@@ -97,16 +106,17 @@ function leadInitials(lead) {
   return parts.slice(0, 2).map((part) => part[0]).join('').toUpperCase();
 }
 
-function StatusMark({ status, complaint }) {
-  const Icon = PIPELINE_ICONS[status] || Sparkles;
-  const reviewing = complaint?.status === 'pending';
+function StatusMark({ lead }) {
+  const Icon = PIPELINE_ICONS[lead.status] || Sparkles;
+  const reviewing = lead.complaint?.status === 'pending';
+  const blocked = isComplaintBlockedLead(lead);
   return (
     <span className="broker-status-stack">
       <span className="broker-status-iconic">
         <Icon size={14} aria-hidden="true" />
-        {statusLabel(status)}
+        {statusLabel(lead.status)}
       </span>
-      {reviewing ? <span className="broker-status is-reported">In Prüfung</span> : null}
+      {blocked ? <span className="broker-status is-blocked">Gesperrt</span> : reviewing ? <span className="broker-status is-reported">In Prüfung</span> : null}
     </span>
   );
 }
@@ -286,7 +296,7 @@ export function EnergyHome() {
                   <span className={`broker-home-lead-email${lead.email ? '' : ' is-empty'}`}>
                     {lead.email ? <><Mail size={15} aria-hidden="true" />{lead.email}</> : null}
                   </span>
-                  <StatusMark status={lead.status} complaint={lead.complaint} />
+                  <StatusMark lead={lead} />
                 </Link>
               </li>
             ))}
@@ -430,7 +440,7 @@ export function EnergyLeads() {
                   </span>
                   <span className="broker-list-meta">{lead.packageLabel}</span>
                   <span className="broker-list-meta">{lead.deliveryType === 'appointment' ? 'Termin' : 'Lead'}</span>
-                  <StatusMark status={lead.status} complaint={lead.complaint} />
+                  <StatusMark lead={lead} />
                   <span className="broker-list-meta">{[lead.zip, lead.city].filter(Boolean).join(' ') || '—'}</span>
                 </button>
               ))}
@@ -506,6 +516,8 @@ export function EnergyOrders() {
   const [territoryByProduct, setTerritoryByProduct] = useState({});
   const [editingTerritory, setEditingTerritory] = useState({});
   const [payments, setPayments] = useState([]);
+  const [discounts, setDiscounts] = useState({ standing: null, oneTimes: [] });
+  const [oneTimePick, setOneTimePick] = useState({ id: '', key: '' });
   const [leadsUsed, setLeadsUsed] = useState(0);
   const [checkout, setCheckout] = useState(null);
   const [timeframe, setTimeframe] = useState(defaultTimeframe);
@@ -517,12 +529,17 @@ export function EnergyOrders() {
   const [invoiceBusyId, setInvoiceBusyId] = useState('');
 
   async function loadBilling() {
-    const [leadPayload, paymentPayload] = await Promise.all([
+    const [leadPayload, paymentPayload, discountPayload] = await Promise.all([
       fetchMyLeads().catch(() => ({ leads: [] })),
       fetchMyPayments().catch(() => ({ payments: [] })),
+      fetchMyDiscounts().catch(() => ({ standing: null, oneTimes: [] })),
     ]);
     setLeadsUsed((leadPayload.leads || []).length);
     setPayments(paymentPayload.payments || []);
+    setDiscounts({
+      standing: discountPayload.standing || null,
+      oneTimes: discountPayload.oneTimes || [],
+    });
   }
 
   useEffect(() => {
@@ -577,7 +594,25 @@ export function EnergyOrders() {
     .reduce((sum, entry) => sum + (entry.leadCount || 0), 0);
   const leadsRemaining = Math.max(0, leadQuota - leadsUsed);
   const activeProduct = energyProductById(activeProductId);
-  const checkoutNet = ENERGY_UNIT_CENTS;
+  const checkoutOffers = checkoutPkg
+    ? visibleOneTimeOffers(
+      matchingOneTimes(discounts.oneTimes, checkoutPkg.id, checkoutPkg.id),
+      oneTimePick,
+      checkoutPkg.id,
+    )
+    : [];
+  const checkoutUseId = oneTimePickFor(checkoutPkg?.id, oneTimePick);
+  const checkoutQuote = checkoutPkg
+    ? quoteForPackage(
+      ENERGY_UNIT_CENTS,
+      checkout.qty,
+      checkoutPkg.id,
+      discounts,
+      checkoutPkg.id,
+      checkoutUseId,
+    )
+    : null;
+  const checkoutNet = checkoutQuote?.netCents ?? ENERGY_UNIT_CENTS;
 
   const openCheckout = (productId) => {
     const deliveryType = getDelivery(productId);
@@ -611,6 +646,7 @@ export function EnergyOrders() {
         territory: area,
         desiredTimeframe: period,
         browser: collectBrowserPaymentMeta(),
+        useOneTimeId: checkoutUseId || undefined,
       });
       setActiveProductId(checkout.productId);
       setCheckout(null);
@@ -706,6 +742,16 @@ export function EnergyOrders() {
           const active = activeProductId === product.id;
           const unitLabel = deliveryType === 'appointment' ? 'Termin' : 'Lead';
           const unitPlural = deliveryType === 'appointment' ? 'Termine' : 'Leads';
+          const pkg = energyPackageFor(product.id, deliveryType);
+          const offers = visibleOneTimeOffers(
+            matchingOneTimes(discounts.oneTimes, pkg?.id, pkg?.id),
+            oneTimePick,
+            pkg?.id,
+          );
+          const selectedOffer = oneTimePickFor(pkg?.id, oneTimePick);
+          const quote = quoteForPackage(ENERGY_UNIT_CENTS, qty, pkg?.id, discounts, pkg?.id, selectedOffer);
+          const units = shopPriceUnits(quote, qty, ENERGY_UNIT_CENTS, TEST_PACKAGE_PRICE_CENTS != null);
+          const discounted = quote.discountCents > 0;
           return (
             <article
               key={product.id}
@@ -719,12 +765,27 @@ export function EnergyOrders() {
                   <h3>{product.title}</h3>
                 </div>
                 <div className="broker-simple-price-box">
-                  <strong>{formatEuroExact(ENERGY_UNIT_CENTS)}</strong>
+                  {discounted ? <s>{formatEuroExact(units.listUnit)}</s> : null}
+                  <strong>{formatEuroExact(units.netUnit)}</strong>
                   <small>/ {unitLabel}</small>
+                  {quote.standing ? (
+                    <em className="broker-disc-badge">
+                      Ihre Konditionen
+                      {quote.standing.discount?.expiresAt
+                        ? ` · ${remainingTimeLabel(quote.standing.discount.expiresAt)}`
+                        : ''}
+                    </em>
+                  ) : null}
                 </div>
               </div>
 
               <p className="broker-simple-desc">{product.description}</p>
+              <OneTimeDiscountOffer
+                offers={offers}
+                selectedId={selectedOffer}
+                onChange={(id) => setOneTimePick(id && pkg?.id ? { id, key: pkg.id } : { id: '', key: '' })}
+                unitLabel={unitLabel}
+              />
 
               <div className="broker-simple-stepper-row broker-energy-pkg-row">
                 <span className="broker-simple-row-label">Art</span>
@@ -791,7 +852,11 @@ export function EnergyOrders() {
 
               <div className="broker-simple-sum-row">
                 <span>Gesamt ({qty} × {formatEuroExact(ENERGY_UNIT_CENTS)}, ohne MwSt.)</span>
-                <strong>{formatEuroExact(ENERGY_UNIT_CENTS)}</strong>
+                <strong>
+                  {discounted ? <s>{formatEuroExact(quote.listCents)}</s> : null}
+                  {discounted ? ' ' : null}
+                  {formatEuroExact(quote.netCents)}
+                </strong>
               </div>
 
               <div className="broker-simple-btn-group">
@@ -853,8 +918,27 @@ export function EnergyOrders() {
             </div>
             <div className="broker-simple-sum-row" style={{ marginBottom: '1rem' }}>
               <span>{checkoutPkg.label}</span>
-              <strong>{formatEuroExact(checkoutNet)}</strong>
+              <strong>{formatEuroExact(checkoutQuote?.listCents ?? checkoutNet)}</strong>
             </div>
+            {(checkoutQuote?.lines || []).map((line) => (
+              <div key={line.discount?.id || line.role} className="broker-simple-sum-row" style={{ marginBottom: '0.5rem' }}>
+                <span>{discountLineLabel(line)}</span>
+                <strong>− {formatEuroExact(line.amountCents)}</strong>
+              </div>
+            ))}
+            <OneTimeDiscountOffer
+              offers={checkoutOffers}
+              selectedId={checkoutUseId}
+              onChange={(id) => setOneTimePick(id ? { id, key: checkoutPkg.id } : { id: '', key: '' })}
+              unitLabel={String(checkoutPkg.id || '').includes('APPOINTMENT') ? 'Termin' : 'Lead'}
+              compact
+            />
+            {checkoutQuote?.discountCents ? (
+              <div className="broker-simple-sum-row" style={{ marginBottom: '1rem' }}>
+                <span>Zu zahlen</span>
+                <strong>{formatEuroExact(checkoutNet)}</strong>
+              </div>
+            ) : null}
             <p className="lede" style={{ marginBottom: '1.25rem' }}>
               Sie werden zur sicheren Zahlungsseite der ProCredit Bank weitergeleitet.
               Kartendaten werden ausschließlich bei der Bank eingegeben.
@@ -934,6 +1018,9 @@ export function EnergyOrders() {
                     </td>
                     <td style={{ textAlign: 'right' }}>
                       <strong className="broker-inv-amount">{formatEuroExact(invoice.netCents || invoice.grossCents)}</strong>
+                      {invoice.discountCents > 0 ? (
+                        <small>inkl. Rabatt · {formatEuroExact(invoice.listCents)}</small>
+                      ) : null}
                     </td>
                     <td>
                       <div className="broker-invoice-actions">

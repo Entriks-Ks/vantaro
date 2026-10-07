@@ -138,6 +138,42 @@ export function isOpenComplaint(complaint) {
   return complaint?.status === 'pending';
 }
 
+export function isCreditedComplaint(complaint) {
+  const status = complaint?.status;
+  return status === 'approved' || status === 'partial' || status === 'refunded' || status === 'teilweise';
+}
+
+export function isComplaintBlockedLead(lead) {
+  return Boolean(lead?.refundedAt) || isCreditedComplaint(lead?.complaint);
+}
+
+export function isReplacementPending(complaint) {
+  return isCreditedComplaint(complaint)
+    && !complaint?.replacementLeadId
+    && !complaint?.replacementLead;
+}
+
+export function creditedComplaintBeraterNote(complaint) {
+  if (!isCreditedComplaint(complaint)) return '';
+  if (isReplacementPending(complaint)) {
+    return 'Reklamation akzeptiert. Dieser Lead ist gesperrt. Ein Ersatz wird zugestellt.';
+  }
+  return 'Reklamation akzeptiert. Dieser Lead ist gesperrt. Ein Ersatz wurde zugestellt.';
+}
+
+export function complaintReplacementPath(complaint) {
+  if (!complaint?.id) return '/dashboard/leads';
+  const type = String(complaint.request?.leadType || '');
+  const appointment = complaint.lead?.deliveryType === 'appointment' || type.includes('APPOINTMENT');
+  const base = appointment ? '/dashboard/termine' : '/dashboard/leads';
+  return `${base}?replacementFor=${complaint.id}`;
+}
+
+export function complaintReplacementVertical(complaint) {
+  const vertical = complaint?.lead?.vertical || complaint?.request?.vertical || complaint?.snapshot?.vertical;
+  return vertical === 'energy' ? 'energy' : 'insurance';
+}
+
 export function canAmendComplaint(complaint) {
   const status = complaint?.status;
   return status === 'info_needed' || status === 'infos_noetig' || status === 'declined' || status === 'rejected';
@@ -148,8 +184,9 @@ export function complaintNeedsInfo(complaint) {
   return status === 'info_needed' || status === 'infos_noetig';
 }
 
-/** Declined complaints return the lead to the normal pipeline. */
+/** Declined complaints return the lead to the normal pipeline. Refunded stays blocked on the berater. */
 export function isComplaintFlowLead(lead) {
+  if (lead?.refundedAt) return true;
   const status = lead?.complaint?.status;
   return Boolean(status) && status !== 'declined' && status !== 'rejected';
 }

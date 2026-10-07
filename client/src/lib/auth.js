@@ -305,6 +305,15 @@ export async function resetPasswordRequest({ email, password, token }) {
   return parseAuthResponse(response);
 }
 
+export async function acceptPartnerInviteRequest({ email, password, token }) {
+  const response = await fetch(apiUrl('/api/auth/accept-partner-invite'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password, token }),
+  });
+  return parseAuthResponse(response);
+}
+
 export async function resendPasswordResetRequest(email) {
   const response = await fetch(apiUrl('/api/auth/resend-password-reset'), {
     method: 'POST',

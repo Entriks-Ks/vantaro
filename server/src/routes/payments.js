@@ -144,6 +144,7 @@ router.post('/checkout', async (req, res) => {
         territory: req.body?.territory,
         desiredTimeframe: req.body?.desiredTimeframe ?? req.body?.desired_timeframe,
         browser: req.body?.browser,
+        useOneTimeId: req.body?.useOneTimeId ?? req.body?.use_one_time_id ?? req.body?.useOneTimeDiscountId,
       },
       req,
     );

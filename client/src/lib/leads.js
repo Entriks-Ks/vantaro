@@ -1,6 +1,7 @@
 import Papa from 'papaparse';
 import { apiUrl } from './api';
 import { readStoredSession } from './auth';
+import { normalizeState, stateForCity, stateForZip } from './germanRegions';
 import { ENERGY_STATES } from './vertical';
 
 export const EMPLOYMENT_OPTIONS = [
@@ -379,30 +380,33 @@ function cleanCsvRow(row) {
   return cleaned;
 }
 
-function readCsvRows(file, headerLookup) {
+function readFileText(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onerror = () => reject(reader.error || new Error('CSV konnte nicht gelesen werden.'));
-    reader.onload = () => {
-      const text = String(reader.result || '').replace(/^\uFEFF/, '');
-      Papa.parse(text, {
-        header: true,
-        skipEmptyLines: 'greedy',
-        delimiter: detectCsvDelimiter(text),
-        transformHeader: (header) => headerLookup[normalizeHeader(header)] || header.trim(),
-        complete(result) {
-          if (result.errors?.length && !result.data?.length) {
-            reject(new Error(result.errors[0].message || 'CSV konnte nicht gelesen werden.'));
-            return;
-          }
-          resolve(result.data || []);
-        },
-        error(error) {
-          reject(error);
-        },
-      });
-    };
+    reader.onload = () => resolve(String(reader.result || '').replace(/^\uFEFF/, ''));
     reader.readAsText(file);
+  });
+}
+
+function parseCsvText(text, headerLookup) {
+  return new Promise((resolve, reject) => {
+    Papa.parse(text, {
+      header: true,
+      skipEmptyLines: 'greedy',
+      delimiter: detectCsvDelimiter(text),
+      transformHeader: (header) => headerLookup[normalizeHeader(header)] || header.trim(),
+      complete(result) {
+        if (result.errors?.length && !result.data?.length) {
+          reject(new Error(result.errors[0].message || 'CSV konnte nicht gelesen werden.'));
+          return;
+        }
+        resolve(result.data || []);
+      },
+      error(error) {
+        reject(error);
+      },
+    });
   });
 }
 
@@ -417,11 +421,6 @@ function downloadCsv(filename, fields, data) {
   link.click();
   link.remove();
   URL.revokeObjectURL(url);
-}
-
-export async function parseLeadCsv(file) {
-  const rows = await readCsvRows(file, CSV_HEADER_LOOKUP);
-  return rows.map(cleanCsvRow);
 }
 
 export const APPOINTMENT_CSV_COLUMNS = [
@@ -452,21 +451,63 @@ export const APPOINTMENT_CSV_COLUMNS = [
   { header: 'Gewünschter Austauschzeitraum', key: 'replacementTimeframe' },
 ];
 
-const APPOINTMENT_HEADER_LOOKUP = {
+const ENERGY_HEADER_LOOKUP = {
+  ...CSV_HEADER_LOOKUP,
   ...Object.fromEntries(APPOINTMENT_CSV_COLUMNS.map((column) => [normalizeHeader(column.header), column.key])),
-  paket: 'energyProduct',
   product: 'energyProduct',
+  energieprodukt: 'energyProduct',
+  energyproduct: 'energyProduct',
+  energy_product: 'energyProduct',
+  lieferart: 'deliveryType',
+  deliverytype: 'deliveryType',
+  delivery_type: 'deliveryType',
+  appointmentat: 'appointmentAt',
+  appointment_at: 'appointmentAt',
   termin: 'appointmentDate',
   datum: 'appointmentDate',
   terminzeit: 'appointmentTime',
   uhrzeit: 'appointmentTime',
   zeit: 'appointmentTime',
-  mobilnummer: 'phone',
-  email: 'email',
+  bundesland: 'state',
+  state: 'state',
+  vertical: 'vertical',
   hausnr: 'houseNumber',
   'hausnr.': 'houseNumber',
+  hausnummer: 'houseNumber',
+  housenumber: 'houseNumber',
+  house_number: 'houseNumber',
   stadt: 'city',
 };
+
+const ENERGY_HEADER_MARKERS = new Set([
+  'energyproduct',
+  'produkt',
+  'deliverytype',
+  'lieferart',
+  'appointmentat',
+  'termin datum',
+  'termin uhrzeit',
+  'bundesland',
+  'housenumber',
+  'hausnummer',
+  'ownerstatus',
+  'eigentümerstatus',
+  'callsummary',
+  'gesprächszusammenfassung',
+  'vertical',
+  'existingpv',
+  'heatingsystem',
+]);
+
+function csvHeaderKeys(text) {
+  const line = String(text || '').split(/\r?\n/).find((entry) => entry.trim()) || '';
+  const parsed = Papa.parse(line, { delimiter: detectCsvDelimiter(text), header: false });
+  return (parsed.data?.[0] || []).map((header) => String(header || '').trim()).filter(Boolean);
+}
+
+function isEnergyCsvText(text) {
+  return csvHeaderKeys(text).some((header) => ENERGY_HEADER_MARKERS.has(normalizeHeader(header)));
+}
 
 function csvText(value) {
   return String(value ?? '').trim();
@@ -487,72 +528,123 @@ function csvExistingPv(value) {
   return csvText(value);
 }
 
-function csvState(value) {
-  const text = csvText(value);
-  if (text.toLowerCase() === 'nrw') return 'Nordrhein-Westfalen';
-  return ENERGY_STATES.find((name) => name.toLowerCase() === text.toLowerCase()) || text;
+function csvState(value, city, zip) {
+  return normalizeState(value)
+    || ENERGY_STATES.find((name) => name.toLowerCase() === csvText(value).toLowerCase())
+    || stateForCity(city)
+    || stateForZip(zip)
+    || csvText(value);
+}
+
+function splitStreetAndNumber(street, houseNumber) {
+  const number = csvText(houseNumber);
+  const line = csvText(street);
+  if (number) return { street: line, houseNumber: number };
+  const match = line.match(/^(.*?)[\s,]+(\d+[a-zA-Z]?)$/);
+  if (match) return { street: match[1].trim(), houseNumber: match[2] };
+  return { street: line, houseNumber: '' };
 }
 
 const INVALID_APPOINTMENT = 'ungültig';
 
-/** Local date/time from "TT.MM.JJJJ" or "JJJJ-MM-TT" plus "HH:MM"; anything else is rejected by the server. */
-function csvAppointmentAt(dateValue, timeValue) {
-  let dateText = csvText(dateValue);
-  let timeText = csvText(timeValue);
-  if (!dateText && !timeText) return null;
-  if (!timeText) {
-    const combined = dateText.match(/^(\S+)[\sT]+(\d{1,2}[:.]\d{2})/);
-    if (combined) [, dateText, timeText] = combined;
+function parseLocalAppointment(dateText, timeText) {
+  let date = csvText(dateText);
+  let time = csvText(timeText);
+  if (!date && !time) return null;
+  if (!time) {
+    const isoStamp = date.match(/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?)$/);
+    if (isoStamp) {
+      const at = new Date(isoStamp[1]);
+      return Number.isNaN(at.getTime()) ? INVALID_APPOINTMENT : at.toISOString();
+    }
+    const combined = date.match(/^(\S+)[\sT]+(\d{1,2}[:.]\d{2})/);
+    if (combined) [, date, time] = combined;
   }
-  const german = dateText.match(/^(\d{1,2})\.(\d{1,2})\.(\d{2,4})$/);
-  const iso = dateText.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
-  const time = timeText.match(/^(\d{1,2})(?:[:.](\d{2}))?/);
-  if (!(german || iso) || !time) return INVALID_APPOINTMENT;
+  const german = date.match(/^(\d{1,2})\.(\d{1,2})\.(\d{2,4})$/);
+  const iso = date.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  const clock = time.match(/^(\d{1,2})(?:[:.](\d{2}))?/);
+  if (!(german || iso) || !clock) return INVALID_APPOINTMENT;
   const [day, month, year] = german
     ? [Number(german[1]), Number(german[2]), Number(german[3].length === 2 ? `20${german[3]}` : german[3])]
     : [Number(iso[3]), Number(iso[2]), Number(iso[1])];
-  const at = new Date(year, month - 1, day, Number(time[1]), Number(time[2] || 0));
+  const at = new Date(year, month - 1, day, Number(clock[1]), Number(clock[2] || 0));
   if (Number.isNaN(at.getTime()) || at.getDate() !== day || at.getMonth() !== month - 1) {
     return INVALID_APPOINTMENT;
   }
   return at.toISOString();
 }
 
+function csvAppointmentAt(row) {
+  const direct = parseLocalAppointment(row.appointmentAt, '');
+  if (direct) return direct;
+  return parseLocalAppointment(row.appointmentDate, row.appointmentTime);
+}
+
+function csvDeliveryType(value, appointmentAt) {
+  const text = csvText(value).toLowerCase();
+  if (['appointment', 'termin', 'fester termin'].includes(text)) return 'appointment';
+  if (['lead', 'kontakt'].includes(text)) return 'lead';
+  return appointmentAt ? 'appointment' : 'lead';
+}
+
+function mapEnergyCsvRow(row) {
+  const product = csvEnergyProduct(row.energyProduct);
+  const isPv = product === 'photovoltaic';
+  const text = (key) => csvText(row[key]);
+  const appointmentAt = csvAppointmentAt(row);
+  const { street, houseNumber } = splitStreetAndNumber(row.street, row.houseNumber);
+  const zip = text('zip');
+  const city = text('city');
+  return {
+    vertical: 'energy',
+    deliveryType: csvDeliveryType(row.deliveryType, appointmentAt),
+    energyProduct: product,
+    appointmentAt,
+    firstName: text('firstName'),
+    lastName: text('lastName'),
+    phone: text('phone'),
+    email: text('email'),
+    street,
+    houseNumber,
+    zip,
+    city,
+    state: csvState(row.state, city, zip),
+    ownerStatus: text('ownerStatus'),
+    timeframe: text('timeframe'),
+    energyNeed: text('energyNeed'),
+    callSummary: text('callSummary'),
+    consentStatus: text('consentStatus'),
+    evidenceSource: text('evidenceSource'),
+    notes: text('notes'),
+    scope: text('scope'),
+    annualConsumption: isPv ? text('annualConsumption') : '',
+    existingPv: isPv ? csvExistingPv(row.existingPv) : '',
+    roofNotes: isPv ? text('roofNotes') : '',
+    heatingSystem: isPv ? '' : text('heatingSystem'),
+    energySource: isPv ? '' : text('energySource'),
+    constructionYear: isPv ? '' : text('constructionYear'),
+    replacementTimeframe: isPv ? '' : text('replacementTimeframe'),
+  };
+}
+
+export async function parseImportCsv(file) {
+  const text = await readFileText(file);
+  if (isEnergyCsvText(text)) {
+    const rows = (await parseCsvText(text, ENERGY_HEADER_LOOKUP)).map(mapEnergyCsvRow);
+    return { kind: 'energy', rows };
+  }
+  const rows = (await parseCsvText(text, CSV_HEADER_LOOKUP)).map(cleanCsvRow);
+  return { kind: 'insurance', rows };
+}
+
+export async function parseLeadCsv(file) {
+  const parsed = await parseImportCsv(file);
+  return parsed.rows;
+}
+
 export async function parseAppointmentCsv(file) {
-  const rows = await readCsvRows(file, APPOINTMENT_HEADER_LOOKUP);
-  return rows.map((row) => {
-    const product = csvEnergyProduct(row.energyProduct);
-    const isPv = product === 'photovoltaic';
-    const text = (key) => csvText(row[key]);
-    return {
-      vertical: 'energy',
-      deliveryType: 'appointment',
-      energyProduct: product,
-      appointmentAt: csvAppointmentAt(row.appointmentDate, row.appointmentTime),
-      firstName: text('firstName'),
-      lastName: text('lastName'),
-      phone: text('phone'),
-      email: text('email'),
-      street: text('street'),
-      houseNumber: text('houseNumber'),
-      zip: text('zip'),
-      city: text('city'),
-      state: csvState(row.state),
-      ownerStatus: text('ownerStatus'),
-      timeframe: text('timeframe'),
-      energyNeed: text('energyNeed'),
-      callSummary: text('callSummary'),
-      consentStatus: text('consentStatus'),
-      evidenceSource: text('evidenceSource'),
-      annualConsumption: isPv ? text('annualConsumption') : '',
-      existingPv: isPv ? csvExistingPv(row.existingPv) : '',
-      roofNotes: isPv ? text('roofNotes') : '',
-      heatingSystem: isPv ? '' : text('heatingSystem'),
-      energySource: isPv ? '' : text('energySource'),
-      constructionYear: isPv ? '' : text('constructionYear'),
-      replacementTimeframe: isPv ? '' : text('replacementTimeframe'),
-    };
-  });
+  const parsed = await parseImportCsv(file);
+  return parsed.rows.filter((row) => row.deliveryType === 'appointment');
 }
 
 function templateDate(daysAhead) {

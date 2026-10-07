@@ -1,4 +1,5 @@
-import { energyLeadTypeOf, territoryMatches } from '../../lib/vertical';
+import { energyLeadTypeOf, isAppointmentExpired, territoryMatches } from '../../lib/vertical';
+import { scoreLeadForRequest } from './leadMatching';
 
 export function leadScopeOrDefault(scope) {
   return scope === 'regional' ? 'regional' : 'deutschlandweit';
@@ -10,12 +11,45 @@ export function poolForRequest(availableLeads, request) {
   return (availableLeads || []).filter((lead) => {
     if ((lead?.vertical === 'energy' ? 'energy' : 'insurance') !== requestVertical) return false;
     if (lead.status === 'erledigt' || lead.refundedAt) return false;
+    if (lead.assignedTo) return false;
     if (requestVertical === 'energy') {
       return energyLeadTypeOf(lead) === request.leadType
         && territoryMatches(request.territory, lead);
     }
     return leadScopeOrDefault(lead.scope) === scope;
   });
+}
+
+function fallbackReplacementPool(availableLeads, complaint) {
+  const rejected = complaint?.lead;
+  const vertical = rejected?.vertical === 'energy' || complaint?.request?.vertical === 'energy'
+    ? 'energy'
+    : 'insurance';
+  const energyType = vertical === 'energy' ? energyLeadTypeOf(rejected) : '';
+  const scope = leadScopeOrDefault(rejected?.scope || complaint?.request?.scope);
+  return (availableLeads || []).filter((lead) => {
+    if ((lead?.vertical === 'energy' ? 'energy' : 'insurance') !== vertical) return false;
+    if (lead.status === 'erledigt' || lead.refundedAt || lead.assignedTo) return false;
+    if (vertical === 'energy') {
+      return !energyType || energyLeadTypeOf(lead) === energyType;
+    }
+    return leadScopeOrDefault(lead.scope) === scope;
+  });
+}
+
+export function replacementMatchPasses(lead, request) {
+  if (isAppointmentExpired(lead)) return false;
+  if (!request) return true;
+  return scoreLeadForRequest(lead, request).tier !== 'red';
+}
+
+/** Free pool entries that match the original Auftrag and are a viable Ersatz. */
+export function poolForComplaintReplacement(availableLeads, complaint) {
+  const request = complaint?.request;
+  const matched = request
+    ? poolForRequest(availableLeads, request)
+    : fallbackReplacementPool(availableLeads, complaint);
+  return matched.filter((lead) => replacementMatchPasses(lead, request));
 }
 
 export function beraterBusinessAddress(berater) {

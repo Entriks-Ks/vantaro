@@ -22,8 +22,11 @@ import {
   complaintReasonLabel,
   complaintStatusLabel,
   contactStatusLabel,
+  creditedComplaintBeraterNote,
+  isComplaintBlockedLead,
   isComplaintFlowLead,
   isOpenComplaint,
+  isReplacementPending,
   reportLead,
 } from '../../lib/complaints';
 import {
@@ -42,9 +45,10 @@ import { LEGAL_FORMS, fileToAvatarDataUrl, generatePassword, validatePassword } 
 import { ENERGY_PACKAGES, energyLeadTypeOf, energyTypeLabel, verticalOrInsurance } from '../../lib/vertical';
 import ThemeMode from '../../components/ThemeMode';
 import { accountSetupGaps, displayName, firstName, formatDate, formatDateTime, formatEuroExact, initials } from './helpers';
-import { MIN_LEAD_PACK, PACKAGES, packageById, packTotalCents } from './packages';
+import { MIN_LEAD_PACK, PACKAGES, packageById, packTotalCents, TEST_PACKAGE_PRICE_CENTS } from './packages';
 import { connectEnergyCalendar, disconnectEnergyCalendar, fetchCalendarStatus } from '../../lib/energy';
 import { CopyableAction, EnergyLeadFacts } from './EnergyLeadFacts';
+import { OneTimeDiscountOffer, oneTimePickFor, visibleOneTimeOffers } from './OneTimeDiscountOffer';
 import { PartnerLeadActions } from './EnergyOps';
 import { SelectDropdown, useDropdownDismiss } from './SelectDropdown';
 import { returnTo, returnLabel } from './LeadDetail';
@@ -58,6 +62,14 @@ import {
   paymentStatusLabel,
   syncMyPayment,
 } from '../../lib/payments';
+import {
+  discountLineLabel,
+  fetchMyDiscounts,
+  matchingOneTimes,
+  quoteForPackage,
+  remainingTimeLabel,
+  shopPriceUnits,
+} from '../../lib/discounts';
 import {
   readBrokerSettings,
   subscribeBrokerSettings,
@@ -732,11 +744,17 @@ function ComplaintStatusIcon({ status, size = 18 }) {
 
 function LeadStatusMark({ lead, large = false, placement = 'list' }) {
   const reviewing = isOpenComplaint(lead?.complaint);
+  const blocked = isComplaintBlockedLead(lead);
   const Icon = PIPELINE_ICONS[lead.status] || Sparkles;
   const compact = placement === 'home';
   const outcome = closeOutcomeOf(lead);
   const showOutcome = lead.status === 'abgeschlossen';
-  const reviewMark = reviewing ? (
+  const reviewMark = blocked ? (
+    <span className={`broker-status is-blocked${large ? ' broker-status--lg' : ''}${compact ? ' is-compact' : ''}`}>
+      <Lock size={compact ? 11 : large ? 14 : 12} aria-hidden="true" />
+      {isReplacementPending(lead.complaint) ? (compact ? 'Ersatz' : 'Gesperrt · Ersatz') : (compact ? 'Gesperrt' : 'Gesperrt')}
+    </span>
+  ) : reviewing ? (
     <span className={`broker-status is-reported${large ? ' broker-status--lg' : ''}${compact ? ' is-compact' : ''}`}>
       <Flag size={compact ? 11 : large ? 14 : 12} aria-hidden="true" />
       {compact ? 'Prüfung' : 'In Prüfung'}
@@ -769,7 +787,13 @@ export function LeadStatusDropdown({
   const [open, setOpen] = useState(false);
   const dropdownRef = useRef(null);
   const reviewing = isOpenComplaint(lead?.complaint);
-  const reviewMark = reviewing ? (
+  const blocked = isComplaintBlockedLead(lead);
+  const reviewMark = blocked ? (
+    <span className="broker-status is-blocked broker-status--lg">
+      <Lock size={14} aria-hidden="true" />
+      Gesperrt
+    </span>
+  ) : reviewing ? (
     <span className="broker-status is-reported broker-status--lg">
       <Flag size={14} aria-hidden="true" />
       In Prüfung
@@ -1109,7 +1133,7 @@ function LeadReportPanel({ lead, notes, contactStatus, onReported }) {
         ) : openComplaint ? (
           <p className="broker-muted-note">VANTARO prüft den Fall. Sie sehen das Ergebnis hier.</p>
         ) : complaint.status === 'approved' || complaint.status === 'partial' || complaint.status === 'refunded' ? (
-          <p className="broker-muted-note">Die Gutschrift wird dem VANTARO-Guthaben wieder gutgeschrieben.</p>
+          <p className="broker-muted-note">{creditedComplaintBeraterNote(complaint)}</p>
         ) : null}
         {modal}
       </div>
@@ -1679,10 +1703,11 @@ function LeadListRow({ lead, onOpen }) {
   );
 }
 
-function complaintChipLabel(status) {
-  const tone = complaintTone(status);
-  if (tone === 'gutgeschrieben') return 'Gutgeschrieben';
-  if (tone === 'teilweise') return 'Teilweise gutgeschrieben';
+function complaintChipLabel(complaint) {
+  const tone = complaintTone(complaint?.status);
+  if (tone === 'gutgeschrieben' || tone === 'teilweise') {
+    return isReplacementPending(complaint) ? 'Ersatz ausstehend' : 'Ersetzt';
+  }
   if (tone === 'infos_noetig') return 'Infos nötig';
   return 'In Prüfung';
 }
@@ -1691,10 +1716,11 @@ function ComplaintLeadRow({ lead, onOpen }) {
   const complaint = lead.complaint;
   const tone = complaintTone(complaint.status);
   const needsInfo = complaintNeedsInfo(complaint);
+  const blocked = isComplaintBlockedLead(lead);
   return (
     <button
       type="button"
-      className={`broker-list-row broker-complaint-row${needsInfo ? ' is-action' : ''}`}
+      className={`broker-list-row broker-complaint-row${needsInfo ? ' is-action' : ''}${blocked ? ' is-blocked' : ''}`}
       onClick={() => onOpen(lead.id)}
     >
       <span className="broker-list-name">
@@ -1708,9 +1734,9 @@ function ComplaintLeadRow({ lead, onOpen }) {
       <span className="broker-complaint-status">
         <span className={`broker-complaint-chip broker-complaint-chip--${tone}`}>
           <ComplaintStatusIcon status={complaint.status} size={12} />
-          {complaintChipLabel(complaint.status)}
+          {complaintChipLabel(complaint)}
         </span>
-        {needsInfo ? <small>Aktion nötig</small> : null}
+        {needsInfo ? <small>Aktion nötig</small> : blocked ? <small>Gesperrt</small> : null}
       </span>
       <span className="broker-list-meta broker-complaint-credit">
         {complaint.refundCents != null ? formatEuroExact(complaint.refundCents) : '—'}
@@ -2215,7 +2241,7 @@ export function BeraterLeads() {
         <div className="broker-complaint-groups">
           {[
             { id: 'open', title: 'Offen', hint: 'VANTARO prüft den Fall. Bei „Infos nötig“ bitte im Lead ergänzen.', items: complaintGroups.open },
-            { id: 'done', title: 'Erledigt', hint: 'Gutschrift erteilt.', items: complaintGroups.done },
+            { id: 'done', title: 'Erledigt', hint: 'Gutschrift erteilt. Der Lead bleibt gesperrt; Ersatz folgt oder wurde gesendet.', items: complaintGroups.done },
           ].filter((group) => group.items.length).map((group) => (
             <section key={group.id} className="broker-panel broker-list-panel broker-complaint-group">
               <header className="broker-complaint-group__head">
@@ -3617,7 +3643,7 @@ export function BeraterLeadDetail() {
   }, [leadId]);
 
   async function saveNotes() {
-    if (!lead || lead.refundedAt || savingNotesRef.current) return;
+    if (!lead || isComplaintBlockedLead(lead) || savingNotesRef.current) return;
     if (notes === (lead.brokerNotes || '')) return;
     savingNotesRef.current = true;
     setSaving(true);
@@ -3647,7 +3673,7 @@ export function BeraterLeadDetail() {
   }
 
   async function handleStatusClick(statusId) {
-    if (!lead || lead.refundedAt || savingSchedule) return;
+    if (!lead || isComplaintBlockedLead(lead) || savingSchedule) return;
     if (statusId === 'wiedervorlage' || statusId === 'termin') {
       setDraftStatus(statusId);
       setScheduleOpen(true);
@@ -3744,7 +3770,7 @@ export function BeraterLeadDetail() {
   const distance = formatDistance(lead.distanceKm);
   const phoneHref = lead.phone ? `tel:${String(lead.phone).replace(/\s/g, '')}` : '';
   const notesDirty = notes !== (lead.brokerNotes || '');
-  const notesLocked = Boolean(lead.refundedAt);
+  const notesLocked = isComplaintBlockedLead(lead);
   const employment = lead.employmentStatus === 'sonstiges' && lead.employmentOther
     ? lead.employmentOther
     : employmentLabel(lead.employmentStatus);
@@ -3769,6 +3795,11 @@ export function BeraterLeadDetail() {
       </button>
 
       {error ? <div className="broker-alert">{error}</div> : null}
+      {isComplaintBlockedLead(lead) ? (
+        <div className="broker-alert broker-alert--blocked">
+          {creditedComplaintBeraterNote(lead.complaint) || 'Dieser Lead ist nach der Reklamation gesperrt.'}
+        </div>
+      ) : null}
 
       <div className="broker-heading broker-detail-heading">
         <span className="broker-detail-avatar" aria-hidden="true">{leadInitials(lead)}</span>
@@ -3992,7 +4023,7 @@ export function BeraterLeadDetail() {
             </div>
             <p className="broker-detail-notes-hint">
               {notesLocked
-                ? 'Erstattete Leads können nicht mehr bearbeitet werden.'
+                ? 'Dieser Lead ist nach der Reklamation gesperrt und kann nicht mehr bearbeitet werden.'
                 : 'Persönliche Gesprächsnotiz zu diesem Lead. Eine Reklamation senden Sie darunter extra.'}
             </p>
           </div>
@@ -4038,6 +4069,8 @@ export function BeraterPayments() {
   const { activePackageId, selectPackage, activePackage } = useBroker();
   const [qtyByPackage, setQtyByPackage] = useState({});
   const [payments, setPayments] = useState([]);
+  const [discounts, setDiscounts] = useState({ standing: null, oneTimes: [] });
+  const [oneTimePick, setOneTimePick] = useState({ id: '', key: '' });
   const [leadsUsed, setLeadsUsed] = useState(0);
   const [checkout, setCheckout] = useState(null);
   const [paying, setPaying] = useState(false);
@@ -4047,12 +4080,17 @@ export function BeraterPayments() {
   const [notice, setNotice] = useState('');
 
   async function loadBilling() {
-    const [leadPayload, paymentPayload] = await Promise.all([
+    const [leadPayload, paymentPayload, discountPayload] = await Promise.all([
       fetchMyLeads(),
       fetchMyPayments().catch(() => ({ payments: [] })),
+      fetchMyDiscounts().catch(() => ({ standing: null, oneTimes: [] })),
     ]);
     setLeadsUsed((leadPayload.leads || []).length);
     setPayments(paymentPayload.payments || []);
+    setDiscounts({
+      standing: discountPayload.standing || null,
+      oneTimes: discountPayload.oneTimes || [],
+    });
   }
 
   useEffect(() => {
@@ -4100,7 +4138,15 @@ export function BeraterPayments() {
   const leadsRemaining = Math.max(0, leadQuota - leadsUsed);
   const checkoutPkg = checkout ? packageById(checkout.packageId) : null;
   const checkoutQty = checkout?.qty || minLeads;
-  const checkoutNet = checkoutPkg ? packTotalCents(checkoutPkg, checkoutQty) : 0;
+  const checkoutList = checkoutPkg ? packTotalCents(checkoutPkg, checkoutQty) : 0;
+  const checkoutOffers = checkoutPkg
+    ? visibleOneTimeOffers(matchingOneTimes(discounts.oneTimes, checkoutPkg.id), oneTimePick, checkoutPkg.id)
+    : [];
+  const checkoutUseId = oneTimePickFor(checkoutPkg?.id, oneTimePick);
+  const checkoutQuote = checkoutPkg
+    ? quoteForPackage(checkoutList, checkoutQty, checkoutPkg.id, discounts, null, checkoutUseId)
+    : null;
+  const checkoutNet = checkoutQuote?.netCents ?? checkoutList;
 
   const setQty = (packageId, next) => {
     const parsed = Math.round(Number(next) / leadStep) * leadStep;
@@ -4118,6 +4164,7 @@ export function BeraterPayments() {
         packageId: checkoutPkg.id,
         requestedCount: checkoutQty,
         browser: collectBrowserPaymentMeta(),
+        useOneTimeId: checkoutUseId || undefined,
       });
       selectPackage(checkoutPkg.id);
       if (result.redirectUrl) {
@@ -4224,6 +4271,11 @@ export function BeraterPayments() {
           const active = activePackageId === pkg.id;
           const qty = getQty(pkg.id);
           const net = packTotalCents(pkg, qty);
+          const offers = visibleOneTimeOffers(matchingOneTimes(discounts.oneTimes, pkg.id), oneTimePick, pkg.id);
+          const selectedOffer = oneTimePickFor(pkg.id, oneTimePick);
+          const quote = quoteForPackage(net, qty, pkg.id, discounts, null, selectedOffer);
+          const units = shopPriceUnits(quote, qty, pkg.packCents, TEST_PACKAGE_PRICE_CENTS != null);
+          const discounted = quote.discountCents > 0;
 
           return (
             <article
@@ -4238,12 +4290,27 @@ export function BeraterPayments() {
                   <h3>{pkg.title}</h3>
                 </div>
                 <div className="broker-simple-price-box">
-                  <strong>{formatEuroExact(pkg.packCents)}</strong>
+                  {discounted ? <s>{formatEuroExact(units.listUnit)}</s> : null}
+                  <strong>{formatEuroExact(units.netUnit)}</strong>
                   <small>/ Lead</small>
+                  {quote.standing ? (
+                    <em className="broker-disc-badge">
+                      Ihre Konditionen
+                      {quote.standing.discount?.expiresAt
+                        ? ` · ${remainingTimeLabel(quote.standing.discount.expiresAt)}`
+                        : ''}
+                    </em>
+                  ) : null}
                 </div>
               </div>
 
               <p className="broker-simple-desc">{pkg.description}</p>
+              <OneTimeDiscountOffer
+                offers={offers}
+                selectedId={selectedOffer}
+                onChange={(id) => setOneTimePick(id ? { id, key: pkg.id } : { id: '', key: '' })}
+                unitLabel="Lead"
+              />
 
               <div className="broker-simple-stepper-row">
                 <span className="broker-simple-row-label">Lead-Menge (ab 10)</span>
@@ -4275,6 +4342,13 @@ export function BeraterPayments() {
 
               <div className="broker-simple-sum-row">
                 <span>Gesamt ({qty} nicht im Inland steuerbare Leistung, ohne MwSt.)</span>
+                {discounted ? (
+                  <strong>
+                    <s>{formatEuroExact(quote.listCents)}</s>
+                    {' '}
+                    {formatEuroExact(quote.netCents)}
+                  </strong>
+                ) : null}
               </div>
 
               <div className="broker-simple-btn-group">
@@ -4339,8 +4413,27 @@ export function BeraterPayments() {
 
             <div className="broker-simple-sum-row" style={{ marginBottom: '1rem' }}>
               <span>{checkoutPkg.label}</span>
-              <strong>{formatEuroExact(checkoutNet)}</strong>
+              <strong>{formatEuroExact(checkoutQuote?.listCents ?? checkoutNet)}</strong>
             </div>
+            {(checkoutQuote?.lines || []).map((line) => (
+              <div key={line.discount?.id || line.role} className="broker-simple-sum-row" style={{ marginBottom: '0.5rem' }}>
+                <span>{discountLineLabel(line)}</span>
+                <strong>− {formatEuroExact(line.amountCents)}</strong>
+              </div>
+            ))}
+            <OneTimeDiscountOffer
+              offers={checkoutOffers}
+              selectedId={checkoutUseId}
+              onChange={(id) => setOneTimePick(id ? { id, key: checkoutPkg.id } : { id: '', key: '' })}
+              unitLabel="Lead"
+              compact
+            />
+            {checkoutQuote?.discountCents ? (
+              <div className="broker-simple-sum-row" style={{ marginBottom: '1rem' }}>
+                <span>Zu zahlen</span>
+                <strong>{formatEuroExact(checkoutNet)}</strong>
+              </div>
+            ) : null}
             <p className="lede" style={{ marginBottom: '1.25rem' }}>
               Sie werden zur sicheren Zahlungsseite der ProCredit Bank weitergeleitet.
               Kartendaten werden ausschließlich bei der Bank eingegeben.
@@ -4435,6 +4528,9 @@ export function BeraterPayments() {
                     </td>
                     <td style={{ textAlign: 'right' }}>
                       <strong className="broker-inv-amount">{formatEuroExact(invoice.netCents || invoice.grossCents)}</strong>
+                      {invoice.discountCents > 0 ? (
+                        <small>inkl. Rabatt · {formatEuroExact(invoice.listCents)}</small>
+                      ) : null}
                     </td>
                     <td>
                       <div className="broker-invoice-actions">

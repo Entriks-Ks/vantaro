@@ -1,14 +1,11 @@
 import { Link } from 'react-router-dom';
+import {
+  complaintReplacementPath,
+  isCreditedComplaint,
+  isReplacementPending,
+} from '../../lib/complaints';
 
-function isCreditedComplaint(complaint) {
-  return complaint?.status === 'approved' || complaint?.status === 'partial';
-}
-
-export function isReplacementPending(complaint) {
-  return isCreditedComplaint(complaint)
-    && !complaint?.replacementLeadId
-    && !complaint?.replacementLead;
-}
+export { isReplacementPending };
 
 export function ComplaintReplacementStatus({ complaint, from }) {
   if (!complaint || !isCreditedComplaint(complaint)) return null;
@@ -34,11 +31,11 @@ export function ComplaintReplacementStatus({ complaint, from }) {
         <div className="dash-replacement-status__row">
           <div>
             <span>Ersatz ausstehend</span>
-            <small>Noch kein Ersatzlead zugewiesen.</small>
+            <small>Nur passende freie Leads oder Termine aus dem Auftrag.</small>
           </div>
           <Link
             className="dash-btn dash-btn--ok dash-btn--compact"
-            to={`/dashboard/leads?replacementFor=${complaint.id}`}
+            to={complaintReplacementPath(complaint)}
             state={{ from: returnTo }}
           >
             Ersatz senden

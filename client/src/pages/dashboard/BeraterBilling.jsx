@@ -697,6 +697,9 @@ export function BeraterBilling() {
                       </td>
                       <td style={{ textAlign: 'right' }}>
                         <strong className="broker-inv-amount">{formatEuroExact(amountOf(entry))}</strong>
+                        {entry.discountCents > 0 ? (
+                          <small>inkl. Rabatt · {formatEuroExact(entry.listCents)}</small>
+                        ) : null}
                         {entry.taxCents ? <small>zzgl. {formatEuroExact(entry.taxCents)} MwSt.</small> : null}
                       </td>
                       <td>

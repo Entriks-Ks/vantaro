@@ -3,13 +3,11 @@ import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import {
   Check,
-  Copy,
   Eye,
   KeyRound,
   Mail,
   MoreVertical,
   Pencil,
-  RotateCcw,
   Trash2,
   UserPlus,
   Users,
@@ -25,7 +23,6 @@ import {
   partnerPageOptions,
   partnerRoleLabel,
   partnerRoleOptions,
-  resetPartnerPassword,
   sendPartnerPasswordLink,
   updatePartner,
 } from '../../lib/partners';
@@ -35,9 +32,10 @@ export function partnersPath(vertical) {
   return vertical === 'energy' ? '/dashboard/team' : '/dashboard/partner';
 }
 
-function PartnerMoreMenu({ partner, pagesLabel, disabled, onAccess, onSendLink, onNewPassword }) {
+function PartnerMoreMenu({ partner, pagesLabel, disabled, onAccess, onSendLink }) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef(null);
+  const pending = partner.inviteStatus !== 'accepted';
 
   useEffect(() => {
     if (!open) return undefined;
@@ -85,15 +83,8 @@ function PartnerMoreMenu({ partner, pagesLabel, disabled, onAccess, onSendLink, 
           <button type="button" role="menuitem" onClick={() => pick(onSendLink)}>
             <Mail size={15} aria-hidden="true" />
             <span>
-              Passwort-Link senden
+              {pending ? 'Einladung erneut senden' : 'Passwort-Link senden'}
               <small>Per E-Mail an {partner.email}</small>
-            </span>
-          </button>
-          <button type="button" role="menuitem" onClick={() => pick(onNewPassword)}>
-            <RotateCcw size={15} aria-hidden="true" />
-            <span>
-              Neues Passwort erstellen
-              <small>Einmal-Passwort zum Weitergeben</small>
             </span>
           </button>
         </div>
@@ -189,7 +180,7 @@ export function PartnerLeadActions({ lead, onChange }) {
         ) : partnersState === 'ready' && assignable.length === 0 ? (
           <div className="energy-actions__empty">
             <span>Noch keine aktiven Partner-Zugänge.</span>
-            {role === 'main' ? <Link className="broker-text-btn" to={partnersPath(user?.vertical)}>Partner anlegen</Link> : null}
+            {role === 'main' ? <Link className="broker-text-btn" to={partnersPath(user?.vertical)}>Partner einladen</Link> : null}
           </div>
         ) : (
           <div className="energy-actions__row energy-actions__row--inline">
@@ -313,11 +304,6 @@ export function PartnersPage() {
   const [removeError, setRemoveError] = useState('');
   const [removing, setRemoving] = useState(false);
   const [viewPartnerId, setViewPartnerId] = useState('');
-  const [passwordPartner, setPasswordPartner] = useState(null);
-  const [passwordResult, setPasswordResult] = useState('');
-  const [passwordError, setPasswordError] = useState('');
-  const [resettingPassword, setResettingPassword] = useState(false);
-  const [passwordCopied, setPasswordCopied] = useState(false);
   const [notice, setNotice] = useState('');
   const [loadState, setLoadState] = useState('loading');
   const viewPartner = viewPartnerId ? partners.find((item) => item.id === viewPartnerId) || null : null;
@@ -333,12 +319,11 @@ export function PartnersPage() {
   useEffect(() => { load(); }, []);
 
   useEffect(() => {
-    if (!showCreate && !accessPartner && !editPartner && !removePartner && !viewPartnerId && !passwordPartner) return undefined;
+    if (!showCreate && !accessPartner && !editPartner && !removePartner && !viewPartnerId) return undefined;
     const onKey = (event) => {
       if (event.key !== 'Escape') return;
-      if (creating || savingAccess || savingEdit || removing || resettingPassword) return;
+      if (creating || savingAccess || savingEdit || removing) return;
       if (viewPartnerId) setViewPartnerId('');
-      if (passwordPartner) setPasswordPartner(null);
       if (showCreate) {
         setShowCreate(false);
         setFormError('');
@@ -359,7 +344,7 @@ export function PartnersPage() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [showCreate, accessPartner, editPartner, removePartner, viewPartnerId, passwordPartner, creating, savingAccess, savingEdit, removing, resettingPassword]);
+  }, [showCreate, accessPartner, editPartner, removePartner, viewPartnerId, creating, savingAccess, savingEdit, removing]);
 
   const accepted = partners.filter((item) => item.inviteStatus === 'accepted');
   const pending = partners.filter((item) => item.inviteStatus !== 'accepted');
@@ -416,38 +401,16 @@ export function PartnersPage() {
     setError('');
     setNotice('');
     setBusyId(partner.id);
+    const pending = partner.inviteStatus !== 'accepted';
     try {
       await sendPartnerPasswordLink(partner.id);
-      setNotice(`Link zum Zurücksetzen des Passworts wurde an ${partner.email} gesendet.`);
+      setNotice(pending
+        ? `Invitation sent to ${partner.email}`
+        : `Link zum Zurücksetzen des Passworts wurde an ${partner.email} gesendet.`);
     } catch (err) {
-      setError(err.message || 'Passwort-Link konnte nicht gesendet werden.');
+      setError(err.message || (pending ? 'Einladung konnte nicht gesendet werden.' : 'Passwort-Link konnte nicht gesendet werden.'));
     } finally {
       setBusyId('');
-    }
-  };
-
-  const openNewPassword = (partner) => {
-    setPasswordError('');
-    setPasswordResult('');
-    setPasswordCopied(false);
-    setPasswordPartner(partner);
-  };
-
-  const closeNewPassword = () => {
-    if (resettingPassword) return;
-    setPasswordPartner(null);
-  };
-
-  const confirmNewPassword = async () => {
-    setPasswordError('');
-    setResettingPassword(true);
-    try {
-      const payload = await resetPartnerPassword(passwordPartner.id);
-      setPasswordResult(payload.password);
-    } catch (err) {
-      setPasswordError(err.message || 'Passwort konnte nicht zurückgesetzt werden.');
-    } finally {
-      setResettingPassword(false);
     }
   };
 
@@ -511,8 +474,8 @@ export function PartnersPage() {
               <UserPlus size={20} />
             </span>
             <div>
-              <h2 id="energy-partner-create-title">Zugang anlegen</h2>
-              <p>Partner erhält Zugangsdaten per E-Mail und Passwort.</p>
+              <h2 id="energy-partner-create-title">Partner einladen</h2>
+              <p>Der Partner erhält eine E-Mail und legt selbst ein Passwort fest.</p>
             </div>
           </div>
           <button type="button" className="energy-partner-create-close" aria-label="Schließen" disabled={creating} onClick={closeCreate}>
@@ -594,7 +557,7 @@ export function PartnersPage() {
             <button type="button" className="dash-btn dash-btn--ghost" disabled={creating} onClick={closeCreate}>Abbrechen</button>
             <button className="dash-btn" type="submit" disabled={creating}>
               <UserPlus size={16} />
-              {creating ? 'Wird angelegt…' : 'Zugang anlegen'}
+              {creating ? 'Wird gesendet…' : 'Einladung senden'}
             </button>
           </div>
         </form>
@@ -764,62 +727,6 @@ export function PartnersPage() {
     </div>
   ) : null;
 
-  const passwordModal = passwordPartner ? (
-    <div className="broker-modal" role="dialog" aria-modal="true" aria-labelledby="energy-partner-password-title">
-      <button type="button" className="broker-modal__backdrop" aria-label="Schließen" onClick={closeNewPassword} />
-      <div className="broker-modal__panel energy-partner-access-modal">
-        <div className="broker-modal__top">
-          <h2 id="energy-partner-password-title">Neues Passwort erstellen</h2>
-          <button type="button" className="broker-modal__close" aria-label="Schließen" disabled={resettingPassword} onClick={closeNewPassword}>
-            <X size={18} />
-          </button>
-        </div>
-        {passwordResult ? (
-          <>
-            <p className="energy-partner-create-lede">
-              Neues Einmal-Passwort für <strong>{passwordPartner.fullName}</strong> ({passwordPartner.email}).
-              Geben Sie es sicher weiter. Das alte Passwort gilt nicht mehr.
-            </p>
-            <div className="energy-partner-password-box">
-              <code>{passwordResult}</code>
-              <button
-                type="button"
-                className="energy-partner-icon-btn"
-                aria-label="Passwort kopieren"
-                title="Kopieren"
-                onClick={() => {
-                  navigator.clipboard?.writeText(passwordResult)
-                    .then(() => setPasswordCopied(true))
-                    .catch(() => setPasswordCopied(false));
-                }}
-              >
-                {passwordCopied ? <Check size={15} /> : <Copy size={15} />}
-              </button>
-            </div>
-            <div className="energy-partner-create-actions">
-              <button type="button" className="dash-btn" onClick={closeNewPassword}>Fertig</button>
-            </div>
-          </>
-        ) : (
-          <>
-            <p className="energy-partner-create-lede">
-              Für <strong>{passwordPartner.fullName}</strong> wird ein neues Einmal-Passwort erstellt.
-              Das bisherige Passwort funktioniert danach nicht mehr.
-            </p>
-            {passwordError ? <div className="broker-alert">{passwordError}</div> : null}
-            <div className="energy-partner-create-actions">
-              <button type="button" className="dash-btn dash-btn--ghost" disabled={resettingPassword} onClick={closeNewPassword}>Abbrechen</button>
-              <button type="button" className="dash-btn" disabled={resettingPassword} onClick={confirmNewPassword}>
-                <RotateCcw size={16} />
-                {resettingPassword ? 'Wird erstellt…' : 'Passwort erstellen'}
-              </button>
-            </div>
-          </>
-        )}
-      </div>
-    </div>
-  ) : null;
-
   const viewPages = viewPartner
     ? (Array.isArray(viewPartner.pages) && viewPartner.pages.length ? viewPartner.pages : DEFAULT_PARTNER_PAGE_IDS)
     : [];
@@ -935,7 +842,7 @@ export function PartnersPage() {
           <div className="eyebrow">Netzwerk</div>
           <h1>Partner</h1>
           <p className="lede">
-            Zugänge anlegen, bearbeiten und löschen, Einladungsstatus prüfen, Seitenzugriff freigeben und Partner aktivieren oder sperren.
+          Zugänge einladen, bearbeiten und löschen, Einladungsstatus prüfen, Seitenzugriff freigeben und Partner aktivieren oder sperren.
           </p>
         </div>
       </div>
@@ -959,7 +866,7 @@ export function PartnersPage() {
       {notice ? <div className="broker-alert broker-alert--ok">{notice}</div> : null}
       {created ? (
         <div className="broker-alert broker-alert--ok">
-          Zugang für <strong>{created.user.email}</strong> angelegt. Einmaliges Passwort: <code>{created.password}</code>
+          Invitation sent to {created.user.email}
         </div>
       ) : null}
 
@@ -971,7 +878,7 @@ export function PartnersPage() {
           </div>
           <button type="button" className="dash-btn" onClick={() => { setFormError(''); setShowCreate(true); }}>
             <UserPlus size={16} />
-            Zugang anlegen
+            Partner einladen
           </button>
         </div>
 
@@ -1087,7 +994,6 @@ export function PartnersPage() {
                     pagesLabel={`${pages.filter((id) => pageOptions.some((option) => option.id === id)).length}/${pageOptions.length}`}
                     onAccess={() => openAccess(partner)}
                     onSendLink={() => sendPasswordLink(partner)}
-                    onNewPassword={() => openNewPassword(partner)}
                   />
                 </div>
               </article>
@@ -1101,7 +1007,6 @@ export function PartnersPage() {
       {editModal ? createPortal(editModal, document.body) : null}
       {removeModal ? createPortal(removeModal, document.body) : null}
       {viewModal ? createPortal(viewModal, document.body) : null}
-      {passwordModal ? createPortal(passwordModal, document.body) : null}
     </div>
   );
 }

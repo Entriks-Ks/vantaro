@@ -9,6 +9,7 @@ import {
   resendPasswordResetRequest,
   resendVerificationRequest,
   resetPasswordRequest,
+  acceptPartnerInviteRequest,
   restoreSession,
   setVerticalRequest,
   startAppleLogin,
@@ -111,6 +112,10 @@ export function AuthProvider({ children }) {
     resetPasswordRequest(payload)
   ), []);
 
+  const acceptPartnerInvite = useCallback(async (payload) => (
+    acceptPartnerInviteRequest(payload)
+  ), []);
+
   const resendPasswordReset = useCallback(async (email) => (
     resendPasswordResetRequest(email)
   ), []);
@@ -138,9 +143,10 @@ export function AuthProvider({ children }) {
       logout,
       forgotPassword,
       resetPassword,
+      acceptPartnerInvite,
       resendPasswordReset,
     }),
-    [user, role, loading, login, loginWithGoogle, loginWithApple, completeOAuthLogin, register, setVertical, verifyEmail, verifyEmailToken, updateProfile, changePassword, resendVerification, logout, forgotPassword, resetPassword, resendPasswordReset],
+    [user, role, loading, login, loginWithGoogle, loginWithApple, completeOAuthLogin, register, setVertical, verifyEmail, verifyEmailToken, updateProfile, changePassword, resendVerification, logout, forgotPassword, resetPassword, acceptPartnerInvite, resendPasswordReset],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

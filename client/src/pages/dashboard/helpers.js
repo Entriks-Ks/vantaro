@@ -185,6 +185,7 @@ export function documentTitle(pathname, hash = '', isAdmin = false) {
   if (pathname === '/register') return 'Registrieren — VANTARO';
   if (pathname === '/forgot-password') return 'Passwort zurücksetzen — VANTARO';
   if (pathname === '/reset-password') return 'Neues Passwort — VANTARO';
+  if (pathname === '/einladung') return 'Einladung annehmen — VANTARO';
   if (pathname === '/verify-email') return 'E-Mail bestätigen — VANTARO';
   if (pathname.startsWith('/dashboard')) return dashboardDocumentTitle(pathname, isAdmin);
   return 'VANTARO — Qualifizierte Beratungschancen & Makler-Matching für Finanzdienstleister';

@@ -13,6 +13,12 @@ import {
   getOrderDetails,
   getProcreditConfig,
 } from './paymentGateway.js';
+import {
+  consumeReservedForPayment,
+  quoteCheckoutDiscounts,
+  releaseReservedForPayment,
+  reserveOneTimeForPayment,
+} from './discounts.js';
 
 const TAX_RATE = 0;
 
@@ -35,7 +41,20 @@ export function paymentTableMissing(error) {
     || /invoice_number/i.test(message)
     || /card_last4/i.test(message)
     || /pg_order_id/i.test(message)
-    || /return_token/i.test(message);
+    || /return_token/i.test(message)
+    || /list_cents/i.test(message)
+    || /discount_cents/i.test(message)
+    || /discount_snapshot/i.test(message);
+}
+
+function parseDiscountSnapshot(value) {
+  if (!value) return null;
+  if (typeof value === 'object') return value;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return null;
+  }
 }
 
 export function toPublicPayment(row, extras = {}) {
@@ -54,6 +73,9 @@ export function toPublicPayment(row, extras = {}) {
     netCents: Number(row.net_cents) || 0,
     taxCents: Number(row.tax_cents) || 0,
     grossCents: Number(row.gross_cents) || 0,
+    listCents: row.list_cents != null ? Number(row.list_cents) : Number(row.net_cents) || 0,
+    discountCents: Number(row.discount_cents) || 0,
+    discountSnapshot: parseDiscountSnapshot(row.discount_snapshot),
     invoiceNumber: row.invoice_number,
     status: row.status || 'pending',
     method: row.method || 'card',
@@ -262,10 +284,15 @@ export async function finalizePaymentFromGateway(row, { beraterUser = null } = {
   requireDb();
   if (!row) throw fail('Zahlung nicht gefunden.', 404);
   if (row.status === 'paid') {
+    await consumeReservedForPayment(row.id);
     return { payment: toPublicPayment(row), outcome: 'paid', alreadyFinalized: true };
   }
   if (row.status === 'refunded') {
     return { payment: toPublicPayment(row), outcome: 'refunded', alreadyFinalized: true };
+  }
+  if (row.status === 'failed') {
+    await releaseReservedForPayment(row.id);
+    return { payment: toPublicPayment(row), outcome: 'failed', alreadyFinalized: true };
   }
   if (!row.pg_order_id || !row.pg_order_password) {
     throw fail('Für diese Zahlung fehlt die ProCredit-Order-Referenz.', 409);
@@ -319,6 +346,7 @@ export async function finalizePaymentFromGateway(row, { beraterUser = null } = {
         cancelled_at: now,
       }).eq('id', request.id);
       const latest = await loadPaymentById(row.id);
+      if (latest?.status === 'paid') await consumeReservedForPayment(row.id);
       return {
         payment: toPublicPayment(latest || row),
         outcome: latest?.status === 'paid' ? 'paid' : (latest?.status || 'pending'),
@@ -326,6 +354,7 @@ export async function finalizePaymentFromGateway(row, { beraterUser = null } = {
       };
     }
 
+    await consumeReservedForPayment(data.id);
     return {
       payment: toPublicPayment(data),
       request: { ...request, payment: toPublicPayment(data) },
@@ -348,12 +377,14 @@ export async function finalizePaymentFromGateway(row, { beraterUser = null } = {
     if (error) throw error;
     if (!data) {
       const latest = await loadPaymentById(row.id);
+      if (latest?.status === 'failed') await releaseReservedForPayment(row.id);
       return {
         payment: toPublicPayment(latest || row),
         outcome: latest?.status || 'failed',
         alreadyFinalized: true,
       };
     }
+    await releaseReservedForPayment(data.id);
     return { payment: toPublicPayment(data), outcome: 'failed', alreadyFinalized: false };
   }
 
@@ -373,6 +404,9 @@ export async function checkoutLeadPackage(user, {
   territory,
   desiredTimeframe,
   browser,
+  useOneTimeId,
+  use_one_time_id,
+  useOneTimeDiscountId,
 } = {}, req = null) {
   requireDb();
   if (user?.role !== ROLES.BERATER) {
@@ -405,7 +439,16 @@ export async function checkoutLeadPackage(user, {
     if (!timeframe) throw fail('Gewünschter Zeitraum ist erforderlich.');
   }
 
-  const netCents = packTotalCents(pkg, count);
+  const listCents = packTotalCents(pkg, count);
+    const quoted = await quoteCheckoutDiscounts({
+    beraterId: user.id,
+    packageId: pkg.id,
+    leadType: pkg.leadType,
+    count,
+    listCents,
+    useOneTimeId: useOneTimeId || use_one_time_id || useOneTimeDiscountId,
+  });
+  const netCents = quoted.netCents;
   const taxCents = 0;
   const grossCents = netCents;
   const invoiceNumber = makeInvoiceNumber();
@@ -422,6 +465,9 @@ export async function checkoutLeadPackage(user, {
     scope: pkg.scope,
     lead_type: pkg.leadType,
     lead_count: count,
+    list_cents: quoted.listCents,
+    discount_cents: quoted.discountCents,
+    discount_snapshot: quoted.snapshot,
     net_cents: netCents,
     tax_cents: taxCents,
     gross_cents: grossCents,
@@ -456,11 +502,26 @@ export async function checkoutLeadPackage(user, {
         const retry = await supabase.from('lead_payments').insert(insertRow).select('*').single();
         if (retry.error) throw retry.error;
         pending = retry.data;
+      } else if (/list_cents|discount_cents|discount_snapshot/i.test(String(insertError.message || ''))) {
+        delete insertRow.list_cents;
+        delete insertRow.discount_cents;
+        delete insertRow.discount_snapshot;
+        const retry = await supabase.from('lead_payments').insert(insertRow).select('*').single();
+        if (retry.error) throw retry.error;
+        pending = retry.data;
       } else {
         throw insertError;
       }
     } else {
       pending = data;
+    }
+  }
+
+  if (quoted.oneTime?.discount?.id) {
+    const reserved = await reserveOneTimeForPayment(quoted.oneTime.discount.id, pending.id);
+    if (!reserved) {
+      await supabase.from('lead_payments').update({ status: 'failed', pg_status: 'discount_reserve_failed' }).eq('id', pending.id);
+      throw fail('Der Einmal-Rabatt konnte nicht reserviert werden. Bitte erneut versuchen.');
     }
   }
 
@@ -495,6 +556,7 @@ export async function checkoutLeadPackage(user, {
       redirectUrl: order.redirectUrl,
     };
   } catch (error) {
+    await releaseReservedForPayment(pending.id);
     await supabase
       .from('lead_payments')
       .update({

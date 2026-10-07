@@ -138,7 +138,8 @@ router.get('/:id', requireAuth, async (req, res) => {
     if (!row) {
       return res.status(404).json({ error: 'Lead wurde nicht gefunden.' });
     }
-    if (req.user.role !== ROLES.ADMIN && !canReadCompanyLead(req.user, row)) {
+    const owner = row.assigned_to === req.user.id;
+    if (req.user.role !== ROLES.ADMIN && !owner && !canReadCompanyLead(req.user, row)) {
       return res.status(404).json({ error: 'Lead wurde nicht gefunden.' });
     }
     const [lead] = await attachComplaints([await withAssignee(row)]);

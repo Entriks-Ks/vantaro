@@ -18,6 +18,7 @@ import { leadPurchaseCents } from './packages';
 import { DashSeg } from './DashboardLayout';
 import { ComplaintReplacementStatus, isReplacementPending } from './ComplaintReplacementStatus';
 import { formatDate, formatDateTime, formatEuroExact, initials } from './helpers';
+import { poolForComplaintReplacement } from './requestHelpers';
 
 function beraterName(complaint) {
   return complaint.berater?.fullName || complaint.berater?.email || 'Unbekannt';
@@ -224,13 +225,10 @@ function ComplaintDrawer({
   const energy = vertical === 'energy';
   const requiredScope = complaintScope(complaint) || DEFAULT_LEAD_SCOPE;
   const requiredEnergyType = energy ? energyLeadTypeOf(lead) : '';
-  const scopedPool = useMemo(() => {
-    return pool.filter((item) => {
-      if (verticalOrInsurance(item.vertical) !== vertical) return false;
-      if (energy) return !requiredEnergyType || energyLeadTypeOf(item) === requiredEnergyType;
-      return (item.scope || DEFAULT_LEAD_SCOPE) === requiredScope;
-    });
-  }, [pool, vertical, energy, requiredEnergyType, requiredScope]);
+  const scopedPool = useMemo(
+    () => poolForComplaintReplacement(pool, complaint),
+    [pool, complaint],
+  );
   const poolLabel = energy ? energyTypeLabel(requiredEnergyType) : `Scope ${leadScopeLabel(requiredScope)}`;
   const canReplace = Boolean(complaint.requestId) && scopedPool.length > 0
     && (complaint.request?.status === 'active' || complaint.request?.status === 'completed' || !complaint.request);
@@ -340,8 +338,8 @@ function ComplaintDrawer({
                 {canReplace ? (
                   <div className="dash-replace-block">
                     <p className="dash-panel-note">
-                      {poolLabel} · max. 5 freie Leads hier.
-                      Anderen Ersatz über Leads wählen.
+                      {poolLabel} · nur passende freie Leads oder Termine, max. 5 hier.
+                      Anderen Ersatz über „Ersatz senden“ wählen.
                     </p>
                     <div className="dash-pick-list dash-pick-list--drawer">
                       {replacements.map((item) => (
@@ -425,8 +423,8 @@ function ComplaintDrawer({
                     replaceLeadId: replaceId || undefined,
                   },
                   replaceId
-                    ? 'Erstattet und Ersatzlead gesendet. Der alte Lead liegt unter Ungültige Leads.'
-                    : 'Erstattet. Der Lead liegt unter Ungültige Leads, sobald ein Ersatz gesendet wurde.',
+                    ? 'Erstattet und Ersatz gesendet. Der alte Lead bleibt beim Berater gesperrt.'
+                    : 'Erstattet. Der Lead bleibt beim Berater gesperrt, bis ein Ersatz gesendet wird.',
                 )}
               >
                 {replaceId ? 'Erstatten + Ersatz' : 'Erstatten'}

@@ -654,6 +654,9 @@ export function AdminPayment() {
                         </td>
                         <td className="is-end">
                           <strong className="dash-pay-amount">{formatEuroExact(amountOf(entry))}</strong>
+                          {entry.discountCents > 0 ? (
+                            <small>inkl. Rabatt · {formatEuroExact(entry.listCents)}</small>
+                          ) : null}
                           {entry.taxCents ? <small>zzgl. {formatEuroExact(entry.taxCents)} MwSt</small> : null}
                         </td>
                         <td className="is-end">

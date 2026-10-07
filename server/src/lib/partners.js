@@ -4,6 +4,7 @@ import { mapAuthError, normalizePartnerPages, publicUser } from './auth.js';
 import { removeHolderCalendarEvent, syncLeadCalendar } from './energy.js';
 import { getLeadById, listMyLeads, withAssignee, withAssignees } from './leads.js';
 import { hasCustomMailer } from './mailer.js';
+import { issuePartnerInvite } from './partnerInvite.js';
 import { issuePasswordReset } from './passwordReset.js';
 import { ROLES } from './roles.js';
 import { verticalOrInsurance } from './vertical.js';
@@ -65,8 +66,7 @@ export async function listVisibleCompanyLeads(user) {
     .select('*')
     .eq('vertical', user.vertical)
     .eq('assigned_to', companyId)
-    .eq('energy_holder_id', user.id)
-    .is('refunded_at', null);
+    .eq('energy_holder_id', user.id);
   if (role === 'field_rep') query = query.eq('delivery_type', 'appointment');
   const { data, error } = await query.order('assigned_at', { ascending: false });
   if (error) {
@@ -154,8 +154,15 @@ function cleanRole(role, vertical) {
   return value;
 }
 
+function inviterLabel(actor) {
+  return String(actor?.profile?.company || actor?.fullName || actor?.email || '').trim();
+}
+
 export async function createPartner(actor, { firstName, lastName, email, partnerRole, pages }) {
   if ((actor.partnerRole || 'main') !== 'main') throw fail('Nur die Hauptfirma kann Unterpartner anlegen.', 403);
+  if (!hasCustomMailer()) {
+    throw fail('E-Mail-Versand ist nicht konfiguriert. Einladungen können nicht gesendet werden.', 503);
+  }
   const role = cleanRole(partnerRole, actor.vertical);
   const { given, family } = cleanName(firstName, lastName);
   const mail = cleanEmail(email);
@@ -182,10 +189,25 @@ export async function createPartner(actor, { firstName, lastName, email, partner
   });
   if (error) {
     console.error('createPartner failed:', error.message);
-    throw fail(mapAuthError(error) || 'Zugang konnte nicht angelegt werden.');
+    throw fail(mapAuthError(error) || 'Einladung konnte nicht gesendet werden.');
   }
-  if (!data?.user) throw fail('Zugang konnte nicht angelegt werden.');
-  return { user: toPartner(data.user), password };
+  if (!data?.user) throw fail('Einladung konnte nicht gesendet werden.');
+
+  try {
+    await issuePartnerInvite(data.user, { ignoreCooldown: true, inviterName: inviterLabel(actor) });
+  } catch (inviteError) {
+    console.error('createPartner invite failed:', inviteError.message);
+    await supabase.auth.admin.deleteUser(data.user.id).catch((deleteError) => {
+      console.error('createPartner rollback failed:', deleteError.message);
+    });
+    if (inviteError.code === 'cooldown') throw fail(inviteError.message, 429);
+    throw fail(inviteError.message || 'Einladung konnte nicht gesendet werden.', 503);
+  }
+
+  return {
+    user: toPartner(data.user),
+    message: `Invitation sent to ${mail}`,
+  };
 }
 
 async function loadManagedPartner(actor, partnerId) {
@@ -240,15 +262,20 @@ export async function updatePartner(actor, partnerId, { active, pages, partnerRo
 export async function sendPartnerPasswordLink(actor, partnerId) {
   const { raw } = await loadManagedPartner(actor, partnerId);
   if (!hasCustomMailer()) {
-    throw fail('E-Mail-Versand ist nicht konfiguriert. Bitte „Neues Passwort erstellen“ verwenden.', 503);
+    throw fail('E-Mail-Versand ist nicht konfiguriert.', 503);
   }
+  const pending = raw.user_metadata?.energy_invite_accepted !== true && !raw.last_sign_in_at;
   try {
-    await issuePasswordReset(raw);
+    if (pending) {
+      await issuePartnerInvite(raw, { inviterName: inviterLabel(actor) });
+    } else {
+      await issuePasswordReset(raw);
+    }
   } catch (error) {
     if (error.code === 'cooldown') throw fail(error.message, 429);
     throw error;
   }
-  return { email: raw.email };
+  return { email: raw.email, kind: pending ? 'invite' : 'reset' };
 }
 
 export async function resetPartnerPassword(actor, partnerId) {

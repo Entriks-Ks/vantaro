@@ -13,6 +13,7 @@ import AuthCallback from './pages/AuthCallback';
 import Register from './pages/Register';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
+import AcceptInvite from './pages/AcceptInvite';
 import VerifyEmail from './pages/VerifyEmail';
 import Dashboard from './pages/Dashboard';
 import RequireAuth from './pages/RequireAuth';
@@ -45,10 +46,11 @@ function AppContent() {
   const isRegister = location.pathname === '/register';
   const isForgotPassword = location.pathname === '/forgot-password';
   const isResetPassword = location.pathname === '/reset-password';
+  const isAcceptInvite = location.pathname === '/einladung';
   const isVerifyEmail = location.pathname === '/verify-email';
   const isDashboard = location.pathname.startsWith('/dashboard');
   const isLegal = isImpressum || isDatenschutz;
-  const isAuth = isLogin || isAuthCallback || isRegister || isForgotPassword || isResetPassword || isVerifyEmail;
+  const isAuth = isLogin || isAuthCallback || isRegister || isForgotPassword || isResetPassword || isAcceptInvite || isVerifyEmail;
   const isAppShell = isAuth || isDashboard;
 
   useLayoutEffect(() => {
@@ -94,6 +96,7 @@ function AppContent() {
         <Route path="/register" element={<Register />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/einladung" element={<AcceptInvite />} />
         <Route path="/verify-email" element={<VerifyEmail />} />
         <Route path="/welcome" element={<Navigate to="/dashboard" replace />} />
         <Route path="/onboarding" element={<Navigate to="/dashboard" replace />} />

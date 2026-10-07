@@ -10,6 +10,7 @@ import {
   Handshake,
   Mail,
   MapPin,
+  Percent,
   Phone,
   UserRound,
   Users,
@@ -27,11 +28,13 @@ import { formatCardMask } from '../../lib/payments';
 import { allowedPartnerPages, partnerPageOptions, partnerRoleLabel } from '../../lib/partners';
 import { DashSeg } from './DashboardLayout';
 import { formatDate, formatEuro, formatEuroExact } from './helpers';
+import { DiscountsPanel } from './AdminBeraterDiscounts';
 
 const VIEW_TABS = [
   { id: 'details', label: 'Details', icon: UserRound },
   { id: 'requests', label: 'Anfragen', icon: ClipboardList },
   { id: 'payment', label: 'Zahlungen', icon: CreditCard },
+  { id: 'discounts', label: 'Rabatte', icon: Percent },
   { id: 'leads', label: 'Leads', icon: Users },
   { id: 'partners', label: 'Partner', icon: Handshake },
 ];
@@ -698,7 +701,12 @@ function PaymentPanel({ payments }) {
               </div>
               <div className="dash-bv-pay-row__side">
                 <b>{formatEuroExact(entry.netCents || entry.grossCents)}</b>
-                <small>{formatDate(entry.paidAt || entry.createdAt)}</small>
+                <small>
+                  {formatDate(entry.paidAt || entry.createdAt)}
+                  {entry.discountCents > 0
+                    ? ` · inkl. Rabatt (vorher ${formatEuroExact(entry.listCents || (entry.netCents + entry.discountCents))})`
+                    : ''}
+                </small>
               </div>
             </article>
           ))}
@@ -1352,6 +1360,9 @@ export function AdminBeraterDetail() {
         ) : null}
         {activeTab === 'payment' ? (
           <PaymentPanel payments={payments} />
+        ) : null}
+        {activeTab === 'discounts' ? (
+          <DiscountsPanel beraterId={berater.id} payments={payments} />
         ) : null}
         {activeTab === 'leads' ? (
           <LeadsPanel leads={leads} assignedCount={data.assignedCount || 0} />

@@ -40,13 +40,12 @@ import {
   isLeadDeliveryLocked,
   leadToForm,
   listLabels,
-  parseAppointmentCsv,
-  parseLeadCsv,
+  parseImportCsv,
   statusLabel,
   toggleListValue,
   updateLead,
 } from '../../lib/leads';
-import { complaintReasonLabel, fetchComplaints, sendComplaintReplacement } from '../../lib/complaints';
+import { complaintReasonLabel, complaintReplacementVertical, fetchComplaints, sendComplaintReplacement } from '../../lib/complaints';
 import { DashSeg } from './DashboardLayout';
 import { formatDate } from './helpers';
 import { DEFAULT_LEAD_SCOPE, LEAD_SCOPE_OPTIONS, leadScopeLabel } from '../../lib/scopes';
@@ -58,6 +57,8 @@ import {
   verticalOrInsurance,
 } from '../../lib/vertical';
 import { isReplacementPending } from './ComplaintReplacementStatus';
+import { poolForComplaintReplacement } from './requestHelpers';
+import { matchTierLabel, scoreLeadForRequest } from './leadMatching';
 import {
   CopyableValue,
   Field,
@@ -206,11 +207,12 @@ function LeadListPagination({ page, totalPages, pageSize, total, onPageChange, o
   );
 }
 
-function ReplacementLeadListItem({ lead, checked, onSelect, disabled }) {
+function ReplacementLeadListItem({ lead, complaint, checked, onSelect, disabled }) {
   const place = leadPlace(lead);
   const insurance = listLabels(lead.insuranceStatus, 'insurance');
   const concerns = listLabels(lead.mainConcerns, 'concern');
   const tags = [insurance !== '—' ? insurance : null, concerns !== '—' ? concerns : null].filter(Boolean);
+  const match = complaint?.request ? scoreLeadForRequest(lead, complaint.request) : null;
 
   return (
     <button
@@ -232,11 +234,13 @@ function ReplacementLeadListItem({ lead, checked, onSelect, disabled }) {
       </div>
       <div className="dash-lead-row-side">
         <div className="dash-lead-row-side-badges">
+          {match ? (
+            <span className={`dash-badge dash-badge--${match.tier === 'green' ? 'ok' : 'warn'}`}>
+              {matchTierLabel(match.tier)}
+            </span>
+          ) : null}
           <span className="dash-badge dash-badge--muted">
-            {lead.vertical === 'energy' ? verticalLabel('energy') : leadScopeLabel(lead.scope)}
-          </span>
-          <span className={`dash-badge dash-badge--${statusTone(lead.status)}`}>
-            {statusLabel(lead.status)}
+            {lead.vertical === 'energy' ? energyTypeLabel(energyLeadTypeOf(lead)) : leadScopeLabel(lead.scope)}
           </span>
         </div>
         <span className="dash-lead-row-side-date">{formatDate(lead.createdAt)}</span>
@@ -251,6 +255,10 @@ function complaintBeraterName(complaint) {
 
 function complaintReplacementScope(complaint) {
   return complaint?.request?.scope || complaint?.lead?.scope || '';
+}
+
+function complaintReplacementKind(complaint) {
+  return complaintReplacementVertical(complaint);
 }
 
 function ReplacementFlowBanner({ complaint, loading, blocked, backTo }) {
@@ -304,9 +312,9 @@ function ReplacementFlowBanner({ complaint, loading, blocked, backTo }) {
         </Link>
         <h2>Ersatzlead wählen</h2>
         <p className="dash-panel-note">
-          Wählen Sie einen freien Lead aus dem Pool — er wird dem Berater als Ersatz zugestellt.
-          {complaintReplacementScope(complaint) ? (
-            <> Nur Leads aus Paket <strong>{leadScopeLabel(complaintReplacementScope(complaint))}</strong>.</>
+          Wählen Sie einen freien Lead oder Termin, der zum Auftrag passt — Gebiet, Produkt und Art müssen stimmen.
+          {complaintReplacementScope(complaint) && complaintReplacementKind(complaint) !== 'energy' ? (
+            <> Nur Paket <strong>{leadScopeLabel(complaintReplacementScope(complaint))}</strong>.</>
           ) : null}
         </p>
       </div>
@@ -727,10 +735,12 @@ export function AdminLeads({ mode = 'leads' }) {
   );
 
   const pickableLeads = useMemo(
-    () => leads.filter((lead) => (
-      !lead.assignedTo && lead.status !== 'erledigt' && !lead.refundedAt && !isAppointmentExpired(lead)
-    )),
-    [leads],
+    () => (replacementMode
+      ? poolForComplaintReplacement(leads, replacementComplaint)
+      : leads.filter((lead) => (
+        !lead.assignedTo && lead.status !== 'erledigt' && !lead.refundedAt && !isAppointmentExpired(lead)
+      ))),
+    [leads, replacementMode, replacementComplaint],
   );
 
   const appointmentGroups = useMemo(() => {
@@ -778,6 +788,10 @@ export function AdminLeads({ mode = 'leads' }) {
     () => complaintReplacementScope(replacementComplaint),
     [replacementComplaint],
   );
+  const replacementVertical = useMemo(
+    () => (replacementMode ? complaintReplacementVertical(replacementComplaint) : vertical),
+    [replacementMode, replacementComplaint, vertical],
+  );
 
   const replacementReady = replacementComplaint && isReplacementPending(replacementComplaint);
   const replacementBlocked = replacementComplaint && !isReplacementPending(replacementComplaint);
@@ -786,8 +800,11 @@ export function AdminLeads({ mode = 'leads' }) {
     const nextStatus = replacementMode ? '' : (next.status ?? status);
     const nextAssigned = replacementMode ? 'unassigned' : (next.assignedTo ?? assignedTo);
     const nextSearch = next.search ?? search;
-    const nextScope = replacementMode && requiredScope
-      ? requiredScope
+    const nextVertical = replacementMode
+      ? complaintReplacementVertical(replacementComplaint)
+      : (next.vertical ?? vertical);
+    const nextScope = replacementMode
+      ? (nextVertical === 'energy' ? '' : (requiredScope || ''))
       : (next.scope ?? scope);
     setLoading(true);
     setError('');
@@ -797,7 +814,7 @@ export function AdminLeads({ mode = 'leads' }) {
         assignedTo: nextAssigned,
         search: nextSearch,
         scope: nextScope,
-        vertical: next.vertical ?? vertical,
+        vertical: nextVertical,
       });
       setLeads(payload.leads || []);
     } catch (err) {
@@ -832,10 +849,10 @@ export function AdminLeads({ mode = 'leads' }) {
     }
     setAssignedTo('unassigned');
     setStatus('');
-    if (requiredScope) setScope(requiredScope);
+    if (requiredScope && replacementVertical !== 'energy') setScope(requiredScope);
     load({ assignedTo: 'unassigned', status: '', scope: requiredScope });
     return undefined;
-  }, [replacementMode, replacementComplaint?.id, requiredScope]);
+  }, [replacementMode, replacementComplaint?.id, requiredScope, replacementVertical]);
 
   useEffect(() => {
     if (!replacementFor) {
@@ -891,20 +908,41 @@ export function AdminLeads({ mode = 'leads' }) {
     setError('');
     setNotice('');
     try {
-      const rows = termine ? await parseAppointmentCsv(file) : await parseLeadCsv(file);
+      const parsed = await parseImportCsv(file);
+      const rows = termine
+        ? parsed.rows.filter((row) => row.deliveryType === 'appointment')
+        : parsed.rows;
+      if (!rows.length) {
+        setNotice('Keine gültigen Zeilen in der CSV-Datei gefunden.');
+        if (termine) {
+          setError('Keine Termine in dieser Datei. Versicherungs- und Energie-Leads bitte unter Leads importieren.');
+        }
+        return;
+      }
       const result = await importLeads(rows);
       const skipped = result.errors?.length || 0;
-      const count = result.createdCount;
-      const noun = termine
-        ? `Termin${count === 1 ? '' : 'e'}`
-        : `Lead${count === 1 ? '' : 's'}`;
-      if (!count && !skipped) {
+      const created = result.created || [];
+      const appointments = created.filter((lead) => lead.deliveryType === 'appointment').length;
+      const leadCount = created.length - appointments;
+      const parts = [];
+      if (leadCount) parts.push(`${leadCount} Lead${leadCount === 1 ? '' : 's'}`);
+      if (appointments) parts.push(`${appointments} Termin${appointments === 1 ? '' : 'e'}`);
+      if (!created.length && !skipped) {
         setNotice('Keine gültigen Zeilen in der CSV-Datei gefunden.');
+      } else if (!created.length) {
+        setNotice('Keine Zeilen importiert.');
       } else {
+        const expiredImported = created.filter((lead) => isAppointmentExpired(lead)).length;
+        let extra = '';
+        if (!termine && appointments) extra += ' Termine erscheinen unter Termine.';
+        if (expiredImported) {
+          extra += ' Verstrichene Termine stehen im Reiter Verstrichen.';
+          if (termine && expiredImported === appointments) setAppointmentTiming('expired');
+        }
         setNotice(
           skipped
-            ? `${count} ${noun} importiert, ${skipped} Zeile${skipped === 1 ? '' : 'n'} übersprungen.`
-            : `${count} ${noun} importiert.`,
+            ? `${parts.join(' und ')} importiert, ${skipped} Zeile${skipped === 1 ? '' : 'n'} übersprungen.${extra}`
+            : `${parts.join(' und ')} importiert.${extra}`,
         );
       }
       if (skipped) {
@@ -941,6 +979,16 @@ export function AdminLeads({ mode = 'leads' }) {
             <ToolbarMenu label={importing ? 'Importiere…' : 'CSV'} icon={FileSpreadsheet} disabled={importing}>
               {(close) => (
                 <>
+                  <div className="dash-tmenu__group">Import</div>
+                  <ToolbarMenuItem
+                    icon={Upload}
+                    title="CSV importieren"
+                    description="Termin-Datei hochladen"
+                    onSelect={() => {
+                      csvInputRef.current?.click();
+                      close();
+                    }}
+                  />
                   <div className="dash-tmenu__group">Energie-Termine</div>
                   <ToolbarMenuItem
                     icon={Download}
@@ -949,15 +997,6 @@ export function AdminLeads({ mode = 'leads' }) {
                     onSelect={() => {
                       close();
                       downloadAppointmentCsvTemplate();
-                    }}
-                  />
-                  <ToolbarMenuItem
-                    icon={Upload}
-                    title="CSV importieren"
-                    description="Ausgefüllte Termin-Vorlage hochladen"
-                    onSelect={() => {
-                      close();
-                      csvInputRef.current?.click();
                     }}
                   />
                 </>
@@ -987,6 +1026,16 @@ export function AdminLeads({ mode = 'leads' }) {
             <ToolbarMenu label={importing ? 'Importiere…' : 'CSV'} icon={FileSpreadsheet} disabled={importing}>
               {(close) => (
                 <>
+                  <div className="dash-tmenu__group">Import</div>
+                  <ToolbarMenuItem
+                    icon={Upload}
+                    title="CSV importieren"
+                    description="Leads und Termine aus einer Datei"
+                    onSelect={() => {
+                      csvInputRef.current?.click();
+                      close();
+                    }}
+                  />
                   <div className="dash-tmenu__group">Versicherungs-Leads</div>
                   <ToolbarMenuItem
                     icon={Download}
@@ -997,13 +1046,14 @@ export function AdminLeads({ mode = 'leads' }) {
                       downloadLeadCsvTemplate();
                     }}
                   />
+                  <div className="dash-tmenu__group">Energie-Termine</div>
                   <ToolbarMenuItem
-                    icon={Upload}
-                    title="CSV importieren"
-                    description="Ausgefüllte Vorlage hochladen"
+                    icon={Download}
+                    title="Vorlage herunterladen"
+                    description="CSV mit allen Termin-Spalten"
                     onSelect={() => {
                       close();
-                      csvInputRef.current?.click();
+                      downloadAppointmentCsvTemplate();
                     }}
                   />
                 </>
@@ -1178,6 +1228,7 @@ export function AdminLeads({ mode = 'leads' }) {
                   <ReplacementLeadListItem
                     key={lead.id}
                     lead={lead}
+                    complaint={replacementComplaint}
                     checked={selectedLeadId === lead.id}
                     onSelect={setSelectedLeadId}
                     disabled={sendingReplacement}
@@ -1196,9 +1247,9 @@ export function AdminLeads({ mode = 'leads' }) {
           ) : (
             <div className="dash-empty">
               <p>
-                {requiredScope
-                  ? `Kein freier Lead im Pool für Paket ${leadScopeLabel(requiredScope)}.`
-                  : 'Kein freier Lead im Pool.'}
+                {requiredScope && replacementVertical !== 'energy'
+                  ? `Kein passender freier Lead im Pool für Paket ${leadScopeLabel(requiredScope)}.`
+                  : 'Kein passender freier Lead oder Termin im Pool für diesen Ersatz.'}
               </p>
             </div>
           )
@@ -1225,7 +1276,7 @@ export function AdminLeads({ mode = 'leads' }) {
                 ? 'Noch keine Leads. Legen Sie einen an oder importieren Sie eine CSV-Datei.'
                 : appointmentTiming === 'expired'
                   ? 'Keine verstrichenen Termine.'
-                  : 'Keine anstehenden Termine. Legen Sie einen neuen Termin an.'}
+                  : 'Keine anstehenden Termine. Legen Sie einen neuen Termin an oder importieren Sie eine CSV-Datei.'}
             </p>
           </div>
         )}

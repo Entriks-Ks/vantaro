@@ -118,9 +118,32 @@ function emptyToNull(value) {
 
 function parseIsoTimestamp(value, label) {
   if (value == null || value === '') return { value: null };
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return { error: `${label} ist ungültig.` };
-  return { value: date.toISOString() };
+  const raw = trim(value);
+  if (!/^\d{1,2}\.\d{1,2}\./.test(raw)) {
+    const date = new Date(raw);
+    if (!Number.isNaN(date.getTime()) && /\d{4}/.test(raw)) {
+      return { value: date.toISOString() };
+    }
+  }
+  let dateText = raw;
+  let timeText = '';
+  const combined = raw.match(/^(\d{1,2}\.\d{1,2}\.\d{2,4})[\sT]+(\d{1,2}[:.]\d{2})/);
+  const isoDay = raw.match(/^(\d{4}-\d{1,2}-\d{1,2})[\sT]+(\d{1,2}[:.]\d{2})/);
+  if (combined) [, dateText, timeText] = combined;
+  else if (isoDay) [, dateText, timeText] = isoDay;
+  const german = dateText.match(/^(\d{1,2})\.(\d{1,2})\.(\d{2,4})$/);
+  const iso = dateText.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  const clock = timeText.match(/^(\d{1,2})(?:[:.](\d{2}))?/);
+  if ((german || iso) && clock) {
+    const [day, month, year] = german
+      ? [Number(german[1]), Number(german[2]), Number(german[3].length === 2 ? `20${german[3]}` : german[3])]
+      : [Number(iso[3]), Number(iso[2]), Number(iso[1])];
+    const at = new Date(year, month - 1, day, Number(clock[1]), Number(clock[2] || 0));
+    if (!Number.isNaN(at.getTime()) && at.getDate() === day && at.getMonth() === month - 1) {
+      return { value: at.toISOString() };
+    }
+  }
+  return { error: `${label} ist ungültig.` };
 }
 
 function uniqueAllowed(values, allowed) {
@@ -827,7 +850,6 @@ export async function listMyLeads(userId, { vertical } = {}) {
     .select('*')
     .eq('assigned_to', userId)
     .eq('vertical', wanted)
-    .is('refunded_at', null)
     .order('assigned_at', { ascending: false });
 
   if (error && verticalColumnMissing(error)) {
@@ -836,7 +858,6 @@ export async function listMyLeads(userId, { vertical } = {}) {
       .from('leads')
       .select('*')
       .eq('assigned_to', userId)
-      .is('refunded_at', null)
       .order('assigned_at', { ascending: false }));
   }
 
@@ -972,6 +993,10 @@ export async function importLeads(rows, { createdBy } = {}) {
       return next;
     });
     ({ data, error } = await supabase.from('leads').insert(retryRows).select('*'));
+  }
+  if (error && created.some((row) => row.vertical === 'energy')
+    && (verticalColumnMissing(error) || energySchemaMissing(error))) {
+    throw energySchemaError();
   }
   if (error) throw error;
 

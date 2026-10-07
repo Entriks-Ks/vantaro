@@ -376,13 +376,11 @@ async function moveLeadToRejected(leadId) {
   const lead = await getLeadById(leadId);
   if (!lead) throw fail('Lead wurde nicht gefunden.', 404);
   const now = new Date().toISOString();
-  // Park as refunded/invalid — not in free pool until admin restores.
-  // Status stays unchanged here; restore sets Wieder verfügbar (in_bearbeitung).
+  // Stay assigned to the berater, but blocked until a replacement is sent
+  // (or admin restores the lead into the free pool).
   const { data, error } = await supabase
     .from('leads')
     .update({
-      assigned_to: null,
-      assigned_at: lead.assigned_at || null,
       refunded_at: now,
     })
     .eq('id', leadId)
@@ -556,6 +554,8 @@ export async function sendComplaintReplacement(id, replaceLeadId) {
   if (!current.request_id) {
     throw fail('Dieser Lead ist keinem Auftrag zugeordnet.');
   }
+
+  await refreshRequestAfterRefund(current.request_id);
 
   const sent = await sendLeadsToRequest(current.request_id, [replaceLeadId], {
     skipReplacementLink: true,

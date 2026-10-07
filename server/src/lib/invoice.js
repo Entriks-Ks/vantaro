@@ -189,14 +189,24 @@ function invoiceFilename(payment) {
 }
 
 function linePricing(payment) {
-  const total = Math.max(0, Number(payment.netCents) || Number(payment.grossCents) || 0);
+  const payable = Math.max(0, Number(payment.netCents) || Number(payment.grossCents) || 0);
+  const list = Math.max(payable, Number(payment.listCents) || payable);
+  const discount = Math.max(0, Number(payment.discountCents) || 0);
   const leads = Math.max(1, Number(payment.leadCount) || 1);
-  const unit = Math.round(total / leads);
-  const perLead = leads > 1 && unit * leads === total && unit >= 1000;
+  const unit = Math.round(list / leads);
+  const perLead = leads > 1 && unit * leads === list && unit >= 1000;
   if (perLead) {
-    return { qty: leads, unitCents: unit, totalCents: total, leadCount: leads };
+    return { qty: leads, unitCents: unit, totalCents: list, leadCount: leads, listCents: list, discountCents: discount };
   }
-  return { qty: 1, unitCents: total, totalCents: total, leadCount: leads };
+  return { qty: 1, unitCents: list, totalCents: list, leadCount: leads, listCents: list, discountCents: discount };
+}
+
+function discountLineLabel(slice) {
+  if (!slice) return 'Rabatt';
+  const code = slice.code ? ` ${slice.code}` : '';
+  if (slice.valueType === 'percent') return `Rabatt${code} (-${slice.value} %)`;
+  if (slice.valueType === 'fixed_cents') return `Rabatt${code} (-${formatEuroDe(slice.value)} / Einheit)`;
+  return `Rabatt${code}`.trim();
 }
 
 function itemDescription(payment, pricing) {
@@ -318,6 +328,19 @@ function buildContent(payment) {
   ops.push(textRight(colTotal - 10, y, formatEuroDe(pricing.totalCents), { size: 9 }));
 
   y -= 18 + Math.max(0, descLines.length - 1) * 12;
+
+  const snapshot = payment.discountSnapshot || {};
+  const discountRows = [snapshot.standing, snapshot.oneTime].filter((row) => row && Number(row.amountCents) > 0);
+  if (!discountRows.length && pricing.discountCents > 0) {
+    discountRows.push({ amountCents: pricing.discountCents });
+  }
+  discountRows.forEach((row) => {
+    ops.push(rgb(...MUTED));
+    ops.push(text(MARGIN + 10, y, discountLineLabel(row), { size: 9 }));
+    ops.push(textRight(colTotal - 10, y, `- ${formatEuroDe(row.amountCents)}`, { size: 9 }));
+    y -= 16;
+  });
+
   ops.push(strokeRgb(...LINE));
   ops.push('0.5 w');
   ops.push(line(MARGIN, y, CONTENT_RIGHT, y));
