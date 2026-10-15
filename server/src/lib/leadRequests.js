@@ -14,13 +14,12 @@ import {
   withAssignees,
 } from './leads.js';
 import { DEFAULT_LEAD_SCOPE, LEAD_SCOPES, leadScopeOrDefault, normalizeLeadScope } from './scopes.js';
-import { beraterBusinessAddress, sortLeadsByZipProximity } from './proximity.js';
+import { requestProximityOrigin, sortLeadsByZipProximity } from './proximity.js';
 import {
   energyLeadTypeOf,
   energySchemaMissing,
   isAppointmentExpired,
   leadTypesFor,
-  territoryMatches,
   verticalColumnMissing,
   verticalOrInsurance,
 } from './vertical.js';
@@ -840,13 +839,16 @@ export async function autoFillRequest(requestId) {
     if (verticalOrInsurance(lead.vertical) !== requestVertical) return false;
     if (lead.status === 'erledigt' || lead.refundedAt) return false;
     if (requestVertical === 'energy') {
-      return energyLeadTypeOf(lead) === current.lead_type
-        && territoryMatches(current.territory, lead);
+      // Type only — pick closest to Gebiet via proximity sort below.
+      return energyLeadTypeOf(lead) === current.lead_type;
     }
     return leadScopeOrDefault(lead.scope) === requestScope;
   });
 
-  const origin = beraterBusinessAddress(pipeline.berater);
+  const origin = requestProximityOrigin(
+    { territory: current.territory },
+    pipeline.berater,
+  );
   const { leads: ordered, sorted, mode } = sortLeadsByZipProximity(scoped, origin);
   const pick = ordered.slice(0, mapped.remaining);
   const leadIds = pick.map((lead) => lead.id).filter(Boolean);
@@ -926,8 +928,7 @@ function matchingOpenRequests(requests, lead) {
     if (entry.status !== 'active' || Number(entry.remaining) <= 0) return false;
     if (verticalOrInsurance(entry.vertical) !== leadVertical) return false;
     if (leadVertical === 'energy') {
-      return entry.leadType === energyLeadTypeOf(lead)
-        && territoryMatches(entry.territory, lead);
+      return entry.leadType === energyLeadTypeOf(lead);
     }
     return leadScopeOrDefault(entry.scope) === leadScope;
   });
@@ -1008,9 +1009,6 @@ export async function sendLeadsToRequest(requestId, leadIds, { skipReplacementLi
     if (verticalOrInsurance(current.vertical) === 'energy') {
       if (energyLeadTypeOf(currentLead) !== current.lead_type) {
         throw fail('Lead passt nicht zum bestellten Produkt.');
-      }
-      if (!territoryMatches(current.territory, currentLead)) {
-        throw fail('Lead liegt außerhalb des bestellten Gebiets.');
       }
     } else if (leadScopeOrDefault(currentLead.scope) !== requestScope) {
       throw fail(`Dieser Auftrag ist ${requestScope === 'regional' ? 'regional' : 'deutschlandweit'}. Bitte nur passende Leads senden.`);

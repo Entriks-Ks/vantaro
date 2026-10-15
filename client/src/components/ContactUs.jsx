@@ -3,7 +3,7 @@ import { CheckCircle2, X } from 'lucide-react';
 import DarkVeil from './DarkVeil';
 import './ContactUs.css';
 
-const FOCUS_OPTIONS = ['PKV', 'BU / Vorsorge', 'Gewerbe / Unternehmer', 'Mehrere Sparten'];
+const FOCUS_OPTIONS = ['Versicherung / PKV', 'Energie / Photovoltaik', 'Energie / Wärmepumpe', 'Mehrere Bereiche'];
 
 export default function ContactUs() {
   const [formData, setFormData] = useState({
@@ -242,7 +242,7 @@ export default function ContactUs() {
                     <span>Prüfen Sie, ob es für Sie funktioniert.</span>
                   </h2>
                   <p>
-                    Starten Sie mit einem strukturierten Pilotgespräch. Wir schauen auf Sparte, Region, Kapazität, Qualitätsstufe und die Kennzahlen, die für Ihr Haus wirklich zählen.
+                    Starten Sie mit einem strukturierten Pilotgespräch. Wir schauen auf Bereich (Versicherung oder Energie), Region, Kapazität, Qualitätsstufe und die Kennzahlen, die für Ihr Unternehmen wirklich zählen.
                   </p>
                   <div className="contact-cutout-actions">
                     <a

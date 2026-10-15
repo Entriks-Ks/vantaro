@@ -173,6 +173,12 @@ function adminPageCopy(pathname, user) {
   if (pathname.startsWith('/dashboard/zahlung')) {
     return { kicker: 'Konto', title: 'Zahlung', subtitle: 'Testzahlungen der Berater — Rechnung und Kartendaten.' };
   }
+  if (pathname.startsWith('/dashboard/sicherheit')) {
+    return { kicker: 'Konto', title: 'Sicherheit', subtitle: 'Passwort ändern — mit aktuellem Passwort und starken Regeln.' };
+  }
+  if (pathname.startsWith('/dashboard/profil')) {
+    return { kicker: 'Konto', title: 'Profil', subtitle: 'Persönliche Angaben für den Admin — unabhängig von Berater-Stammdaten.' };
+  }
   if (pathname.startsWith('/dashboard/nutzer')) {
     return { kicker: 'Bestand', title: 'Nutzer', subtitle: 'Konten im Portal.' };
   }
@@ -301,7 +307,13 @@ function AdminShell({ user, children }) {
         <div className="dash-sidebar-foot">
           <div className="dash-account">
             <NavLink
-              className={({ isActive }) => `dash-account-profile${isActive ? ' is-active' : ''}`}
+              className={({ isActive }) => {
+                const settingsActive = [
+                  '/dashboard/profil',
+                  '/dashboard/sicherheit',
+                ].some((path) => location.pathname.startsWith(path));
+                return `dash-account-profile${isActive || settingsActive ? ' is-active' : ''}`;
+              }}
               to="/dashboard/profil"
               title="Profil öffnen"
               aria-label="Profil öffnen"

@@ -22,14 +22,19 @@ const ITEMS = [
       'Je schneller der Erstkontakt, desto höher die Chance auf ein gutes Gespräch. Im Pilot werden deshalb passende Bearbeitungsziele, Erinnerungen und Mengenlimits vereinbart — abgestimmt auf Ihre tatsächliche Kapazität.',
   },
   {
-    question: 'Welche Voraussetzungen braucht mein Maklerhaus?',
+    question: 'Welche Bereiche deckt die Plattform ab?',
     answer:
-      'Sie benötigen eine passende fachliche Ausrichtung, verfügbare Beratungskapazität, definierte Zuständigkeiten und die Bereitschaft, Status und Ergebnis sauber zurückzuführen. VANTARO unterstützt bei Einrichtung, Portalnutzung und Teamroutine.',
+      'VANTARO arbeitet mit zwei Bereichen: Versicherung (z. B. PKV, BU, Vorsorge) und Energie (Photovoltaik und Wärmepumpe). Matching, Portal, Guthaben und Follow-up folgen derselben Plattformlogik — mit bereichsspezifischen Qualifizierungs- und Produktregeln.',
   },
   {
-    question: 'Ist VANTARO eine Versicherung oder ein Makler?',
+    question: 'Welche Voraussetzungen braucht mein Unternehmen?',
     answer:
-      'Nein. VANTARO ist die Vertriebs- und Prozessinfrastruktur für Finanzdienstleister. Fachliche Beratung, Produktauswahl und Vermittlung bleiben beim jeweils zuständigen und zugelassenen Vermittler.',
+      'Sie benötigen eine passende fachliche Ausrichtung in Versicherung oder Energie, verfügbare Beratungskapazität, definierte Zuständigkeiten und die Bereitschaft, Status und Ergebnis sauber zurückzuführen. VANTARO unterstützt bei Einrichtung, Portalnutzung und Teamroutine.',
+  },
+  {
+    question: 'Ist VANTARO selbst Versicherer, Energieanbieter oder Makler?',
+    answer:
+      'Nein. VANTARO ist die Vertriebs- und Prozessplattform. Fachliche Beratung, Produktauswahl und Abschluss bleiben beim jeweils zuständigen Partner — ob Versicherungsmakler oder Energievertrieb.',
   },
 ];
 

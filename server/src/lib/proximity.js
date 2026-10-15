@@ -41,3 +41,24 @@ export function beraterBusinessAddress(berater) {
   if (!street && !zip && !city) return null;
   return { street, zip, city };
 }
+
+/** Parse free-form Gebiet ("Marienplatz, 80331 München") into address parts. */
+export function addressFromTerritory(territory) {
+  const raw = String(territory || '').trim();
+  if (!raw) return null;
+  const zipMatch = raw.match(/(?<!\d)(\d{5})(?!\d)/);
+  if (!zipMatch) {
+    return { street: raw, zip: '', city: '' };
+  }
+  const zip = zipMatch[1];
+  const street = raw.slice(0, zipMatch.index).replace(/[,\s]+$/g, '').trim();
+  const city = raw.slice(zipMatch.index + zip.length).replace(/^[,\s]+/g, '').trim();
+  return { street, zip, city };
+}
+
+/** Sort origin: request territory first, else berater Geschäftsadresse. */
+export function requestProximityOrigin(request, berater) {
+  const fromTerritory = addressFromTerritory(request?.territory);
+  if (fromTerritory) return fromTerritory;
+  return beraterBusinessAddress(berater) || null;
+}

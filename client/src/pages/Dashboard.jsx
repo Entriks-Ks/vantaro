@@ -22,6 +22,7 @@ import {
   AdminOverview,
   AdminUsers,
   AdminProfile,
+  AdminSecurity,
 } from './dashboard/AdminViews';
 import { AdminPayment } from './dashboard/AdminPayments';
 import { AdminLeadEditor, AdminLeads } from './dashboard/AdminLeads';
@@ -91,7 +92,7 @@ export default function Dashboard() {
                 <Route path="zahlung" element={<AdminPayment />} />
                 <Route path="profil" element={<AdminProfile />} />
                 <Route path="unternehmen" element={<Navigate to="/dashboard/profil" replace />} />
-                <Route path="sicherheit" element={<Navigate to="/dashboard/profil" replace />} />
+                <Route path="sicherheit" element={<AdminSecurity />} />
                 <Route path="einstellungen" element={<Navigate to="/dashboard/profil" replace />} />
                 <Route path="users" element={<Navigate to="/dashboard/nutzer" replace />} />
                 <Route path="payment" element={<Navigate to="/dashboard/zahlung" replace />} />

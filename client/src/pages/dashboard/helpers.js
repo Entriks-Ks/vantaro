@@ -188,5 +188,5 @@ export function documentTitle(pathname, hash = '', isAdmin = false) {
   if (pathname === '/einladung') return 'Einladung annehmen — VANTARO';
   if (pathname === '/verify-email') return 'E-Mail bestätigen — VANTARO';
   if (pathname.startsWith('/dashboard')) return dashboardDocumentTitle(pathname, isAdmin);
-  return 'VANTARO — Qualifizierte Beratungschancen & Makler-Matching für Finanzdienstleister';
+  return 'VANTARO — Vertriebsplattform für Versicherung & Energie';
 }

@@ -129,16 +129,16 @@ function AppContent() {
           <div className="wrap footer-main">
             <div className="footer-brand">
               <Brand />
-              <p>Die Umsatzmaschine für Finanzdienstleister — vom Erstkontakt bis zum Ergebnis. Qualifizierte Chancen, exklusives Matching und messbares Follow-up in einer durchgängigen Strecke.</p>
+              <p>Die Vertriebsplattform für Versicherung und Energie — vom Erstkontakt bis zum Ergebnis. Qualifizierte Chancen, exklusives Matching und messbares Follow-up in einer durchgängigen Strecke.</p>
             </div>
             <div className="footer-links">
               <div className="footer-col">
                 <h4>Entdecken</h4>
                 <a href="#system">Das System</a>
-                <a href="#portal">Maklerportal</a>
-                <a href="#sparten">Sparten &amp; Logik</a>
+                <a href="#portal">Partnerportal</a>
+                <a href="#sparten">Bereiche &amp; Sparten</a>
                 <a href="#qualitaet">Qualitätsprozess</a>
-                <a href="#referenzen">Maklerstimmen</a>
+                <a href="#referenzen">Partnerstimmen</a>
               </div>
               <div className="footer-col">
                 <h4>Starten</h4>
@@ -156,7 +156,7 @@ function AppContent() {
             </div>
           </div>
           <div className="wrap footer-bottom">
-            <span className="footer-copy-text">© {new Date().getFullYear()} VANTARO. Vertriebs- und Matching-Infrastruktur für Finanzdienstleister.</span>
+            <span className="footer-copy-text">© {new Date().getFullYear()} VANTARO. Vertriebs- und Matching-Plattform für Versicherung und Energie.</span>
             <nav className="footer-bottom-nav" aria-label="Rechtliches">
               <a href="#impressum">Impressum</a>
               <a href="#datenschutz">Datenschutz</a>

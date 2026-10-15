@@ -21,8 +21,6 @@ import {
   energyLeadTypeOf,
   energyTypeLabel,
   isAppointmentExpired,
-  territoryMatches,
-  territoryState,
 } from '../../lib/vertical';
 import { formatDate } from './helpers';
 import { leadScopeOrDefault } from './requestHelpers';
@@ -504,7 +502,6 @@ function openRequestsForLead(berater, lead) {
     return (berater?.requests || []).filter((request) => (
       request.status === 'active'
       && request.leadType === type
-      && territoryMatches(request.territory, lead)
       && Number(request.remaining) > 0
     ));
   }
@@ -537,8 +534,7 @@ function requestAssignLabel(request, lead) {
     code,
     product: [
       energy ? energyTypeLabel(request?.leadType) : leadTypeLabel(request?.leadType),
-      energy ? (request?.territory || 'Alle Gebiete') : leadScopeLabel(request?.scope),
-      energy && territoryState(request?.territory) ? `Gebiet: ganz ${territoryState(request.territory)}` : '',
+      energy ? (request?.territory || 'Kein Gebiet') : leadScopeLabel(request?.scope),
     ].filter(Boolean).join(' · '),
     progress: `${request?.validCount || 0}/${requested} geliefert · noch ${remaining} offen`,
   };

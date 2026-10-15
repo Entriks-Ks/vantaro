@@ -15,21 +15,20 @@ export default function Hero() {
         />
       </div>
       <div className="wrap hero-content">
-          <div className="eyebrow light">Umsatzmaschine für Finanzdienstleister</div>
+          <div className="eyebrow light">Vertriebsplattform für Versicherung &amp; Energie</div>
         <h1>
           Aus Erstkontakt wird <em>Umsatz.</em>
         </h1>
         <p className="hero-text">
-          VANTARO verbindet qualifizierte Telefonkontakte, exklusives Matching und
-          konsequentes Makler-Follow-up zu einer Vertriebsstrecke, die nicht bei einem
-          Datensatz endet.
+          VANTARO ist die Plattform für qualifizierte Chancen in Versicherung und Energie —
+          mit Matching, Portal und Follow-up in einer durchgängigen Strecke vom Kontakt bis zum Ergebnis.
         </p>
         <div className="hero-actions">
           <a className="btn btn-primary" href="#kontakt">
             Pilotgespräch starten <span className="arrow">↗</span>
           </a>
           <a className="btn btn-outline-light" href="#system">
-            System entdecken <span className="arrow">↓</span>
+            Plattform entdecken <span className="arrow">↓</span>
           </a>
         </div>
         <div className="hero-note">
@@ -37,7 +36,7 @@ export default function Hero() {
             <Check size={13} strokeWidth={2.8} />
           </span>
           <span className="hero-note-text">
-            Keine Leadbörse. Ein kontrollierter Weg bis zum Beratungsgespräch.
+            Keine Leadbörse. Ein kontrollierter Weg für PKV, BU &amp; Co. sowie Photovoltaik und Wärmepumpe.
           </span>
         </div>
       </div>

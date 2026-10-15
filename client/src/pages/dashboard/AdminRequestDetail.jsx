@@ -40,7 +40,6 @@ import {
   pickBestLeads,
 } from './leadMatching';
 import {
-  beraterBusinessAddress,
   beraterName,
   formatBeraterAddress,
   isUnseenRequest,
@@ -50,6 +49,7 @@ import {
   progressCopy,
   progressPercent,
   requestCode,
+  requestProximityOrigin,
   requestWorkflowStep,
 } from './requestHelpers';
 import {
@@ -376,7 +376,18 @@ function AiPickModal({ request, result, checkedIds, saving, error, onToggle, onS
         aria-label="Schließen"
         onClick={saving ? undefined : onClose}
       />
-      <div className={`dash-assign-modal dash-ai-pick${result.ok ? '' : ' is-short'}`}>
+      <div
+        className={`dash-assign-modal dash-ai-pick${result.ok ? '' : ' is-short'}${saving ? ' is-sending' : ''}`}
+        aria-busy={saving || undefined}
+      >
+        {saving ? (
+          <div className="dash-ai-pick__sending" role="status" aria-live="polite">
+            <span className="dash-ai-pick__spinner" aria-hidden="true" />
+            <strong>{unit} werden gesendet…</strong>
+            <span>Bitte kurz warten</span>
+          </div>
+        ) : null}
+
         <header className="dash-assign-modal__head">
           <div>
             <div className="dash-lead-kicker">
@@ -464,7 +475,11 @@ function AiPickModal({ request, result, checkedIds, saving, error, onToggle, onS
                 disabled={saving || !checkedIds.length}
                 onClick={onSend}
               >
-                <Send size={15} aria-hidden="true" />
+                {saving ? (
+                  <span className="dash-ai-pick__spinner dash-ai-pick__spinner--btn" aria-hidden="true" />
+                ) : (
+                  <Send size={15} aria-hidden="true" />
+                )}
                 {saving ? 'Wird gesendet…' : `Senden (${checkedIds.length})`}
               </button>
             ) : null}
@@ -500,9 +515,11 @@ export function AdminRequestDetail() {
   const [aiResult, setAiResult] = useState(null);
   const [aiCheckedIds, setAiCheckedIds] = useState([]);
   const poolScrollRef = useRef(null);
+  const notesDirtyRef = useRef(false);
 
   const canFill = request?.status === 'active' && request?.remaining > 0;
   const isAuto = isAutoFulfillment(request);
+  const isFulfilled = request?.status === 'completed';
   const beraterPath = request?.beraterId ? `/dashboard/berater/${request.beraterId}` : '';
 
   const filteredPool = useMemo(() => {
@@ -548,7 +565,7 @@ export function AdminRequestDetail() {
 
   async function buildSortedPool(availableLeads, entry, berater) {
     const scoped = poolForRequest(availableLeads, entry);
-    const origin = beraterBusinessAddress(berater) || beraterBusinessAddress(entry?.berater);
+    const origin = requestProximityOrigin(entry, berater);
     const originLabel = formatBeraterAddress(origin);
 
     if (!origin || !scoped.length) {
@@ -580,7 +597,9 @@ export function AdminRequestDetail() {
     const payload = await fetchAllRequests();
     const next = (payload.requests || []).find((entry) => entry.id === requestId) || null;
     setRequest(next);
-    if (next && !notesDirty) setNotesDraft(next.notes || '');
+    // Use a ref: the 8s poll closes over a stale notesDirty and would otherwise
+    // overwrite in-progress typing with the last saved server note.
+    if (next && !notesDirtyRef.current) setNotesDraft(next.notes || '');
     return next;
   }
 
@@ -598,7 +617,7 @@ export function AdminRequestDetail() {
     try {
       const payload = await fetchBeraterPipeline(entry.beraterId);
       const scoped = poolForRequest(payload.availableLeads, entry);
-      const origin = beraterBusinessAddress(payload.berater) || beraterBusinessAddress(entry?.berater);
+      const origin = requestProximityOrigin(entry, payload.berater);
       setPool(scoped);
       setSentLeads(leadsForRequest(payload.requestLeads, entry.id));
       setSelectedLeadIds([]);
@@ -647,6 +666,9 @@ export function AdminRequestDetail() {
   useEffect(() => {
     if (!id) return undefined;
     let active = true;
+    notesDirtyRef.current = false;
+    setNotesDirty(false);
+    setNotesDraft('');
 
     async function refresh() {
       try {
@@ -684,7 +706,7 @@ export function AdminRequestDetail() {
       .then(async (payload) => {
         if (!active) return;
         const scoped = poolForRequest(payload.availableLeads, request);
-        const origin = beraterBusinessAddress(payload.berater) || beraterBusinessAddress(request?.berater);
+        const origin = requestProximityOrigin(request, payload.berater);
         setPool(scoped);
         setSentLeads(leadsForRequest(payload.requestLeads, request.id));
         setProximityMeta({
@@ -718,20 +740,29 @@ export function AdminRequestDetail() {
     return () => {
       active = false;
     };
-  }, [request?.id, request?.beraterId, request?.scope, request?.validCount, request?.remaining, request?.fulfillmentMode]);
+  }, [
+    request?.id,
+    request?.beraterId,
+    request?.scope,
+    request?.leadType,
+    request?.territory,
+    request?.validCount,
+    request?.remaining,
+    request?.fulfillmentMode,
+  ]);
 
   const proximityMessage = useMemo(() => {
     if (!proximityMeta.originLabel) {
-      return 'Keine Berater-Adresse';
+      return 'Kein Gebiet für Nähe-Sortierung';
     }
     if (proximitySorting || (fillLoading && !pool.length)) {
       return `Berechne Nähe zu ${proximityMeta.originLabel}…`;
     }
     if (proximityMeta.sorted && proximityMeta.mode === 'geo') {
-      return `Nähe: ${proximityMeta.originLabel}`;
+      return `Nächste zuerst: ${proximityMeta.originLabel}`;
     }
     if (proximityMeta.sorted && proximityMeta.mode === 'zip') {
-      return `PLZ-Nähe: ${proximityMeta.originLabel}`;
+      return `Nächste zuerst (PLZ): ${proximityMeta.originLabel}`;
     }
     return `Standort: ${proximityMeta.originLabel}`;
   }, [proximityMeta, proximitySorting, fillLoading, pool.length]);
@@ -845,7 +876,10 @@ export function AdminRequestDetail() {
 
   async function saveNotes() {
     const ok = await runUpdate({ notes: notesDraft }, 'Notiz gespeichert.');
-    if (ok) setNotesDirty(false);
+    if (ok) {
+      notesDirtyRef.current = false;
+      setNotesDirty(false);
+    }
   }
 
   if (!id) return <Navigate to="/dashboard/anfordern" replace />;
@@ -972,6 +1006,7 @@ export function AdminRequestDetail() {
             <textarea
               value={notesDraft}
               onChange={(event) => {
+                notesDirtyRef.current = true;
                 setNotesDraft(event.target.value);
                 setNotesDirty(true);
               }}
@@ -995,8 +1030,8 @@ export function AdminRequestDetail() {
         </section>
       </div>
 
-      <div className={`dash-req-layout${isAuto ? ' is-auto' : ''}`}>
-        {isAuto ? (
+      <div className={`dash-req-layout${isAuto || isFulfilled ? ' is-auto' : ''}`}>
+        {!isFulfilled && isAuto ? (
           <section className="dash-panel dash-req-send dash-req-auto">
             <div className="dash-panel-head">
               <div>
@@ -1015,20 +1050,16 @@ export function AdminRequestDetail() {
                 </span>
                 <div>
                   <strong>
-                    {request.status === 'completed'
-                      ? 'Anforderung ist erfüllt'
-                      : request.status === 'cancelled'
-                        ? 'Automatik pausiert'
-                        : request.remaining > 0
-                          ? `${request.remaining} Lead${request.remaining === 1 ? '' : 's'} noch offen`
-                          : 'Keine offenen Plätze'}
+                    {request.status === 'cancelled'
+                      ? 'Automatik pausiert'
+                      : request.remaining > 0
+                        ? `${request.remaining} Lead${request.remaining === 1 ? '' : 's'} noch offen`
+                        : 'Keine offenen Plätze'}
                   </strong>
                   <p>
                     {request.status === 'cancelled'
                       ? 'Setzen Sie die Anforderung fort, damit die Automatik wieder sofort zustellt.'
-                      : request.status === 'completed'
-                        ? 'Alle angefragten Leads wurden zugestellt. Zugestellte Leads sehen Sie unten.'
-                        : 'Beim Aktivieren der Automatik werden passende Leads sofort zugestellt (nächste zuerst). Jeder neue passende Pool-Lead (Import, manuell, TC-Dial) wird automatisch dieser Anforderung zugewiesen, bis sie erfüllt ist.'}
+                      : 'Beim Aktivieren der Automatik werden passende Leads sofort zugestellt (nächste zuerst). Jeder neue passende Pool-Lead (Import, manuell, TC-Dial) wird automatisch dieser Anforderung zugewiesen, bis sie erfüllt ist.'}
                   </p>
                 </div>
               </div>
@@ -1068,7 +1099,7 @@ export function AdminRequestDetail() {
                 <button
                   type="button"
                   className="dash-btn dash-btn--ghost"
-                  disabled={Boolean(saving) || request.status === 'completed'}
+                  disabled={Boolean(saving)}
                   onClick={disableAutoFulfillment}
                 >
                   Auf manuell umstellen
@@ -1076,14 +1107,17 @@ export function AdminRequestDetail() {
               </div>
             </div>
           </section>
-        ) : (
+        ) : null}
+
+        {!isFulfilled && !isAuto ? (
           <>
           <section className="dash-panel dash-req-send">
             <div className="dash-panel-head">
               <div>
-                <strong>Leads senden</strong>
+                <strong>{isAppointmentRequest(request) ? 'Termine senden' : 'Leads senden'}</strong>
                 <p className="dash-panel-lede">
-                  Pool für Paket {leadScopeLabel(request.scope)} — passende freie Leads auswählen und zustellen
+                  {isAppointmentRequest(request) ? 'Termine' : 'Leads'} für{' '}
+                  {leadTypeLabel(request.leadType) || leadScopeLabel(request.scope)} — nächste zum Gebiet zuerst
                 </p>
               </div>
               {request.status === 'active' && request.remaining > 0 ? (
@@ -1101,9 +1135,10 @@ export function AdminRequestDetail() {
             </div>
 
             {request.status === 'cancelled' ? (
-              <p className="dash-panel-note">Setzen Sie die Anforderung fort, bevor Sie Leads senden.</p>
-            ) : request.status === 'completed' ? (
-              <p className="dash-panel-note">Anforderung ist erfüllt. Alle angefragten Leads wurden zugestellt.</p>
+              <p className="dash-panel-note">
+                Setzen Sie die Anforderung fort, bevor Sie{' '}
+                {isAppointmentRequest(request) ? 'Termine' : 'Leads'} senden.
+              </p>
             ) : (
               <div className="dash-req-send__body">
                 <div className="dash-req-send__tools">
@@ -1192,7 +1227,10 @@ export function AdminRequestDetail() {
                           Mehr laden ({visiblePool.length} von {filteredPool.length})
                         </button>
                       ) : (
-                        <span>{filteredPool.length} Leads im Pool</span>
+                        <span>
+                          {filteredPool.length}{' '}
+                          {isAppointmentRequest(request) ? 'Termine' : 'Leads'} im Pool
+                        </span>
                       )}
                     </div>
                   </div>
@@ -1200,7 +1238,10 @@ export function AdminRequestDetail() {
                   <p className="dash-panel-note">Keine Treffer in der Pool-Suche.</p>
                 ) : (
                   <div className="dash-empty dash-empty--compact">
-                    <p>Keine freien Leads im Pool für Paket {leadScopeLabel(request.scope)}.</p>
+                    <p>
+                      Keine freien {isAppointmentRequest(request) ? 'Termine' : 'Leads'} im Pool für{' '}
+                      {leadTypeLabel(request.leadType) || leadScopeLabel(request.scope)}.
+                    </p>
                     <Link className="dash-btn dash-btn--ghost" to="/dashboard/leads">
                       Zu den Leads
                     </Link>
@@ -1218,13 +1259,13 @@ export function AdminRequestDetail() {
                       <span>
                         {selectedLeadIds.length
                           ? `von ${request.remaining} offenen Plätzen`
-                          : 'Leads markieren, dann senden'}
+                          : `${isAppointmentRequest(request) ? 'Termine' : 'Leads'} markieren, dann senden`}
                       </span>
                     </div>
                     <div className="dash-req-send__bar-actions">
                       <button
                         type="button"
-                        className="dash-btn"
+                        className="dash-btn dash-btn--ok"
                         disabled={Boolean(saving) || !canFill || !selectedLeadIds.length}
                         onClick={sendSelected}
                       >
@@ -1245,7 +1286,7 @@ export function AdminRequestDetail() {
           />
         </aside>
           </>
-        )}
+        ) : null}
 
           <section className="dash-panel dash-req-delivered">
             <div className="dash-panel-head">

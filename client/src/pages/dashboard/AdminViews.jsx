@@ -1,30 +1,40 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
+  AlertCircle,
   AlertTriangle,
   ArrowUpRight,
+  Camera,
+  CheckCircle2,
   Eye,
   EyeOff,
   Flag,
   Inbox,
   KeyRound,
   ListChecks,
+  Lock,
   LogOut,
   Mail,
+  Pencil,
   Phone,
   Save,
+  Shield,
+  Trash2,
   User,
+  Wand2,
+  X,
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useBroker } from '../../hooks/useBroker';
 import { useDashboard } from '../../hooks/useDashboard';
 import { leadTypeLabel, requestStatusLabel, requestStatusTone } from '../../lib/berater';
 import { leadScopeLabel } from '../../lib/scopes';
-import { fileToAvatarDataUrl, validatePassword } from '../../lib/profile';
-import PhoneField, { isValidMobile } from '../../components/PhoneField';
+import { fileToAvatarDataUrl, generatePassword, validatePassword } from '../../lib/profile';
+import PhoneField, { formatPhoneDisplay, isValidMobile } from '../../components/PhoneField';
+import ThemeMode from '../../components/ThemeMode';
 import { roleLabel } from '../../lib/roles';
 import { LeadListItem } from './AdminLeads';
-import { formatDate, formatEuroExact, initials } from './helpers';
+import { displayName, formatDate, formatEuroExact, initials } from './helpers';
 
 function Metric({ label, value, hint, tone, to }) {
   const className = `dash-metric${tone ? ` dash-metric--${tone}` : ''}${to ? ' is-link' : ''}`;
@@ -502,77 +512,325 @@ function adminProfileForm(user) {
     firstName: user?.firstName || '',
     lastName: user?.lastName || '',
     phone: user?.phone || '',
-    avatarUrl: user?.avatarUrl || '',
   };
 }
 
-function PasswordField({ label, value, onChange, show, onToggle, autoComplete, disabled }) {
+function AdminProfileNav({ active }) {
+  const { logout } = useAuth();
+  const links = [
+    { id: 'profil', to: '/dashboard/profil', label: 'Profil', icon: User },
+    { id: 'sicherheit', to: '/dashboard/sicherheit', label: 'Sicherheit', icon: Shield },
+  ];
+
   return (
-    <label className="is-full">
-      {label}
-      <div className="password-input-wrapper">
-        <input
-          type={show ? 'text' : 'password'}
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-          autoComplete={autoComplete}
-          disabled={disabled}
-          required
-        />
-        <button
-          type="button"
-          className="password-toggle"
-          onClick={onToggle}
-          aria-label={show ? 'Passwort verbergen' : 'Passwort anzeigen'}
-        >
-          {show ? <EyeOff size={18} strokeWidth={2} /> : <Eye size={18} strokeWidth={2} />}
-        </button>
-      </div>
-    </label>
+    <nav className="dash-profile-nav" aria-label="Konto">
+      {links.map((link) => {
+        const Icon = link.icon;
+        return (
+          <Link
+            key={link.id}
+            to={link.to}
+            className={active === link.id ? 'is-active' : undefined}
+          >
+            <Icon size={16} strokeWidth={2} />
+            {link.label}
+          </Link>
+        );
+      })}
+      <button
+        type="button"
+        className="dash-profile-nav__logout"
+        onClick={() => logout()}
+      >
+        <LogOut size={16} strokeWidth={2} />
+        Abmelden
+      </button>
+      <ThemeMode variant="nav" />
+    </nav>
   );
 }
 
-export function AdminProfile() {
-  const { user, updateProfile, changePassword, logout } = useAuth();
-  const { showToast } = useBroker();
-  const [form, setForm] = useState(() => adminProfileForm(user));
-  const [avatarName, setAvatarName] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
-  const [phoneError, setPhoneError] = useState('');
+function AdminSettingsShell({ active, children }) {
+  return (
+    <div className="dash-settings-layout">
+      <AdminProfileNav active={active} />
+      <div className="dash-settings-main">{children}</div>
+    </div>
+  );
+}
 
+function PasswordToggle({ show, onToggle }) {
+  return (
+    <button
+      type="button"
+      className="password-toggle"
+      onClick={onToggle}
+      aria-label={show ? 'Passwort verbergen' : 'Passwort anzeigen'}
+    >
+      {show ? <EyeOff size={18} strokeWidth={2} /> : <Eye size={18} strokeWidth={2} />}
+    </button>
+  );
+}
+
+function ChangePasswordModal({ open, onClose }) {
+  const { changePassword } = useAuth();
+  const { showToast } = useBroker();
   const [currentPassword, setCurrentPassword] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showCurrent, setShowCurrent] = useState(false);
   const [showNew, setShowNew] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
-  const [savingPassword, setSavingPassword] = useState(false);
-  const [passwordError, setPasswordError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
 
   useEffect(() => {
-    setForm(adminProfileForm(user));
-    setAvatarName('');
-  }, [user?.id, user?.firstName, user?.lastName, user?.phone, user?.avatarUrl]);
+    if (!open) return undefined;
+    setCurrentPassword('');
+    setPassword('');
+    setConfirmPassword('');
+    setError('');
+    setShowCurrent(false);
+    setShowNew(false);
+    setShowConfirm(false);
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, [open]);
+
+  if (!open) return null;
+
+  const fillGenerated = () => {
+    const next = generatePassword();
+    setPassword(next);
+    setConfirmPassword(next);
+    setShowNew(true);
+    setShowConfirm(true);
+    setError('');
+  };
+
+  const submit = async (event) => {
+    event.preventDefault();
+    setError('');
+    if (!currentPassword) {
+      setError('Bitte geben Sie Ihr aktuelles Passwort ein.');
+      return;
+    }
+    const passwordError = validatePassword(password);
+    if (passwordError) {
+      setError(passwordError);
+      return;
+    }
+    if (password !== confirmPassword) {
+      setError('Die Passwörter stimmen nicht überein.');
+      return;
+    }
+    setSaving(true);
+    try {
+      await changePassword({ currentPassword, password });
+      showToast('Passwort wurde geändert');
+      onClose();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="broker-modal" role="dialog" aria-modal="true" aria-labelledby="admin-pw-modal-title">
+      <button type="button" className="broker-modal__backdrop" aria-label="Schließen" onClick={onClose} />
+      <form className="broker-modal__panel broker-pw-modal" onSubmit={submit}>
+        <div className="broker-pw-modal__head">
+          <div>
+            <h2 id="admin-pw-modal-title">Passwort ändern</h2>
+            <p>Geben Sie Ihr aktuelles Passwort ein und wählen Sie ein neues.</p>
+          </div>
+          <button type="button" className="broker-pw-modal__close" onClick={onClose} aria-label="Schließen">
+            <X size={18} strokeWidth={2} />
+          </button>
+        </div>
+
+        <div className="broker-pw-modal__body">
+          {error ? <div className="dash-alert">{error}</div> : null}
+
+          <label className="broker-pw-field">
+            <span>Aktuelles Passwort</span>
+            <div className="password-input-wrapper">
+              <input
+                type={showCurrent ? 'text' : 'password'}
+                value={currentPassword}
+                onChange={(event) => setCurrentPassword(event.target.value)}
+                autoComplete="current-password"
+                disabled={saving}
+                required
+              />
+              <PasswordToggle show={showCurrent} onToggle={() => setShowCurrent((value) => !value)} />
+            </div>
+          </label>
+
+          <label className="broker-pw-field">
+            <span>Neues Passwort</span>
+            <div className="password-input-wrapper has-actions">
+              <input
+                type={showNew ? 'text' : 'password'}
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                autoComplete="new-password"
+                disabled={saving}
+                required
+              />
+              <div className="password-input-actions">
+                <button
+                  type="button"
+                  className="password-action"
+                  onClick={fillGenerated}
+                  disabled={saving}
+                  aria-label="Passwort generieren"
+                  title="Passwort generieren"
+                >
+                  <Wand2 size={18} strokeWidth={2} />
+                </button>
+                <PasswordToggle show={showNew} onToggle={() => setShowNew((value) => !value)} />
+              </div>
+            </div>
+            <small className="broker-pw-hint">Mindestens 8 Zeichen.</small>
+          </label>
+
+          <label className="broker-pw-field">
+            <span>Passwort bestätigen</span>
+            <div className="password-input-wrapper">
+              <input
+                type={showConfirm ? 'text' : 'password'}
+                value={confirmPassword}
+                onChange={(event) => setConfirmPassword(event.target.value)}
+                autoComplete="new-password"
+                disabled={saving}
+                required
+              />
+              <PasswordToggle show={showConfirm} onToggle={() => setShowConfirm((value) => !value)} />
+            </div>
+          </label>
+        </div>
+
+        <div className="broker-pw-modal__footer">
+          <button type="button" className="broker-pw-btn broker-pw-btn--ghost" onClick={onClose} disabled={saving}>
+            Abbrechen
+          </button>
+          <button type="submit" className="broker-pw-btn broker-pw-btn--primary" disabled={saving}>
+            {saving ? 'Wird gespeichert…' : 'Passwort ändern'}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+export function AdminProfile() {
+  const { user, updateProfile } = useAuth();
+  const { showToast } = useBroker();
+  const avatarInputRef = useRef(null);
+  const [form, setForm] = useState(() => adminProfileForm(user));
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [avatarSaving, setAvatarSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [phoneError, setPhoneError] = useState('');
+
+  useEffect(() => {
+    if (!editing) setForm(adminProfileForm(user));
+  }, [editing, user?.id, user?.firstName, user?.lastName, user?.phone]);
+
+  const shownAvatar = user?.avatarUrl || '';
+  const heroInitials = initials({
+    firstName: user?.firstName,
+    lastName: user?.lastName,
+    email: user?.email,
+  });
+  const fullName = [user?.firstName, user?.lastName].filter(Boolean).join(' ') || displayName(user) || 'Admin';
+  const phoneShown = formatPhoneDisplay(user?.phone);
+  const personalComplete = Boolean(user?.firstName && user?.lastName);
+  const role = roleLabel(user?.role);
+
+  const infoGroups = [
+    {
+      id: 'person',
+      title: 'Person',
+      icon: User,
+      items: [
+        { id: 'firstName', label: 'Vorname', value: user?.firstName },
+        { id: 'lastName', label: 'Nachname', value: user?.lastName },
+      ],
+    },
+    {
+      id: 'contact',
+      title: 'Kontakt',
+      icon: Phone,
+      items: [
+        { id: 'phone', label: 'Telefon', value: phoneShown },
+        { id: 'email', label: 'E-Mail-Adresse', value: user?.email, locked: true },
+      ],
+    },
+    {
+      id: 'access',
+      title: 'Zugriff',
+      icon: Shield,
+      items: [
+        { id: 'role', label: 'Rolle', value: role, locked: true },
+      ],
+    },
+  ];
 
   const handleChange = (event) => {
     const { name, value } = event.target;
     setForm((prev) => ({ ...prev, [name]: value }));
   };
 
+  const openAvatarPicker = () => {
+    avatarInputRef.current?.click();
+  };
+
+  const saveAvatar = async (avatarUrl) => {
+    setError('');
+    setAvatarSaving(true);
+    try {
+      await updateProfile({ avatarUrl });
+      showToast(avatarUrl ? 'Profilbild gespeichert' : 'Profilbild entfernt');
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setAvatarSaving(false);
+    }
+  };
+
   const handleAvatar = async (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
+    setError('');
     try {
       const avatarUrl = await fileToAvatarDataUrl(file);
-      setForm((prev) => ({ ...prev, avatarUrl }));
-      setAvatarName(file.name);
-      setError('');
+      await saveAvatar(avatarUrl);
     } catch (err) {
       setError(err.message);
     } finally {
       event.target.value = '';
     }
+  };
+
+  const startEditing = () => {
+    setForm(adminProfileForm(user));
+    setError('');
+    setPhoneError('');
+    setEditing(true);
+  };
+
+  const cancelEditing = () => {
+    setForm(adminProfileForm(user));
+    setError('');
+    setPhoneError('');
+    setEditing(false);
   };
 
   const saveProfile = async (event) => {
@@ -597,9 +855,8 @@ export function AdminProfile() {
         firstName: form.firstName.trim(),
         lastName: form.lastName.trim(),
         phone: form.phone,
-        avatarUrl: form.avatarUrl,
       });
-      setAvatarName('');
+      setEditing(false);
       showToast('Profil gespeichert');
     } catch (err) {
       setError(err.message);
@@ -608,243 +865,231 @@ export function AdminProfile() {
     }
   };
 
-  const savePassword = async (event) => {
-    event.preventDefault();
-    setPasswordError('');
-    if (!currentPassword) {
-      setPasswordError('Bitte geben Sie Ihr aktuelles Passwort ein.');
-      return;
-    }
-    const nextError = validatePassword(password);
-    if (nextError) {
-      setPasswordError(nextError);
-      return;
-    }
-    if (password !== confirmPassword) {
-      setPasswordError('Die Passwörter stimmen nicht überein.');
-      return;
-    }
-    setSavingPassword(true);
-    try {
-      await changePassword({ currentPassword, password });
-      setCurrentPassword('');
-      setPassword('');
-      setConfirmPassword('');
-      showToast('Passwort wurde geändert');
-    } catch (err) {
-      setPasswordError(err.message);
-    } finally {
-      setSavingPassword(false);
-    }
-  };
-
-  const previewName = [form.firstName, form.lastName].map((part) => part.trim()).filter(Boolean).join(' ')
-    || user?.email
-    || 'Admin';
-  const previewInitials = initials({
-    firstName: form.firstName,
-    lastName: form.lastName,
-    email: user?.email,
-  });
-
   return (
-    <div className="dash-stack dash-stack--profile">
-      <header className="dash-profile-pagehead">
-        <div>
-          <span className="dash-profile-pagehead__kicker">Konto</span>
-          <h2>Admin-Profil</h2>
-          <p>Persönliche Angaben für den Admin — unabhängig von Berater-Stammdaten.</p>
-        </div>
-        <span className="dash-badge dash-badge--muted">{roleLabel(user?.role)}</span>
-      </header>
-
-      <form className="dash-panel dash-panel--profile" onSubmit={saveProfile}>
+    <AdminSettingsShell active="profil">
+      <div className="dash-stack dash-stack--profile">
         {error ? <div className="dash-alert">{error}</div> : null}
 
-        <section className="dash-profile-hero" aria-label="Kontoübersicht">
-          <div className="dash-profile-hero__visual">
-            <span className="dash-avatar dash-avatar--hero" aria-hidden="true">
-              {form.avatarUrl ? <img src={form.avatarUrl} alt="" /> : previewInitials}
-            </span>
-            <div className="dash-profile-hero__upload">
-              <label className="dash-upload-card">
-                <input type="file" accept="image/*" onChange={handleAvatar} disabled={saving} />
-                <span className="dash-upload-card__title">Profilbild</span>
-                <span className="dash-upload-card__meta">
-                  {avatarName || (form.avatarUrl ? 'Aktuelles Bild behalten' : 'PNG oder JPG · optional')}
-                </span>
-                <span className="dash-upload-card__cta">Bild wählen</span>
-              </label>
-              {form.avatarUrl ? (
+        <section className="dash-profile-card" aria-label="Kontoübersicht">
+          <div className="dash-profile-card__cover" aria-hidden="true" />
+          <div className="dash-profile-card__body">
+            <div className="dash-profile-card__avatar">
+              <div className="dash-avatar dash-avatar--hero" aria-hidden="true">
+                {shownAvatar ? <img src={shownAvatar} alt="" /> : heroInitials}
+              </div>
+              <div className="dash-profile-card__avatar-tools">
                 <button
                   type="button"
-                  className="dash-text-btn"
-                  disabled={saving}
-                  onClick={() => {
-                    setForm((prev) => ({ ...prev, avatarUrl: '' }));
-                    setAvatarName('');
-                  }}
+                  className="dash-profile-card__avatar-btn"
+                  onClick={openAvatarPicker}
+                  disabled={avatarSaving}
+                  aria-label={shownAvatar ? 'Profilbild ändern' : 'Profilbild hochladen'}
+                  title={shownAvatar ? 'Profilbild ändern' : 'Profilbild hochladen'}
                 >
-                  Bild entfernen
+                  <Camera size={15} strokeWidth={2.2} />
                 </button>
+                {shownAvatar ? (
+                  <button
+                    type="button"
+                    className="dash-profile-card__avatar-btn is-danger"
+                    onClick={() => saveAvatar('')}
+                    disabled={avatarSaving}
+                    aria-label="Profilbild entfernen"
+                    title="Profilbild entfernen"
+                  >
+                    <Trash2 size={15} strokeWidth={2.2} />
+                  </button>
+                ) : null}
+              </div>
+              <input
+                ref={avatarInputRef}
+                id="admin-profile-avatar"
+                type="file"
+                accept="image/*"
+                className="dash-profile-card__file"
+                onChange={handleAvatar}
+                disabled={avatarSaving}
+              />
+            </div>
+
+            <div className="dash-profile-card__identity">
+              <span className="dash-profile-card__kicker">Mein Profil</span>
+              <h3 className="dash-profile-card__name">{fullName}</h3>
+              {user?.email ? (
+                <p className="dash-profile-card__email">
+                  <Mail size={14} strokeWidth={2.2} aria-hidden="true" />
+                  <span>{user.email}</span>
+                </p>
               ) : null}
+              <div className="dash-profile-card__chips">
+                <span className="dash-profile-chip">
+                  <Shield size={13} strokeWidth={2.2} aria-hidden="true" />
+                  {role}
+                </span>
+                <span className={`dash-profile-chip ${personalComplete ? 'is-ok' : 'is-warn'}`}>
+                  {personalComplete
+                    ? <CheckCircle2 size={13} strokeWidth={2.2} aria-hidden="true" />
+                    : <AlertCircle size={13} strokeWidth={2.2} aria-hidden="true" />}
+                  {personalComplete ? 'Profil vollständig' : 'Name fehlt'}
+                </span>
+              </div>
             </div>
           </div>
+        </section>
 
-          <div className="dash-profile-hero__copy">
-            <span className="dash-profile-hero__kicker">Angemeldet als</span>
-            <strong className="dash-profile-hero__name">{previewName}</strong>
-            <p className="dash-profile-hero__email">
-              <Mail size={15} strokeWidth={2.2} aria-hidden="true" />
-              <span>{user?.email || '—'}</span>
-            </p>
-            <dl className="dash-profile-hero__facts">
-              <div>
-                <dt>Rolle</dt>
-                <dd>{roleLabel(user?.role)}</dd>
+        <section className={`dash-panel dash-panel--profile dash-profile-info${editing ? ' is-editing' : ''}`}>
+          <header className="dash-profile-info__head">
+            <span className="dash-profile-section__icon" aria-hidden="true">
+              <User size={16} strokeWidth={2.2} />
+            </span>
+            <div className="dash-profile-info__heading">
+              <h3>Persönliche Angaben</h3>
+              <p>Name und optional Telefon für Ihr Admin-Konto.</p>
+            </div>
+            {!editing ? (
+              <button type="button" className="dash-profile-btn dash-profile-btn--ghost" onClick={startEditing}>
+                <Pencil size={15} strokeWidth={2.2} aria-hidden="true" />
+                Bearbeiten
+              </button>
+            ) : null}
+          </header>
+
+          {!editing ? (
+            <div className="dash-profile-info__groups">
+              {infoGroups.map((group) => {
+                const GroupIcon = group.icon;
+                return (
+                  <div key={group.id} className="dash-profile-info__group">
+                    <h4 className="dash-profile-info__group-title">
+                      <span className="dash-profile-info__group-icon" aria-hidden="true">
+                        <GroupIcon size={15} strokeWidth={2.2} />
+                      </span>
+                      {group.title}
+                    </h4>
+                    <dl className="dash-profile-info__list">
+                      {group.items.map((item) => (
+                        <div key={item.id} className="dash-profile-info__row">
+                          <dt>
+                            {item.label}
+                            {item.locked ? (
+                              <Lock size={11} strokeWidth={2.4} aria-label="Kann nicht geändert werden" />
+                            ) : null}
+                          </dt>
+                          <dd>
+                            <span
+                              className={[
+                                'dash-profile-info__value',
+                                item.value ? '' : 'is-empty',
+                              ].filter(Boolean).join(' ')}
+                            >
+                              {item.value || 'Nicht hinterlegt'}
+                            </span>
+                          </dd>
+                        </div>
+                      ))}
+                    </dl>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <form className="dash-profile-info__form" onSubmit={saveProfile}>
+              <div className="dash-form">
+                <label>
+                  Vorname
+                  <input
+                    name="firstName"
+                    value={form.firstName}
+                    onChange={handleChange}
+                    autoComplete="given-name"
+                    disabled={saving}
+                    required
+                    autoFocus
+                  />
+                </label>
+                <label>
+                  Nachname
+                  <input
+                    name="lastName"
+                    value={form.lastName}
+                    onChange={handleChange}
+                    autoComplete="family-name"
+                    disabled={saving}
+                    required
+                  />
+                </label>
+                <label className="is-full">
+                  E-Mail-Adresse
+                  <input type="email" value={user?.email || ''} autoComplete="email" disabled />
+                </label>
+                <label className="is-full">
+                  Telefon <span className="dash-optional">freiwillig</span>
+                  <PhoneField
+                    id="admin-profile-phone"
+                    value={form.phone}
+                    onChange={(phone) => {
+                      setPhoneError('');
+                      setForm((prev) => ({ ...prev, phone }));
+                    }}
+                    disabled={saving}
+                    className="vantaro-phone-input--light"
+                    error={phoneError}
+                  />
+                </label>
               </div>
-              <div>
-                <dt>Telefon</dt>
-                <dd>{form.phone?.trim() || 'Noch nicht hinterlegt'}</dd>
+              <div className="dash-profile-info__actions">
+                <p className="dash-form-actions__hint">Änderungen gelten sofort nach dem Speichern.</p>
+                <div className="dash-profile-card__btns">
+                  <button
+                    type="button"
+                    className="dash-profile-btn dash-profile-btn--ghost"
+                    onClick={cancelEditing}
+                    disabled={saving}
+                  >
+                    Abbrechen
+                  </button>
+                  <button type="submit" className="dash-profile-btn dash-profile-btn--primary" disabled={saving}>
+                    <Save size={15} strokeWidth={2.2} aria-hidden="true" />
+                    {saving ? 'Speichern…' : 'Speichern'}
+                  </button>
+                </div>
               </div>
-            </dl>
-          </div>
+            </form>
+          )}
         </section>
-
-        <section className="dash-profile-section">
-          <header>
-            <h3>
-              <span className="dash-profile-section__icon" aria-hidden="true">
-                <User size={16} strokeWidth={2.2} />
-              </span>
-              Persönliche Angaben
-            </h3>
-            <p>Name und optional Telefon für Ihr Admin-Konto.</p>
-          </header>
-          <div className="dash-form">
-            <label>
-              Vorname
-              <input
-                name="firstName"
-                value={form.firstName}
-                onChange={handleChange}
-                autoComplete="given-name"
-                disabled={saving}
-                required
-              />
-            </label>
-            <label>
-              Nachname
-              <input
-                name="lastName"
-                value={form.lastName}
-                onChange={handleChange}
-                autoComplete="family-name"
-                disabled={saving}
-                required
-              />
-            </label>
-            <label className="is-full">
-              E-Mail-Adresse
-              <input type="email" value={user?.email || ''} autoComplete="email" disabled />
-            </label>
-            <label className="is-full">
-              Telefon <span className="dash-optional">freiwillig</span>
-              <PhoneField
-                id="admin-profile-phone"
-                value={form.phone}
-                onChange={(phone) => {
-                  setPhoneError('');
-                  setForm((prev) => ({ ...prev, phone }));
-                }}
-                disabled={saving}
-                className="vantaro-phone-input--light"
-                error={phoneError}
-              />
-            </label>
-          </div>
-        </section>
-
-        <div className="dash-form-actions dash-form-actions--bar">
-          <p className="dash-form-actions__hint">Änderungen gelten sofort nach dem Speichern.</p>
-          <button type="submit" className="dash-btn" disabled={saving}>
-            <Save size={15} strokeWidth={2.2} aria-hidden="true" />
-            {saving ? 'Speichern…' : 'Profil speichern'}
-          </button>
-        </div>
-      </form>
-
-      <form className="dash-panel dash-panel--profile" onSubmit={savePassword}>
-        <section className="dash-profile-section dash-profile-section--flush">
-          <header>
-            <h3>
-              <span className="dash-profile-section__icon" aria-hidden="true">
-                <KeyRound size={16} strokeWidth={2.2} />
-              </span>
-              Passwort
-            </h3>
-            <p>Mindestens 8 Zeichen, Groß- und Kleinbuchstaben, Zahl und Sonderzeichen.</p>
-          </header>
-
-          {passwordError ? <div className="dash-alert">{passwordError}</div> : null}
-
-          <div className="dash-form">
-            <PasswordField
-              label="Aktuelles Passwort"
-              value={currentPassword}
-              onChange={setCurrentPassword}
-              show={showCurrent}
-              onToggle={() => setShowCurrent((value) => !value)}
-              autoComplete="current-password"
-              disabled={savingPassword}
-            />
-            <PasswordField
-              label="Neues Passwort"
-              value={password}
-              onChange={setPassword}
-              show={showNew}
-              onToggle={() => setShowNew((value) => !value)}
-              autoComplete="new-password"
-              disabled={savingPassword}
-            />
-            <PasswordField
-              label="Passwort bestätigen"
-              value={confirmPassword}
-              onChange={setConfirmPassword}
-              show={showConfirm}
-              onToggle={() => setShowConfirm((value) => !value)}
-              autoComplete="new-password"
-              disabled={savingPassword}
-            />
-          </div>
-        </section>
-
-        <div className="dash-form-actions dash-form-actions--bar">
-          <p className="dash-form-actions__hint">Nach der Änderung bleiben Sie angemeldet.</p>
-          <button type="submit" className="dash-btn" disabled={savingPassword}>
-            <KeyRound size={15} strokeWidth={2.2} aria-hidden="true" />
-            {savingPassword ? 'Wird gespeichert…' : 'Passwort ändern'}
-          </button>
-        </div>
-      </form>
-
-      <section className="dash-panel dash-panel--profile">
-        <section className="dash-profile-section dash-profile-section--flush">
-          <header>
-            <h3>
-              <span className="dash-profile-section__icon" aria-hidden="true">
-                <LogOut size={16} strokeWidth={2.2} />
-              </span>
-              Sitzung
-            </h3>
-            <p>Melden Sie sich von diesem Gerät ab.</p>
-          </header>
-          <button type="button" className="dash-btn dash-btn--danger" onClick={() => logout()}>
-            <LogOut size={15} strokeWidth={2.2} aria-hidden="true" />
-            Abmelden
-          </button>
-        </section>
-      </section>
-    </div>
+      </div>
+    </AdminSettingsShell>
   );
 }
+
+export function AdminSecurity() {
+  const [modalOpen, setModalOpen] = useState(false);
+
+  return (
+    <AdminSettingsShell active="sicherheit">
+      <div className="dash-stack dash-stack--profile">
+        <section className="dash-panel dash-panel--profile dash-profile-action">
+          <header className="dash-profile-info__head dash-profile-info__head--flush">
+            <span className="dash-profile-section__icon" aria-hidden="true">
+              <KeyRound size={16} strokeWidth={2.2} />
+            </span>
+            <div className="dash-profile-info__heading">
+              <h3>Passwort</h3>
+              <p>Mindestens 8 Zeichen, Groß- und Kleinbuchstaben, Zahl und Sonderzeichen.</p>
+            </div>
+          </header>
+          <button
+            type="button"
+            className="dash-profile-btn dash-profile-btn--primary"
+            onClick={() => setModalOpen(true)}
+          >
+            <KeyRound size={15} strokeWidth={2.2} aria-hidden="true" />
+            Passwort ändern
+          </button>
+        </section>
+      </div>
+      <ChangePasswordModal open={modalOpen} onClose={() => setModalOpen(false)} />
+    </AdminSettingsShell>
+  );
+}
+

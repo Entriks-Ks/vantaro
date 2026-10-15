@@ -6,7 +6,7 @@ import { useAuth } from '../hooks/useAuth';
 
 const LINKS = [
   { href: '#system', label: 'Das System' },
-  { href: '#sparten', label: 'Sparten' },
+  { href: '#sparten', label: 'Bereiche' },
   { href: '#qualitaet', label: 'Qualität' },
   { href: '#referenzen', label: 'Referenzen' },
   { href: '#ueber-uns', label: 'Über uns' },

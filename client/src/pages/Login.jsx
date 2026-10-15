@@ -197,7 +197,7 @@ export default function Login() {
                 <span>Ihr erfolgreiches Matching zu starten.</span>
               </h2>
               <p>
-                Greifen Sie auf Ihr personalisiertes Maklerportal zu, verwalten Sie Ihre Leads und nutzen Sie unsere Matching-Infrastruktur.
+                Greifen Sie auf Ihr Partnerportal zu, verwalten Sie Chancen in Versicherung oder Energie und nutzen Sie Matching sowie Follow-up in einer Strecke.
               </p>
               <div className="auth-cutout-actions">
                 <Link className="btn btn-primary" to="/">

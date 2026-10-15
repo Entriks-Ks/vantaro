@@ -6,7 +6,7 @@ export default function Impressum() {
       <h1>Impressum</h1>
       <p className="legal-lede">
         Angaben gemäß § 5 DDG. Anbieterkennzeichnung für die Website vantaro.io.
-        VANTARO ist die Vertriebs- und Matching-Infrastruktur für Finanzdienstleister.
+        VANTARO ist die Vertriebs- und Matching-Plattform für Versicherung und Energie.
       </p>
 
       <h2>Anbieter</h2>

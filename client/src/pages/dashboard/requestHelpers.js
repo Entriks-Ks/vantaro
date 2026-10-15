@@ -1,4 +1,4 @@
-import { energyLeadTypeOf, isAppointmentExpired, territoryMatches } from '../../lib/vertical';
+import { energyLeadTypeOf, isAppointmentExpired } from '../../lib/vertical';
 import { scoreLeadForRequest } from './leadMatching';
 
 export function leadScopeOrDefault(scope) {
@@ -13,8 +13,8 @@ export function poolForRequest(availableLeads, request) {
     if (lead.status === 'erledigt' || lead.refundedAt) return false;
     if (lead.assignedTo) return false;
     if (requestVertical === 'energy') {
-      return energyLeadTypeOf(lead) === request.leadType
-        && territoryMatches(request.territory, lead);
+      // Type only — Nähe zum Gebiet steuert die Reihenfolge, nicht den Filter.
+      return energyLeadTypeOf(lead) === request.leadType;
     }
     return leadScopeOrDefault(lead.scope) === scope;
   });
@@ -59,6 +59,29 @@ export function beraterBusinessAddress(berater) {
   const city = String(business.city || berater?.profile?.location || '').trim();
   if (!street && !zip && !city) return null;
   return { street, zip, city };
+}
+
+/** Parse free-form Gebiet ("Marienplatz, 80331 München") into address parts for proximity. */
+export function addressFromTerritory(territory) {
+  const raw = String(territory || '').trim();
+  if (!raw) return null;
+  const zipMatch = raw.match(/(?<!\d)(\d{5})(?!\d)/);
+  if (!zipMatch) {
+    return { street: raw, zip: '', city: '' };
+  }
+  const zip = zipMatch[1];
+  const street = raw.slice(0, zipMatch.index).replace(/[,\s]+$/g, '').trim();
+  const city = raw.slice(zipMatch.index + zip.length).replace(/^[,\s]+/g, '').trim();
+  return { street, zip, city };
+}
+
+/** Sort origin: energy uses request territory; otherwise berater Geschäftsadresse. */
+export function requestProximityOrigin(request, berater) {
+  if (request?.vertical === 'energy') {
+    const fromTerritory = addressFromTerritory(request?.territory);
+    if (fromTerritory) return fromTerritory;
+  }
+  return beraterBusinessAddress(berater) || beraterBusinessAddress(request?.berater) || null;
 }
 
 export function formatBeraterAddress(address) {
