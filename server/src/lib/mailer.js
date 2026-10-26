@@ -3,6 +3,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { APPLE_ICON, EMAIL_GOOGLE_ICON, EMAIL_OUTLOOK_ICON } from './brandIcons.js';
 import { buildFollowUpIcs, followUpCalendarLinks, SHOW_APPLE_CALENDAR } from './followUpCalendar.js';
+import { formatDateTimeDe, paymentDetailRows } from './invoice.js';
 
 const FROM = process.env.EMAIL_FROM?.trim() || '';
 const HEADING_FONT = "'Space Grotesk', Arial, Helvetica, sans-serif";
@@ -1158,6 +1159,157 @@ export async function sendSupportEmail(payload) {
     }
   }
 
+  return 'resend';
+}
+
+function formatEuroMail(cents) {
+  return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format((Number(cents) || 0) / 100);
+}
+
+/** Customer receipt after a ProCredit card payment (fields per the bank's invoice template). */
+function paymentConfirmationEmail({ payment, dashboardUrl }) {
+  const year = new Date().getFullYear();
+  const name = payment.billingName || payment.billingCompany || '';
+  const greeting = name ? `Hallo ${name}` : 'Hallo';
+  const payableCents = Number(payment.netCents) || Number(payment.grossCents) || 0;
+  const listCents = Number(payment.listCents) || payableCents;
+  const discountCents = Number(payment.discountCents) || 0;
+  const product = `${payment.packageLabel} (${payment.leadCount} Leads)`;
+  const orderRows = [
+    ['Rechnungs-Nr.', payment.invoiceNumber],
+    ['Bestell-ID (Bank)', payment.pgOrderId],
+    ['Bestelldatum', formatDateTimeDe(payment.paidAt || payment.createdAt)],
+  ].filter(([, value]) => value);
+  const paymentRows = paymentDetailRows(payment).filter(([label]) => !label.startsWith('Bestell-ID'));
+  const billingRows = [
+    payment.billingCompany,
+    payment.billingName,
+    payment.billingStreet,
+    [payment.billingZip, payment.billingCity].filter(Boolean).join(' '),
+    payment.billingEmail,
+  ].filter(Boolean);
+  const testNote = payment.testMode ? 'TESTMODUS: Es wurde keine echte Zahlung belastet.\n\n' : '';
+
+  const text = `${greeting},
+
+${testNote}vielen Dank für Ihre Zahlung. Ihre Lead-Anforderung wurde angelegt.
+
+BESTELLUNG
+${orderRows.map(([label, value]) => `${label}: ${value}`).join('\n')}
+
+Produkt: ${product}
+Menge: 1
+Preis: ${formatEuroMail(listCents)}
+${discountCents ? `Rabatt: -${formatEuroMail(discountCents)}\n` : ''}Gesamt: ${formatEuroMail(payableCents)} (Nicht im Inland steuerbare Leistung, 0 % USt.)
+
+ZAHLUNG
+${paymentRows.map(([label, value]) => `${label}: ${value}`).join('\n')}
+
+RECHNUNGSADRESSE
+${billingRows.join('\n')}
+
+Die Rechnung finden Sie als PDF im Anhang und jederzeit unter:
+${dashboardUrl}
+
+Fragen zur Zahlung oder Reklamationen: info@vantaro.io
+
+VANTARO · www.vantaro.io · info@vantaro.io
+© ${year} VANTARO. Alle Rechte vorbehalten.`;
+
+  const rowHtml = ([label, value]) => `<tr>
+                <td style="padding:4px 12px 4px 0;font-family:${BODY_FONT};font-size:14px;color:#5a6b7c;white-space:nowrap;vertical-align:top;">${escapeHtml(label)}</td>
+                <td style="padding:4px 0;font-family:${BODY_FONT};font-size:14px;color:#101827;">${escapeHtml(value)}</td>
+              </tr>`;
+  const section = (title, inner) => `<tr>
+              <td align="left" style="padding:20px 0 6px;font-family:${HEADING_FONT};font-size:13px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:#1ba89a;">${title}</td>
+            </tr>
+            <tr><td align="left">${inner}</td></tr>`;
+  const table = (rows) => `<table role="presentation" cellpadding="0" cellspacing="0">${rows.map(rowHtml).join('')}</table>`;
+  const sumRow = (label, value, strong = false) => `<tr>
+                <td style="padding:6px 0;font-family:${BODY_FONT};font-size:14px;color:${strong ? '#101827' : '#5a6b7c'};${strong ? 'font-weight:700;' : ''}">${escapeHtml(label)}</td>
+                <td align="right" style="padding:6px 0;font-family:${BODY_FONT};font-size:14px;color:#101827;${strong ? 'font-weight:700;' : ''}">${escapeHtml(value)}</td>
+              </tr>`;
+
+  const html = `<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Zahlungsbestätigung</title>
+  </head>
+  <body style="margin:0;padding:0;background:#ffffff;color:#101827;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff;">
+      <tr>
+        <td align="center" style="background:#070b14;padding:22px 24px;">
+          <img src="cid:vantaro-wordmark" width="168" height="18" alt="VANTARO" style="display:block;margin:0 auto;width:168px;height:18px;border:0;" />
+        </td>
+      </tr>
+      <tr>
+        <td align="center" style="padding:36px 24px 40px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;">
+            <tr>
+              <td align="left" style="padding:0 0 12px;font-family:${HEADING_FONT};font-size:28px;font-weight:600;line-height:1.2;letter-spacing:-0.04em;color:#101827;">
+                Zahlung erfolgreich
+              </td>
+            </tr>
+            ${payment.testMode ? `<tr>
+              <td align="left" style="padding:0 0 12px;"><span style="display:inline-block;background:#fff3cd;color:#8a6d00;border-radius:6px;padding:4px 10px;font-family:${BODY_FONT};font-size:12px;font-weight:600;">TESTMODUS: keine echte Belastung</span></td>
+            </tr>` : ''}
+            <tr>
+              <td align="left" style="padding:0 0 8px;font-family:${BODY_FONT};font-size:16px;line-height:1.6;color:#3d4b5c;">
+                ${escapeHtml(greeting)}, vielen Dank für Ihre Zahlung. Ihre Lead-Anforderung wurde angelegt.
+              </td>
+            </tr>
+            ${section('Bestellung', table(orderRows))}
+            <tr>
+              <td align="left" style="padding:12px 0 0;">
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid #e6e8eb;border-bottom:1px solid #e6e8eb;">
+                  ${sumRow(`1 × ${product}`, formatEuroMail(listCents))}
+                  ${discountCents ? sumRow('Rabatt', `−${formatEuroMail(discountCents)}`) : ''}
+                  ${sumRow('Gesamt', formatEuroMail(payableCents), true)}
+                </table>
+                <div style="padding:6px 0 0;font-family:${BODY_FONT};font-size:12px;color:#8b9aaa;">Nicht im Inland steuerbare Leistung, 0 % USt.</div>
+              </td>
+            </tr>
+            ${section('Zahlung', table(paymentRows))}
+            ${billingRows.length ? section('Rechnungsadresse', `<div style="font-family:${BODY_FONT};font-size:14px;line-height:1.6;color:#101827;">${billingRows.map(escapeHtml).join('<br />')}</div>`) : ''}
+            <tr>
+              <td align="left" style="padding:28px 0 28px;">
+                <a href="${escapeHtml(dashboardUrl)}" style="display:inline-block;padding:12px 18px;border-radius:10px;background:#ff755a;color:#ffffff;font-family:${BODY_FONT};font-size:14px;font-weight:600;text-decoration:none;">
+                  Rechnungen ansehen
+                </a>
+                <div style="padding:10px 0 0;font-family:${BODY_FONT};font-size:13px;color:#5a6b7c;">Die Rechnung liegt dieser E-Mail als PDF bei.</div>
+              </td>
+            </tr>
+            <tr>
+              <td align="center" style="padding:24px 0 0;border-top:1px solid #e6e8eb;font-family:${BODY_FONT};font-size:12px;line-height:1.7;color:#8b9aaa;">
+                Fragen zur Zahlung oder Reklamationen: <a href="mailto:info@vantaro.io" style="color:#5a6b7c;">info@vantaro.io</a><br />
+                VANTARO · www.vantaro.io<br />
+                © ${year} VANTARO. Alle Rechte vorbehalten.
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`;
+
+  return { text, html };
+}
+
+export async function sendPaymentConfirmationEmail({ to, payment, pdf, pdfName, dashboardUrl }) {
+  const content = paymentConfirmationEmail({ payment, dashboardUrl });
+  await sendWithResend({
+    to,
+    subject: `${payment.testMode ? '[TEST] ' : ''}Zahlungsbestätigung & Rechnung ${payment.invoiceNumber}`,
+    replyTo: process.env.SUPPORT_EMAIL?.trim() || 'info@vantaro.io',
+    ...content,
+    attachments: [
+      ...logoAttachments,
+      { filename: pdfName, content: Buffer.from(pdf).toString('base64'), content_type: 'application/pdf' },
+    ],
+  });
   return 'resend';
 }
 

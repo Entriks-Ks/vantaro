@@ -20,6 +20,7 @@ import RequireAuth from './pages/RequireAuth';
 import { AuthProvider, useAuth } from './hooks/useAuth';
 import useSectionReveal from './hooks/useSectionReveal';
 import Preloader from './components/Preloader';
+import CardLogos from './components/CardLogos';
 import { documentTitle } from './pages/dashboard/helpers';
 import { applyTheme, readThemePreference, setThemeAudience, subscribeTheme, writeThemePreference } from './lib/theme';
 
@@ -157,6 +158,7 @@ function AppContent() {
           </div>
           <div className="wrap footer-bottom">
             <span className="footer-copy-text">© {new Date().getFullYear()} VANTARO. Vertriebs- und Matching-Plattform für Versicherung und Energie.</span>
+            <CardLogos />
             <nav className="footer-bottom-nav" aria-label="Rechtliches">
               <a href="#impressum">Impressum</a>
               <a href="#datenschutz">Datenschutz</a>

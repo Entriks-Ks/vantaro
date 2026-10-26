@@ -255,6 +255,35 @@ function wordmark(ops, x, y, size = 20) {
   });
 }
 
+/** Card receipt fields ProCredit requires on the customer confirmation. */
+export function paymentDetailRows(payment) {
+  if (payment.status && payment.status !== 'paid' && payment.status !== 'refunded') return [];
+  const rows = [];
+  const card = [payment.cardBrand, payment.cardLast4 ? `XXXX XXXX XXXX ${payment.cardLast4}` : '']
+    .filter(Boolean)
+    .join(', ');
+  rows.push(['Zahlungsart', card ? `Kreditkarte (${card})` : 'Kreditkarte']);
+  if (payment.cardHolder) rows.push(['Karteninhaber', payment.cardHolder]);
+  if (payment.approvalCode) rows.push(['Genehmigungscode', payment.approvalCode]);
+  const tranAt = payment.transactionAt || payment.paidAt;
+  if (tranAt) rows.push(['Transaktionsdatum', formatDateTimeDe(tranAt)]);
+  if (payment.pgOrderId) rows.push(['Bestell-ID (Bank)', String(payment.pgOrderId)]);
+  return rows;
+}
+
+export function formatDateTimeDe(value) {
+  // Bank sends "YYYY-MM-DD HH:mm:ss" without zone; show it as-is in German order.
+  const match = String(value).match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}:\d{2}(?::\d{2})?)/);
+  if (match && !/[zZ]|[+-]\d{2}:?\d{2}$/.test(String(value))) {
+    return `${match[3]}.${match[2]}.${match[1]} ${match[4]}`;
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return new Intl.DateTimeFormat('de-DE', {
+    day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Berlin',
+  }).format(date);
+}
+
 function buildContent(payment) {
   const ops = [];
   const invoiceDate = formatDateDe(payment.paidAt || payment.createdAt);
@@ -360,6 +389,20 @@ function buildContent(payment) {
   ops.push(rgb(...WHITE));
   ops.push(text(MARGIN + 10, y, 'Gesamtbetrag', { font: 'F2', size: 10 }));
   ops.push(textRight(colTotal - 10, y, gross, { font: 'F2', size: 10 }));
+
+  const paymentRows = paymentDetailRows(payment);
+  if (paymentRows.length) {
+    y -= 34;
+    ops.push(rgb(...INK));
+    ops.push(text(MARGIN, y, 'Zahlungsdetails', { font: 'F2', size: 9 }));
+    paymentRows.forEach(([label, value]) => {
+      y -= 13;
+      ops.push(rgb(...MUTED));
+      ops.push(text(MARGIN, y, label, { size: 8 }));
+      ops.push(rgb(...INK));
+      ops.push(text(MARGIN + 120, y, value, { size: 8 }));
+    });
+  }
 
   y -= 36;
   ops.push(rgb(...MUTED));

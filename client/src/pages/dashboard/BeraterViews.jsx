@@ -76,6 +76,7 @@ import {
   writeBrokerSettings,
 } from '../../lib/brokerSettings';
 import { applyConsent, CONSENT_STORAGE_KEY, DEFAULT_PREFS, readStoredConsent } from '../../lib/analytics';
+import CardLogos from '../../components/CardLogos';
 import {
   CLOSE_OUTCOMES,
   LEAD_STATUSES,
@@ -4438,6 +4439,7 @@ export function BeraterPayments() {
               Sie werden zur sicheren Zahlungsseite der ProCredit Bank weitergeleitet.
               Kartendaten werden ausschließlich bei der Bank eingegeben.
             </p>
+            <CardLogos className="broker-checkout-cards" />
 
             <div className="broker-checkout-actions">
               <button

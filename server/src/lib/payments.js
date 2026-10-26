@@ -7,6 +7,8 @@ import { tableMissing } from './leads.js';
 import { createLeadRequest } from './leadRequests.js';
 import { MIN_LEAD_PACK, packageById, packTotalCents } from './packages.js';
 import { getClientOrigin, getApiOrigin } from './clientOrigin.js';
+import { buildInvoicePdf, invoiceDownloadName } from './invoice.js';
+import { hasCustomMailer, sendPaymentConfirmationEmail } from './mailer.js';
 import {
   classifyOrderStatus,
   createPurchaseOrder,
@@ -89,6 +91,9 @@ export function toPublicPayment(row, extras = {}) {
     billingCompany: row.billing_company || null,
     testMode: row.test_mode !== false,
     pgStatus: row.pg_status || null,
+    pgOrderId: row.pg_order_id || null,
+    approvalCode: row.pg_approval_code || null,
+    transactionAt: row.pg_tran_time || null,
     paidAt: row.paid_at || (row.status === 'paid' ? row.created_at : null),
     createdAt: row.created_at,
     ...extras,
@@ -217,18 +222,8 @@ export async function getPaymentForViewer(user, paymentId) {
   const isOwner = row.berater_id === user?.id;
   const isAdmin = user?.role === ROLES.ADMIN;
   if (!isOwner && !isAdmin) throw fail('Rechnung nicht gefunden.', 404);
-  const payment = toPublicPayment(row);
   const party = await loadInvoiceParty(user, row.berater_id, isOwner);
-  return {
-    ...payment,
-    customerNumber: party.customerNumber || payment.customerNumber || '',
-    billingName: payment.billingName || party.billingName || '',
-    billingEmail: payment.billingEmail || party.billingEmail || '',
-    billingCompany: payment.billingCompany || party.billingCompany || '',
-    billingStreet: party.billingStreet || '',
-    billingZip: party.billingZip || '',
-    billingCity: party.billingCity || '',
-  };
+  return withInvoiceParty(row, party);
 }
 
 export async function listAllPayments() {
@@ -273,15 +268,73 @@ function extractCardHints(order) {
     const last4 = String(src.displayName || '').replace(/\D/g, '').slice(-4) || null;
     const brand = src.card?.brand || src.paymentSystem || null;
     const holder = src.owner?.name || src.card?.holder || null;
-    return { last4, brand, holder };
+    // expiration is "MMYY", e.g. "0427"
+    const exp = String(src.card?.expiration || '').replace(/\D/g, '');
+    const expMonth = exp.length === 4 ? Number(exp.slice(0, 2)) : null;
+    const expYear = exp.length === 4 ? 2000 + Number(exp.slice(2)) : null;
+    return { last4, brand, holder, expMonth, expYear };
   }
-  const card =order?.card || order?.panMask || order?.source || order?.token || {};
+  const card = order?.card || order?.panMask || order?.source || order?.token || {};
   const last4 = String(card.last4 || card.panLast4 || card.maskedPan || '')
     .replace(/\D/g, '')
     .slice(-4) || null;
   const brand = card.brand || card.paymentSystem || card.system || null;
   const holder = card.holder || card.cardHolder || card.name || null;
   return { last4, brand, holder };
+}
+
+/** Approval code + time of the purchase transaction (required on the customer receipt). */
+function extractReceipt(order) {
+  const trans = Array.isArray(order?.trans) ? order.trans : [];
+  const tran = trans.find((t) => t?.approvalCode && !t.isReversal) || order?.tran || {};
+  return {
+    approvalCode: tran.approvalCode ? String(tran.approvalCode) : null,
+    tranTime: tran.regTime ? String(tran.regTime) : null,
+  };
+}
+
+function receiptColumnMissing(error) {
+  return /pg_approval_code|pg_tran_time|confirmation_sent_at/i.test(String(error?.message || ''));
+}
+
+function withInvoiceParty(row, party = {}) {
+  const payment = toPublicPayment(row);
+  return {
+    ...payment,
+    customerNumber: party.customerNumber || payment.customerNumber || '',
+    billingName: payment.billingName || party.billingName || '',
+    billingEmail: payment.billingEmail || party.billingEmail || '',
+    billingCompany: payment.billingCompany || party.billingCompany || '',
+    billingStreet: party.billingStreet || '',
+    billingZip: party.billingZip || '',
+    billingCity: party.billingCity || '',
+  };
+}
+
+/** Bank requirement: email the customer a confirmation with the invoice once paid. */
+async function sendPaymentConfirmation(row) {
+  if (!hasCustomMailer()) {
+    console.warn(`Payment ${row.id}: Zahlungsbestätigung nicht gesendet (RESEND_API_KEY/EMAIL_FROM fehlt).`);
+    return;
+  }
+  const party = await loadInvoiceParty(null, row.berater_id, false);
+  const payment = withInvoiceParty(row, party);
+  if (!payment.billingEmail) {
+    console.warn(`Payment ${row.id}: keine E-Mail-Adresse für die Zahlungsbestätigung.`);
+    return;
+  }
+  await sendPaymentConfirmationEmail({
+    to: payment.billingEmail,
+    payment,
+    pdf: buildInvoicePdf(payment),
+    pdfName: invoiceDownloadName(payment),
+    dashboardUrl: `${getClientOrigin().replace(/\/$/, '')}/dashboard/paket`,
+  });
+  const { error } = await supabase
+    .from('lead_payments')
+    .update({ confirmation_sent_at: new Date().toISOString() })
+    .eq('id', row.id);
+  if (error && !receiptColumnMissing(error)) throw error;
 }
 
 /**
@@ -310,6 +363,7 @@ export async function finalizePaymentFromGateway(row, { beraterUser = null } = {
   const outcome = classifyOrderStatus(order);
   const now = new Date().toISOString();
   const cardHints = extractCardHints(order);
+  const receipt = extractReceipt(order);
   const pgStatus = order?.status ? String(order.status) : outcome;
 
   if (outcome === 'paid') {
@@ -324,21 +378,33 @@ export async function finalizePaymentFromGateway(row, { beraterUser = null } = {
       notifyAdmins: true,
     });
 
-    const { data, error } = await supabase
+    const paidUpdate = {
+      status: 'paid',
+      request_id: request.id,
+      pg_status: pgStatus,
+      card_brand: cardHints.brand || row.card_brand,
+      card_last4: cardHints.last4 || row.card_last4,
+      card_holder: cardHints.holder || row.card_holder,
+      card_exp_month: cardHints.expMonth || row.card_exp_month,
+      card_exp_year: cardHints.expYear || row.card_exp_year,
+      pg_approval_code: receipt.approvalCode,
+      pg_tran_time: receipt.tranTime,
+      paid_at: now,
+    };
+    const markPaid = (patch) => supabase
       .from('lead_payments')
-      .update({
-        status: 'paid',
-        request_id: request.id,
-        pg_status: pgStatus,
-        card_brand: cardHints.brand || row.card_brand,
-        card_last4: cardHints.last4 || row.card_last4,
-        card_holder: cardHints.holder || row.card_holder,
-        paid_at: now,
-      })
+      .update(patch)
       .eq('id', row.id)
       .eq('status', 'pending')
       .select('*')
       .maybeSingle();
+    let { data, error } = await markPaid(paidUpdate);
+    if (error && receiptColumnMissing(error)) {
+      console.error('lead_payments_receipt.sql fehlt — Genehmigungscode wird nicht gespeichert.');
+      delete paidUpdate.pg_approval_code;
+      delete paidUpdate.pg_tran_time;
+      ({ data, error } = await markPaid(paidUpdate));
+    }
 
     if (error) {
       await supabase.from('lead_requests').update({
@@ -363,6 +429,10 @@ export async function finalizePaymentFromGateway(row, { beraterUser = null } = {
     }
 
     await consumeReservedForPayment(data.id);
+    // Don't hold up the customer's redirect; a mail failure must not undo the payment.
+    sendPaymentConfirmation(data).catch((mailError) => {
+      console.error(`Payment ${data.id}: Zahlungsbestätigung fehlgeschlagen:`, mailError.message);
+    });
     return {
       payment: toPublicPayment(data),
       request: { ...request, payment: toPublicPayment(data) },

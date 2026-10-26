@@ -3870,6 +3870,20 @@ footer {
 .footer-copy-text {
     color: #64748b;
 }
+.card-logos {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+.card-logos img {
+    display: block;
+    height: 28px;
+    width: auto;
+    padding: 3px 6px;
+    background: #ffffff;
+    border-radius: 6px;
+    object-fit: contain;
+}
 .footer-bottom-nav {
     display: flex;
     gap: 24px;
@@ -21933,6 +21947,9 @@ html[data-theme="light"] .broker-pipeline-card-bar {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 12px;
+}
+.broker-checkout-cards {
+    margin-bottom: 1.25rem;
 }
 .broker-checkout-actions {
     display: flex;
