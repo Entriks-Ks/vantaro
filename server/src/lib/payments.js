@@ -267,7 +267,15 @@ async function loadPaymentByReturnToken(token) {
 }
 
 function extractCardHints(order) {
-  const card = order?.card || order?.panMask || order?.source || order?.token || {};
+  // ProCredit: masked PAN in srcToken.displayName, brand under srcToken.card.
+  const src = order?.srcToken;
+  if (src) {
+    const last4 = String(src.displayName || '').replace(/\D/g, '').slice(-4) || null;
+    const brand = src.card?.brand || src.paymentSystem || null;
+    const holder = src.owner?.name || src.card?.holder || null;
+    return { last4, brand, holder };
+  }
+  const card =order?.card || order?.panMask || order?.source || order?.token || {};
   const last4 = String(card.last4 || card.panLast4 || card.maskedPan || '')
     .replace(/\D/g, '')
     .slice(-4) || null;

@@ -12,6 +12,7 @@ dist
 dist-ssr
 *.local
 .env
+.env.example
 
 # ProCredit / TLS materials — never commit
 *.pem

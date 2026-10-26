@@ -31,8 +31,9 @@ openssl req -new -key key.pem -out request.csr
 ```env
 # Test environment (Quipu) — already known for this project:
 PROCREDIT_API_BASE_URL=https://3dss2test.quipu.de:8000
-# Set after the bank confirms the correct MerchantID for Vantaro:
-PROCREDIT_MERCHANT_ID=YourMerchantCN
+# Test merchant from the bank:
+PROCREDIT_MERCHANT_ID=ECOM_TEST398   # informational; bank identifies us by cert CN
+PROCREDIT_ORDER_TYPE_RID=1           # "ORD1" from the PDF is rejected (OrderTypeNotFound)
 PROCREDIT_CERT_PATH=./certs/cert.pem
 PROCREDIT_KEY_PATH=./certs/key.pem
 PROCREDIT_CA_PATH=./certs/ca.pem
@@ -43,7 +44,14 @@ API_PUBLIC_URL=http://localhost:3001
 # Production: API_PUBLIC_URL=https://vantaro.onrender.com
 ```
 
-You can set the Base URL first. Live checkout still needs **MerchantID** (must match the TLS certificate Common Name) plus signed `cert.pem` / `key.pem` / `ca.pem`.
+Live checkout needs the signed `cert.pem` / `key.pem` (+ `ca.pem`). The merchant is identified by the certificate CN, not a request field.
+
+Notes from testing against the test env (2026-10-26):
+
+- `ca.pem` is the ProCredit root that signed **our client cert**; the API host itself uses a public DigiCert cert. The client trusts both, so TLS verification stays on (the bank samples disable it — do not copy that).
+- A paid order returns `status: "FullyPaid"`; the bank appends `&ID=<orderId>&STATUS=<status>` to `hppRedirectUrl`, but we always confirm via Get Order.
+- Card info: `srcToken.displayName` (masked PAN), `srcToken.card.brand`, `srcToken.owner.name`.
+- Test card: see `KS TEST CARD NEW.txt` from the bank (not committed).
 
 Alternatively set PEM contents via `PROCREDIT_CERT_PEM`, `PROCREDIT_KEY_PEM`, `PROCREDIT_CA_PEM`.
 

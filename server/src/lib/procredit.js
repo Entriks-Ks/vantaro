@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import https from 'node:https';
+import tls from 'node:tls';
 import { URL } from 'node:url';
 
 function trim(value) {
@@ -26,7 +27,10 @@ function readPem(pathEnv, contentEnv) {
 
 export function getProcreditConfig() {
   const apiBaseUrl = trim(process.env.PROCREDIT_API_BASE_URL).replace(/\/+$/, '');
+  // Informational only: the bank identifies the merchant by the TLS certificate CN.
   const merchantId = trim(process.env.PROCREDIT_MERCHANT_ID);
+  // Order type the bank set up for this terminal ("1" = Purchase for Vantaro).
+  const orderTypeRid = trim(process.env.PROCREDIT_ORDER_TYPE_RID) || '1';
   const currency = trim(process.env.PROCREDIT_CURRENCY) || 'EUR';
   const language = trim(process.env.PROCREDIT_LANGUAGE) || 'en';
   const testModeEnv = trim(process.env.PROCREDIT_TEST_MODE).toLowerCase();
@@ -45,15 +49,15 @@ export function getProcreditConfig() {
   return {
     apiBaseUrl,
     merchantId,
+    orderTypeRid,
     currency,
     language,
     testMode,
     hasCerts,
     /** Ready for live Create Order / Get Order calls */
-    configured: Boolean(apiBaseUrl && merchantId && hasCerts),
+    configured: Boolean(apiBaseUrl && hasCerts),
     missing: [
       !apiBaseUrl && 'PROCREDIT_API_BASE_URL',
-      !merchantId && 'PROCREDIT_MERCHANT_ID',
       !hasCerts && 'PROCREDIT_CERT/KEY (PATH oder PEM)',
     ].filter(Boolean),
   };
@@ -69,10 +73,12 @@ function buildAgent() {
       503,
     );
   }
+  // The API host uses a public CA; ca.pem is the ProCredit root for our client cert.
+  // A custom `ca` replaces Node's defaults, so keep the public roots alongside it.
   return new https.Agent({
     cert,
     key,
-    ca: ca || undefined,
+    ca: ca ? [...tls.rootCertificates, ca] : undefined,
     rejectUnauthorized: true,
   });
 }
@@ -126,7 +132,9 @@ function requestJson(method, pathWithQuery, body) {
             }
           }
           if (res.statusCode >= 400) {
-            const message = data?.error
+            const message = data?.errorDescription
+              || data?.errorCode
+              || data?.error
               || data?.message
               || data?.order?.status
               || `ProCredit-Anfrage fehlgeschlagen (${res.statusCode}).`;
@@ -187,7 +195,7 @@ export async function createPurchaseOrder({
   const amount = formatProcreditAmount(amountCents);
   const body = {
     order: {
-      typeRid: 'ORD1',
+      typeRid: config.orderTypeRid,
       amount,
       currency: config.currency,
       description: toLatinDescription(description),
@@ -242,6 +250,7 @@ export async function getOrderDetails(orderId, password) {
 }
 
 const PAID_STATUSES = new Set([
+  'fullypaid',
   'paid',
   'authorized',
   'captured',
@@ -270,6 +279,7 @@ export function classifyOrderStatus(order) {
   if (FAILED_STATUSES.has(status)) return 'failed';
 
   const approval = order?.tran?.approvalCode
+    || order?.trans?.[0]?.approvalCode
     || order?.approvalCode
     || order?.lastTran?.approvalCode;
   if (approval) return 'paid';
