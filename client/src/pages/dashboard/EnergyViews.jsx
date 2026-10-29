@@ -60,14 +60,13 @@ import {
   pipelineStatusOf,
   statusLabel,
 } from './leads';
-import { TEST_PACKAGE_PRICE_CENTS } from './packages';
+import { ENERGY_UNIT_CENTS } from './packages';
 import { useBroker } from '../../hooks/useBroker';
 import { returnTo, returnLabel } from './LeadDetail';
 import { OneTimeDiscountOffer, oneTimePickFor, visibleOneTimeOffers } from './OneTimeDiscountOffer';
 
 const MIN_LEADS = 10;
 const LEAD_STEP = 5;
-const ENERGY_UNIT_CENTS = TEST_PACKAGE_PRICE_CENTS ?? 100;
 
 function defaultTimeframe() {
   return new Date().toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
@@ -604,7 +603,7 @@ export function EnergyOrders() {
   const checkoutUseId = oneTimePickFor(checkoutPkg?.id, oneTimePick);
   const checkoutQuote = checkoutPkg
     ? quoteForPackage(
-      ENERGY_UNIT_CENTS,
+      ENERGY_UNIT_CENTS * checkout.qty,
       checkout.qty,
       checkoutPkg.id,
       discounts,
@@ -612,7 +611,7 @@ export function EnergyOrders() {
       checkoutUseId,
     )
     : null;
-  const checkoutNet = checkoutQuote?.netCents ?? ENERGY_UNIT_CENTS;
+  const checkoutNet = checkoutQuote?.netCents ?? ENERGY_UNIT_CENTS * (checkout?.qty || MIN_LEADS);
 
   const openCheckout = (productId) => {
     const deliveryType = getDelivery(productId);
@@ -749,8 +748,8 @@ export function EnergyOrders() {
             pkg?.id,
           );
           const selectedOffer = oneTimePickFor(pkg?.id, oneTimePick);
-          const quote = quoteForPackage(ENERGY_UNIT_CENTS, qty, pkg?.id, discounts, pkg?.id, selectedOffer);
-          const units = shopPriceUnits(quote, qty, ENERGY_UNIT_CENTS, TEST_PACKAGE_PRICE_CENTS != null);
+          const quote = quoteForPackage(ENERGY_UNIT_CENTS * qty, qty, pkg?.id, discounts, pkg?.id, selectedOffer);
+          const units = shopPriceUnits(quote, qty, ENERGY_UNIT_CENTS);
           const discounted = quote.discountCents > 0;
           return (
             <article

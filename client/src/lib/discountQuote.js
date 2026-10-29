@@ -102,12 +102,8 @@ export function discountedUnitCents(quote, count) {
   return Math.round((Number(quote?.netCents) || 0) / units);
 }
 
-export function shopPriceUnits(quote, count, catalogUnit, flatCheckout) {
-  const list = Number(quote?.listCents) || 0;
+export function shopPriceUnits(quote, count, catalogUnit) {
   const net = Number(quote?.netCents) || 0;
-  if (flatCheckout) {
-    return { listUnit: list, netUnit: net };
-  }
   return {
     listUnit: catalogUnit,
     netUnit: Math.round(net / Math.max(1, Number(count) || 1)),

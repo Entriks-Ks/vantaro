@@ -45,7 +45,7 @@ import { LEGAL_FORMS, fileToAvatarDataUrl, generatePassword, validatePassword } 
 import { ENERGY_PACKAGES, energyLeadTypeOf, energyTypeLabel, verticalOrInsurance } from '../../lib/vertical';
 import ThemeMode from '../../components/ThemeMode';
 import { accountSetupGaps, displayName, firstName, formatDate, formatDateTime, formatEuroExact, initials } from './helpers';
-import { MIN_LEAD_PACK, PACKAGES, packageById, packTotalCents, TEST_PACKAGE_PRICE_CENTS } from './packages';
+import { MIN_LEAD_PACK, PACKAGES, packageById, packTotalCents } from './packages';
 import { connectEnergyCalendar, disconnectEnergyCalendar, fetchCalendarStatus } from '../../lib/energy';
 import { CopyableAction, EnergyLeadFacts } from './EnergyLeadFacts';
 import { OneTimeDiscountOffer, oneTimePickFor, visibleOneTimeOffers } from './OneTimeDiscountOffer';
@@ -4275,7 +4275,7 @@ export function BeraterPayments() {
           const offers = visibleOneTimeOffers(matchingOneTimes(discounts.oneTimes, pkg.id), oneTimePick, pkg.id);
           const selectedOffer = oneTimePickFor(pkg.id, oneTimePick);
           const quote = quoteForPackage(net, qty, pkg.id, discounts, null, selectedOffer);
-          const units = shopPriceUnits(quote, qty, pkg.packCents, TEST_PACKAGE_PRICE_CENTS != null);
+          const units = shopPriceUnits(quote, qty, pkg.packCents);
           const discounted = quote.discountCents > 0;
 
           return (
