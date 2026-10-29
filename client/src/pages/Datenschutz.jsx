@@ -151,7 +151,50 @@ export default function Datenschutz() {
         Wirksamkeit für künftige Messungen.
       </p>
 
-      <h2>6. Speicherdauer</h2>
+      <h2>6. Zahlungsabwicklung</h2>
+      <p>
+        Lead-Pakete bezahlen Sie per Kreditkarte als Einmalzahlung. Die Zahlung
+        wickelt die <strong>ProCredit Bank</strong> auf ihrer eigenen, sicheren
+        Zahlungsseite ab. Ihre Kartendaten (vollständige Kartennummer,
+        Prüfnummer/CVC) geben Sie ausschließlich dort ein; sie erreichen
+        VANTARO zu keinem Zeitpunkt und werden von uns weder gespeichert noch
+        verarbeitet. Wir speichern keine Karten für spätere Zahlungen und
+        führen keine wiederkehrenden Abbuchungen durch.
+      </p>
+      <p>
+        Nach der Zahlung übermittelt uns die Bank das Ergebnis. Wir speichern
+        dazu:
+      </p>
+      <ul>
+        <li>die maskierte Kartennummer (nur die letzten vier Ziffern) und die Kartenmarke (z.&nbsp;B. Visa, Mastercard)</li>
+        <li>den Namen des Karteninhabers und das Ablaufdatum der Karte, wie von der Bank übermittelt</li>
+        <li>Betrag, Zahlungsstatus, Rechnungsnummer sowie Bestell-ID und Genehmigungscode der Bank</li>
+      </ul>
+      <p>
+        <strong>Zweck:</strong> Rechnungsstellung, Buchhaltung und Nachweis der
+        Zahlung.
+        <br />
+        <strong>Rechtsgrundlage:</strong> Art. 6 Abs. 1 lit. b DSGVO
+        (Vertragserfüllung) und Art. 6 Abs. 1 lit. c DSGVO
+        (handels- und steuerrechtliche Aufbewahrungspflichten).
+      </p>
+      <p>
+        Zum Schutz vor Missbrauch protokollieren wir Zahlungsvorgänge
+        (z.&nbsp;B. Zahlung gestartet, bezahlt, abgelehnt) mit IP-Adresse und
+        Browserkennung (Art. 6 Abs. 1 lit. f DSGVO, berechtigtes Interesse an
+        der Sicherheit des Zahlungsverkehrs). Kartendaten enthalten diese
+        Protokolle nicht.
+      </p>
+      {/* Rechtliche Prüfung: Frist für Rechnungen (seit 2025 ggf. 8 statt 10 Jahre für Buchungsbelege, § 147 AO / § 257 HGB i. d. F. BEG IV) und Frist für Sicherheitsprotokolle bestätigen. */}
+      <p>
+        <strong>Speicherdauer:</strong> Rechnungen und die zugehörigen
+        Zahlungsdaten bewahren wir für die gesetzliche Frist von 10 Jahren auf
+        (§ 147 AO, § 257 HGB). Sicherheitsprotokolle zu Zahlungsvorgängen
+        löschen wir nach 12 Monaten, sofern sie nicht zur Aufklärung eines
+        Sicherheitsvorfalls benötigt werden.
+      </p>
+
+      <h2>7. Speicherdauer</h2>
       <p>
         Wir speichern personenbezogene Daten nur so lange, wie es für den
         jeweiligen Zweck erforderlich ist oder gesetzliche
@@ -164,18 +207,20 @@ export default function Datenschutz() {
         werden Ereignisdaten nach 14 Monaten gelöscht.
       </p>
 
-      <h2>7. Empfänger</h2>
+      <h2>8. Empfänger</h2>
       <p>
         Daten werden nur weitergegeben, wenn dies zur Vertragserfüllung, auf
         Grundlage einer Einwilligung, zur Erfüllung einer rechtlichen Pflicht
         oder zur Wahrung berechtigter Interessen erforderlich ist, etwa an
         Hosting- oder IT-Dienstleister, die weisungsgebunden für uns tätig
-        werden. Sofern Sie der Kategorie „Statistik“ zugestimmt haben, werden
+        werden. Für Kartenzahlungen ist die <strong>ProCredit Bank</strong>
+        Empfängerin der Zahlungsdaten (siehe Abschnitt 6). Sofern Sie der
+        Kategorie „Statistik“ zugestimmt haben, werden
         Daten an <strong>Google Ireland Limited</strong> (Google Analytics)
         übermittelt.
       </p>
 
-      <h2>8. Ihre Rechte</h2>
+      <h2>9. Ihre Rechte</h2>
       <p>Sie haben gegenüber uns folgende Rechte:</p>
       <ul>
         <li>Auskunft über die verarbeiteten Daten (Art. 15 DSGVO)</li>
@@ -191,7 +236,7 @@ export default function Datenschutz() {
         <a href="mailto:info@vantaro.io">info@vantaro.io</a>.
       </p>
 
-      <h2>9. Beschwerderecht</h2>
+      <h2>10. Beschwerderecht</h2>
       <p>
         Sie haben das Recht, sich bei einer Datenschutzaufsichtsbehörde zu
         beschweren, insbesondere in dem Mitgliedstaat Ihres Aufenthaltsorts.
@@ -203,7 +248,7 @@ export default function Datenschutz() {
         .
       </p>
 
-      <h2 id="hinweise">10. Hinweise zur Vermittlung</h2>
+      <h2 id="hinweise">11. Hinweise zur Vermittlung</h2>
       <p>
         VANTARO vermittelt keine Versicherungen und gibt keine Produktempfehlungen.
         Qualifizierte Gesprächschancen werden an passende, selbst verantwortliche
@@ -212,7 +257,7 @@ export default function Datenschutz() {
         erforderlich — auf Grundlage einer Einwilligung verarbeitet.
       </p>
 
-      <h2>11. Keine automatisierte Entscheidungsfindung</h2>
+      <h2>12. Keine automatisierte Entscheidungsfindung</h2>
       <p>
         Es findet keine automatisierte Entscheidungsfindung einschließlich
         Profiling im Sinne von Art. 22 DSGVO statt, die Ihnen gegenüber
@@ -220,7 +265,7 @@ export default function Datenschutz() {
         beeinträchtigt.
       </p>
 
-      <h2>12. Änderungen</h2>
+      <h2>13. Änderungen</h2>
       <p>
         Wir passen diese Datenschutzerklärung an, wenn sich die Verarbeitung
         oder die Rechtslage ändert. Es gilt die jeweils auf dieser Seite

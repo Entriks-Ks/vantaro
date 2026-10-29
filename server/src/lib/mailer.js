@@ -1313,6 +1313,35 @@ export async function sendPaymentConfirmationEmail({ to, payment, pdf, pdfName, 
   return 'resend';
 }
 
+/** Security alert for admins (suspicious payment activity). Contains no card or gateway secrets. */
+export async function sendPaymentSecurityAlertEmail({ to, reason, details = [] }) {
+  const lines = details.filter(([, value]) => value != null && value !== '');
+  const text = [
+    'VANTARO Sicherheitswarnung (Zahlungen)',
+    '',
+    reason,
+    '',
+    ...lines.map(([label, value]) => `${label}: ${value}`),
+    '',
+    'Details im payment_audit_log (event = suspicious_activity).',
+  ].join('\n');
+  const rows = lines
+    .map(([label, value]) => `<tr><td style="padding:2px 12px 2px 0;color:#6b849c;">${escapeHtml(label)}</td><td>${escapeHtml(String(value))}</td></tr>`)
+    .join('');
+  await sendWithResend({
+    to,
+    subject: 'Sicherheitswarnung: verdächtige Zahlungsaktivität',
+    text,
+    html: `<div style="font-family:${BODY_FONT};color:#101827;font-size:14px;">
+<p><strong>VANTARO Sicherheitswarnung (Zahlungen)</strong></p>
+<p>${escapeHtml(reason)}</p>
+<table style="font-size:13px;">${rows}</table>
+<p style="color:#6b849c;font-size:12px;">Details im payment_audit_log (event = suspicious_activity).</p>
+</div>`,
+  });
+  return 'resend';
+}
+
 export async function sendEnergyNoticeEmail({ to, subject, text }) {
   await sendWithResend({
     to,

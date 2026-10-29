@@ -14,6 +14,7 @@ import { buildInvoicePdf, invoiceDownloadName } from '../lib/invoice.js';
 import { handleLeadError, tableMissingResponse } from '../lib/leads.js';
 import { isMockPayments } from '../lib/paymentGateway.js';
 import { decideMockOrder, getMockOrder } from '../lib/mockGateway.js';
+import { checkoutRateLimit, returnRateLimit, syncRateLimit } from '../lib/paymentSecurity.js';
 
 const router = Router();
 
@@ -69,6 +70,9 @@ router.get('/mock-hpp/decide', (req, res) => {
 });
 
 function handleError(res, error) {
+  if (error?.status === 429 && error.retryAfterSec) {
+    res.setHeader('Retry-After', String(error.retryAfterSec));
+  }
   if (paymentTableMissing(error)) {
     return tableMissingResponse(
       res,
@@ -78,13 +82,10 @@ function handleError(res, error) {
   return handleLeadError(res, error);
 }
 
-/** Bank HPP return — no session; identified by return_token. */
-router.get('/return', async (req, res) => {
+/** Bank HPP return — no session; identified by return_token only. */
+router.get('/return', returnRateLimit, async (req, res) => {
   try {
-    const result = await completePaymentReturn({
-      token: req.query?.token,
-      paymentId: req.query?.paymentId || req.query?.payment_id,
-    });
+    const result = await completePaymentReturn({ token: req.query?.token, req });
     res.redirect(303, result.redirectTo);
   } catch (error) {
     const frontend = (process.env.FRONTEND_URL || process.env.CLIENT_ORIGIN || 'https://www.vantaro.io')
@@ -134,7 +135,7 @@ router.get('/:id/invoice', async (req, res) => {
   }
 });
 
-router.post('/checkout', async (req, res) => {
+router.post('/checkout', checkoutRateLimit, async (req, res) => {
   try {
     const result = await checkoutLeadPackage(
       req.user,
@@ -154,9 +155,9 @@ router.post('/checkout', async (req, res) => {
   }
 });
 
-router.post('/:id/sync', async (req, res) => {
+router.post('/:id/sync', syncRateLimit, async (req, res) => {
   try {
-    const result = await syncMyPayment(req.user, req.params.id);
+    const result = await syncMyPayment(req.user, req.params.id, req);
     res.json(result);
   } catch (error) {
     handleError(res, error);

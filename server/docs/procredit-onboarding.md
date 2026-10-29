@@ -61,6 +61,10 @@ Certificates are typically valid ~3 years; renew with the same CN before expiry.
 
 Run [`server/supabase/lead_payments_procredit.sql`](../supabase/lead_payments_procredit.sql) in the Supabase SQL Editor after `lead_payments.sql`, then [`lead_payments_receipt.sql`](../supabase/lead_payments_receipt.sql) (approval code + transaction time for the customer confirmation email the bank requires).
 
+Then run [`payment_audit_log.sql`](../supabase/payment_audit_log.sql) (security audit log; see [`docs/procredit-compliance.md`](../../docs/procredit-compliance.md)).
+
+Set `PAYMENT_ENCRYPTION_KEY` (`openssl rand -hex 32`) on the server: ProCredit order passwords are stored AES-256-GCM encrypted, and the API refuses to start in production without the key.
+
 ## 6. Go-live checklist
 
 1. Test Create Order + HPP redirect + return confirmation in the bank test environment

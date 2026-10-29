@@ -5,6 +5,15 @@ import routes from './routes/index.js';
 import { getClientOrigins } from './lib/clientOrigin.js';
 import { startFollowUpReminderJob } from './lib/followUpReminders.js';
 import { supabaseConfig } from './lib/supabase.js';
+import { assertPaymentEncryptionConfigured } from './lib/paymentCrypto.js';
+
+// ProCredit order passwords are encrypted at rest; refuse to start in production without the key.
+try {
+  assertPaymentEncryptionConfigured();
+} catch (error) {
+  console.error(error.message);
+  process.exit(1);
+}
 
 const app = express();
 const PORT = process.env.PORT || 3001;

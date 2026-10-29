@@ -21,6 +21,9 @@ import {
   releaseReservedForPayment,
   reserveOneTimeForPayment,
 } from './discounts.js';
+import { decryptSecret, encryptSecret } from './paymentCrypto.js';
+import { logPaymentEvent } from './paymentAudit.js';
+import { assertPaymentsAllowed, evaluateFailedPaymentLock } from './paymentSecurity.js';
 
 const TAX_RATE = 0;
 
@@ -341,7 +344,7 @@ async function sendPaymentConfirmation(row) {
  * Sync payment status with ProCredit Get Order Details.
  * Creates the lead_request only when the order is paid.
  */
-export async function finalizePaymentFromGateway(row, { beraterUser = null } = {}) {
+export async function finalizePaymentFromGateway(row, { beraterUser = null, req = null } = {}) {
   requireDb();
   if (!row) throw fail('Zahlung nicht gefunden.', 404);
   if (row.status === 'paid') {
@@ -359,7 +362,7 @@ export async function finalizePaymentFromGateway(row, { beraterUser = null } = {
     throw fail('Für diese Zahlung fehlt die ProCredit-Order-Referenz.', 409);
   }
 
-  const order = await getOrderDetails(row.pg_order_id, row.pg_order_password);
+  const order = await getOrderDetails(row.pg_order_id, decryptSecret(row.pg_order_password));
   const outcome = classifyOrderStatus(order);
   const now = new Date().toISOString();
   const cardHints = extractCardHints(order);
@@ -429,6 +432,12 @@ export async function finalizePaymentFromGateway(row, { beraterUser = null } = {
     }
 
     await consumeReservedForPayment(data.id);
+    logPaymentEvent('payment_paid', {
+      userId: data.berater_id,
+      paymentId: data.id,
+      req,
+      metadata: { pgStatus, grossCents: data.gross_cents, invoiceNumber: data.invoice_number },
+    });
     // Don't hold up the customer's redirect; a mail failure must not undo the payment.
     sendPaymentConfirmation(data).catch((mailError) => {
       console.error(`Payment ${data.id}: Zahlungsbestätigung fehlgeschlagen:`, mailError.message);
@@ -463,6 +472,14 @@ export async function finalizePaymentFromGateway(row, { beraterUser = null } = {
       };
     }
     await releaseReservedForPayment(data.id);
+    await logPaymentEvent('payment_failed', {
+      userId: data.berater_id,
+      paymentId: data.id,
+      req,
+      metadata: { pgStatus, grossCents: data.gross_cents },
+    });
+    // Too many declines → suspicious_activity, admin email, 429 on further checkouts.
+    await evaluateFailedPaymentLock(data.berater_id, { req });
     return { payment: toPublicPayment(data), outcome: 'failed', alreadyFinalized: false };
   }
 
@@ -490,6 +507,7 @@ export async function checkoutLeadPackage(user, {
   if (user?.role !== ROLES.BERATER) {
     throw fail('Nur Berater können Leads kaufen.', 403);
   }
+  await assertPaymentsAllowed(user.id, { req });
 
   const config = getProcreditConfig();
   if (!config.configured) {
@@ -618,7 +636,8 @@ export async function checkoutLeadPackage(user, {
       .from('lead_payments')
       .update({
         pg_order_id: order.orderId,
-        pg_order_password: order.password,
+        // Needed for Get Order Details; encrypted at rest (AES-256-GCM).
+        pg_order_password: encryptSecret(order.password),
         pg_status: order.status,
         hpp_url: order.hppUrl,
       })
@@ -627,6 +646,20 @@ export async function checkoutLeadPackage(user, {
       .single();
 
     if (updateError) throw updateError;
+
+    logPaymentEvent('checkout_created', {
+      userId: user.id,
+      paymentId: updated.id,
+      req,
+      metadata: {
+        packageId: pkg.id,
+        leadCount: count,
+        grossCents,
+        discountCents: quoted.discountCents,
+        pgOrderId: order.orderId,
+        testMode: config.testMode,
+      },
+    });
 
     return {
       payment: toPublicPayment(updated),
@@ -646,7 +679,7 @@ export async function checkoutLeadPackage(user, {
   }
 }
 
-export async function syncMyPayment(user, paymentId) {
+export async function syncMyPayment(user, paymentId, req = null) {
   requireDb();
   if (user?.role !== ROLES.BERATER) {
     throw fail('Nur Berater können Zahlungen prüfen.', 403);
@@ -655,17 +688,38 @@ export async function syncMyPayment(user, paymentId) {
   if (!row || row.berater_id !== user.id) {
     throw fail('Zahlung nicht gefunden.', 404);
   }
-  return finalizePaymentFromGateway(row, { beraterUser: user });
+  await assertPaymentsAllowed(user.id, { req });
+  const result = await finalizePaymentFromGateway(row, { beraterUser: user, req });
+  logPaymentEvent('payment_synced', {
+    userId: user.id,
+    paymentId: row.id,
+    req,
+    metadata: { outcome: result.outcome, alreadyFinalized: Boolean(result.alreadyFinalized) },
+  });
+  return result;
 }
 
-export async function completePaymentReturn({ token, paymentId } = {}) {
-  requireDb();
-  let row = null;
-  if (token) row = await loadPaymentByReturnToken(token);
-  else if (paymentId) row = await loadPaymentById(paymentId);
-  if (!row) throw fail('Zahlung nicht gefunden.', 404);
+const RETURN_TOKEN = /^[0-9a-f]{48}$/i;
 
-  const result = await finalizePaymentFromGateway(row);
+/**
+ * Bank HPP return. Only the unguessable return_token identifies the payment;
+ * a bare payment id is not accepted because this route has no session.
+ */
+export async function completePaymentReturn({ token, req = null } = {}) {
+  requireDb();
+  const value = String(token || '');
+  const wellFormed = RETURN_TOKEN.test(value);
+  const row = wellFormed ? await loadPaymentByReturnToken(value) : null;
+  if (!row) {
+    // Never log the token itself, only its shape.
+    await logPaymentEvent('return_invalid_token', {
+      req,
+      metadata: { length: value.length, wellFormed },
+    });
+    throw fail('Zahlung nicht gefunden.', 404);
+  }
+
+  const result = await finalizePaymentFromGateway(row, { req });
   const frontend = getClientOrigin().replace(/\/$/, '');
   const status = result.outcome === 'paid'
     ? 'success'

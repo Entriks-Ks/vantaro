@@ -35,6 +35,8 @@ services:
         sync: false
       - key: PROCREDIT_CA_PEM
         sync: false
+      - key: PAYMENT_ENCRYPTION_KEY
+        sync: false
       - key: PROCREDIT_CURRENCY
         value: EUR
       - key: PROCREDIT_LANGUAGE
