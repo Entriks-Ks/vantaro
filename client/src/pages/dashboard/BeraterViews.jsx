@@ -4291,9 +4291,10 @@ export function BeraterPayments() {
                   <h3>{pkg.title}</h3>
                 </div>
                 <div className="broker-simple-price-box">
-                  {discounted ? <s>{formatEuroExact(units.listUnit)}</s> : null}
-                  <strong>{formatEuroExact(units.netUnit)}</strong>
-                  <small>/ Lead</small>
+                  {/* Total for the selected quantity; updates with the stepper. */}
+                  {discounted ? <s>{formatEuroExact(quote.listCents)}</s> : null}
+                  <strong>{formatEuroExact(quote.netCents)}</strong>
+                  <small>für {qty} Leads · {formatEuroExact(units.netUnit)} / Lead</small>
                   {quote.standing ? (
                     <em className="broker-disc-badge">
                       Ihre Konditionen
@@ -4342,14 +4343,12 @@ export function BeraterPayments() {
               </div>
 
               <div className="broker-simple-sum-row">
-                <span>Gesamt ({qty} nicht im Inland steuerbare Leistung, ohne MwSt.)</span>
-                {discounted ? (
-                  <strong>
-                    <s>{formatEuroExact(quote.listCents)}</s>
-                    {' '}
-                    {formatEuroExact(quote.netCents)}
-                  </strong>
-                ) : null}
+                <span>Gesamt ({qty} × {formatEuroExact(pkg.packCents)}, nicht im Inland steuerbare Leistung, ohne MwSt.)</span>
+                <strong>
+                  {discounted ? <s>{formatEuroExact(quote.listCents)}</s> : null}
+                  {discounted ? ' ' : null}
+                  {formatEuroExact(quote.netCents)}
+                </strong>
               </div>
 
               <div className="broker-simple-btn-group">

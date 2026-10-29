@@ -19972,6 +19972,7 @@ html[data-theme="light"] .broker-kanban-title small {
     display: block;
     font-size: 12px;
     color: var(--muted);
+    white-space: normal;
 }
 .broker-simple-price-box s {
     display: block;

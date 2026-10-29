@@ -764,9 +764,10 @@ export function EnergyOrders() {
                   <h3>{product.title}</h3>
                 </div>
                 <div className="broker-simple-price-box">
-                  {discounted ? <s>{formatEuroExact(units.listUnit)}</s> : null}
-                  <strong>{formatEuroExact(units.netUnit)}</strong>
-                  <small>/ {unitLabel}</small>
+                  {/* Total for the selected quantity; updates with the stepper. */}
+                  {discounted ? <s>{formatEuroExact(quote.listCents)}</s> : null}
+                  <strong>{formatEuroExact(quote.netCents)}</strong>
+                  <small>für {qty} {unitPlural} · {formatEuroExact(units.netUnit)} / {unitLabel}</small>
                   {quote.standing ? (
                     <em className="broker-disc-badge">
                       Ihre Konditionen
