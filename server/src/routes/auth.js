@@ -20,7 +20,7 @@ import {
 import { DEFAULT_ROLE, isAdmin } from '../lib/roles.js';
 import { supabase, supabaseAuth } from '../lib/supabase.js';
 import { allocateCustomerNumber, createUserSession, ensureUserRole, finalizeOAuthUser, findUserByEmail, isEmailVerified, isSupportedOAuthUser, revokeSession } from '../lib/users.js';
-import { issueVerificationCode, secondsUntilResend, verifyUserCode, verifyUserToken } from '../lib/verification.js';
+import { hasManualVerificationCode, issueVerificationCode, secondsUntilResend, verifyUserCode, verifyUserToken } from '../lib/verification.js';
 import { normalizeVertical } from '../lib/vertical.js';
 
 const router = Router();
@@ -82,6 +82,32 @@ router.post('/register', async (req, res) => {
     if (existing) {
       if (isEmailVerified(existing)) {
         return res.status(409).json({ error: 'Diese E-Mail-Adresse ist bereits registriert.' });
+      }
+      if (hasManualVerificationCode(existing)) {
+        // An admin pre-issued the code (scripts/manual-verification-code.js):
+        // save what the person entered, keep that code, send no email.
+        const { error: claimError } = await supabase.auth.admin.updateUserById(existing.id, {
+          password,
+          user_metadata: {
+            ...(existing.user_metadata || {}),
+            first_name: resolvedFirst,
+            last_name: resolvedLast,
+            full_name: fullName,
+            email_verified: false,
+            onboarding_complete: false,
+            vertical,
+            vertical_required: false,
+          },
+          app_metadata: {
+            ...(existing.app_metadata || {}),
+            role: existing.app_metadata?.role || DEFAULT_ROLE,
+          },
+        });
+        if (claimError) {
+          console.error('Manual-code registration failed:', claimError.message);
+          return res.status(400).json({ error: mapAuthError(claimError) });
+        }
+        return res.status(201).json(verificationResponse(email));
       }
       try {
         await issueVerificationCode(existing);
@@ -195,6 +221,14 @@ router.post('/resend-verification', async (req, res) => {
     return res.json({
       ok: true,
       message: 'Wenn ein unbestätigtes Konto existiert, senden wir einen neuen Code.',
+    });
+  }
+
+  if (hasManualVerificationCode(user)) {
+    // Keep the admin-issued code valid instead of replacing it with an emailed one.
+    return res.json({
+      ok: true,
+      message: 'Bitte nutzen Sie den Bestätigungscode, den Sie von VANTARO erhalten haben.',
     });
   }
 

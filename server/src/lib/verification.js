@@ -46,6 +46,11 @@ export function getVerificationState(user) {
   return user?.user_metadata?.email_verification || null;
 }
 
+/** True when an admin set the code by hand; such codes are never replaced by an emailed one. */
+export function hasManualVerificationCode(user) {
+  return getVerificationState(user)?.method === 'manual';
+}
+
 export function secondsUntilResend(userOrEmail) {
   const lastSent =
     typeof userOrEmail === 'string'
@@ -98,6 +103,37 @@ export async function issueVerificationCode(user, { ignoreCooldown = false } = {
   });
 
   return data.user;
+}
+
+/**
+ * Admin-only: stores a verification code chosen by hand and sends no email.
+ * The code is entered on /verify-email like a normal one.
+ */
+export async function setManualVerificationCode(user, { code = generateVerificationCode(), ttlMs = CODE_TTL_MS } = {}) {
+  const email = user.email.toLowerCase();
+  const value = String(code).replace(/\s+/g, '');
+  if (!/^\d{6}$/.test(value)) {
+    throw new Error('Code must be exactly 6 digits.');
+  }
+
+  const now = new Date();
+  const { data, error } = await supabase.auth.admin.updateUserById(user.id, {
+    email_confirm: false,
+    user_metadata: {
+      ...(user.user_metadata || {}),
+      email_verified: false,
+      email_verification: {
+        hash: hashValue(email, value, 'code'),
+        expires_at: new Date(now.getTime() + ttlMs).toISOString(),
+        attempts: 0,
+        last_sent_at: now.toISOString(),
+        method: 'manual',
+      },
+    },
+  });
+  if (error) throw error;
+
+  return { user: data.user, code: value, expiresAt: new Date(now.getTime() + ttlMs) };
 }
 
 async function bumpAttempts(user, state) {
