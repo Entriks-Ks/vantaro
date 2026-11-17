@@ -22185,34 +22185,8 @@ html[data-theme="light"] .broker-pipeline-card-bar {
     font-size: 12px;
     font-weight: 600;
 }
-.checkout-modal__secure {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 12px 14px;
-    border: 1px solid var(--wash-08);
-    border-radius: 12px;
-    background: var(--wash-04);
-}
-.checkout-modal__secure-icon {
-    flex-shrink: 0;
-    color: var(--thread-link);
-}
-.checkout-modal__secure-copy {
-    flex: 1;
-    min-width: 0;
-    font-size: 12.5px;
-    line-height: 1.45;
-    color: var(--muted);
-}
-.checkout-modal__secure-copy strong {
-    display: block;
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--text-pure);
-}
 .checkout-modal__cards {
-    flex-shrink: 0;
+    justify-self: start;
     gap: 6px;
 }
 .checkout-modal__cards img {
@@ -22372,12 +22346,6 @@ html[data-theme="light"] .broker-pipeline-card-bar {
     }
     .checkout-modal__fields {
         grid-template-columns: 1fr;
-    }
-    .checkout-modal__secure {
-        flex-wrap: wrap;
-    }
-    .checkout-modal__cards {
-        margin-left: 34px;
     }
 }
 @media (prefers-reduced-motion: reduce) {

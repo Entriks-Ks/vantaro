@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef } from 'react';
-import { ArrowRight, CircleAlert, LoaderCircle, Lock, ShieldCheck, X } from 'lucide-react';
+import { ArrowRight, CircleAlert, LoaderCircle, Lock, X } from 'lucide-react';
 import CardLogos from './CardLogos';
 import CheckoutTermsConsent from './CheckoutTermsConsent';
 import { discountLineLabel } from '../lib/discounts';
@@ -137,14 +137,7 @@ export default function CheckoutConfirmModal({
 
           {offers}
 
-          <div className="checkout-modal__secure">
-            <ShieldCheck className="checkout-modal__secure-icon" size={22} strokeWidth={2} aria-hidden="true" />
-            <div className="checkout-modal__secure-copy">
-              <strong>Sichere Zahlung über die ProCredit Bank</strong>
-              Ihre Kartendaten geben Sie ausschließlich auf der Seite der Bank ein.
-            </div>
-            <CardLogos className="checkout-modal__cards" />
-          </div>
+          <CardLogos className="checkout-modal__cards" />
 
           <CheckoutTermsConsent
             checked={acceptedTerms}
