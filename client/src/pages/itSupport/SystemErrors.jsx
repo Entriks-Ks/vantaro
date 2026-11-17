@@ -66,6 +66,13 @@ const NEXT_STEP = {
     text: ['Leads mit Datenproblemen unter Leads → Filter „Problem“ prüfen.', 'Check leads with data problems under Leads → "Problem" filter.'],
     path: '/it-support/leads',
   },
+  it_support: {
+    text: [
+      'Einmalige Fehler direkt nach einem Deploy oder SQL-Skript sind meist eine kurze Supabase-Unterbrechung – dann als erledigt markieren. Tritt der Fehler wieder auf, Route und Details an einen Entwickler geben.',
+      'One-off errors right after a deploy or an SQL script are usually a short Supabase interruption – mark them as resolved. If the error comes back, pass the route and details to a developer.',
+    ],
+    path: '/it-support/integrations#supabase',
+  },
 };
 
 function EventDrawer({ event, onClose, onChanged }) {

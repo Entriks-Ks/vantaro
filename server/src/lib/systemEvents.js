@@ -77,6 +77,26 @@ function scheduleFlush() {
   flushTimer.unref?.();
 }
 
+/**
+ * Readable text for a thrown value. Supabase answers count-only (HEAD) queries without a body, so a
+ * failure there arrives as { message: '' } — say so instead of logging an empty message.
+ */
+export function describeError(error) {
+  if (error == null) return 'Unknown error';
+  if (typeof error === 'string') return error.trim() || 'Unknown error';
+  const parts = [error.message, error.code ? `code ${error.code}` : '', error.details, error.hint]
+    .map((part) => String(part ?? '').trim())
+    .filter(Boolean);
+  if (parts.length) return parts.join(' – ');
+  return 'Empty error from the database (Supabase sent no details – usually a short outage, restart or schema reload)';
+}
+
+/** Writes to the server log and to system_events with context, without being captured a second time. */
+export function reportEvent({ level = 'error', source, message, context = {} }) {
+  (level === 'error' ? originalError : originalWarn)(message, context);
+  logSystemEvent({ level, source, message, context });
+}
+
 /** Queue an event. Never throws. */
 export function logSystemEvent({ level = 'error', source, message, context = {} } = {}) {
   if (!supabaseConfig.configured || !supabase) return;

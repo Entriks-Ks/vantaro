@@ -1,5 +1,6 @@
 import { tableMissing } from '../../lib/leads.js';
 import { supabase, supabaseConfig } from '../../lib/supabase.js';
+import { describeError, reportEvent } from '../../lib/systemEvents.js';
 import { langOf, tr, translateMessage } from './i18n.js';
 
 export function fail(message, status = 400, extra = {}) {
@@ -68,7 +69,13 @@ export function sendError(req, res, error) {
       code: 'schema_missing',
     });
   }
-  console.error('IT support API error:', error?.message || error);
+  reportEvent({
+    level: 'error',
+    source: 'it_support',
+    message: `IT support API error: ${describeError(error)}`,
+    // Route pattern (e.g. GET /api/it-support/leads/:id), never the query string, which can hold search terms.
+    context: { route: `${req.method} ${req.baseUrl}${req.route?.path || ''}` },
+  });
   return res.status(500).json({
     error: t('Etwas ist schiefgelaufen. Details stehen unter „Systemfehler“.', 'Something went wrong. Details are under "System errors".'),
   });

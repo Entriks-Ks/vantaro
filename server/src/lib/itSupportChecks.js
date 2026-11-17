@@ -1,5 +1,6 @@
 import { supabase } from './supabase.js';
 import { tableMissing } from './leads.js';
+import { describeError, reportEvent } from './systemEvents.js';
 
 /**
  * Consistency checks for the IT Support console. Each check is a Supabase filter that finds broken or
@@ -156,12 +157,19 @@ export function paymentCheck(id) {
 }
 
 async function countFor(table, check) {
-  const { count, error } = await check.apply(
+  const { count, error, status } = await check.apply(
     supabase.from(table).select('id', { count: 'exact', head: true }),
   );
   if (error) {
     if (tableMissing(error) || /column/i.test(error.message || '')) return null;
-    throw error;
+    // One failed check must not take the whole overview down; it shows as "not checkable" instead.
+    reportEvent({
+      level: 'warning',
+      source: 'it_support',
+      message: `IT support data check "${check.id}" failed: ${describeError(error)}`,
+      context: { table, check: check.id, httpStatus: status },
+    });
+    return null;
   }
   return count || 0;
 }

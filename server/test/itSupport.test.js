@@ -340,3 +340,43 @@ describe('IT Support schema check', () => {
     assert.equal(scripts['energy_portal.sql'].ok, true);
   });
 });
+
+describe('empty database errors', () => {
+  // Supabase answers a failed count-only (HEAD) query without a body: { message: '' }.
+  const EMPTY = { data: null, count: null, status: 503, error: { message: '', code: '', details: '', hint: '' } };
+
+  async function withFailingTable(table, run) {
+    const realFrom = client.from;
+    const chain = new Proxy({}, { get: (_target, prop) => (prop === 'then' ? (resolve) => resolve(EMPTY) : () => chain) });
+    client.from = (name) => (name === table ? chain : realFrom.call(client, name));
+    try {
+      return await run();
+    } finally {
+      client.from = realFrom;
+    }
+  }
+
+  async function loggedEvents() {
+    const { flushSystemEvents } = await import('../src/lib/systemEvents.js');
+    await flushSystemEvents();
+    return db.tables.system_events.filter((row) => row.source === 'it_support');
+  }
+
+  test('an API error without text is logged readably, with the route that failed', async () => {
+    const result = await withFailingTable('leads', () => call('GET', `/leads/${crypto.randomUUID()}`));
+    assert.equal(result.status, 500);
+    const [event] = await loggedEvents();
+    assert.match(event.message, /^IT support API error: Empty error from the database/);
+    assert.deepEqual(event.context, { route: 'GET /api/it-support/leads/:id' });
+  });
+
+  test('a failing data check does not take the overview down', async () => {
+    const result = await withFailingTable('leads', () => call('GET', '/overview', { lang: 'en' }));
+    assert.equal(result.status, 200);
+    const check = result.body.checks.find((entry) => entry.id === 'assigned_status_without_berater');
+    assert.equal(check.count, null);
+    const warning = (await loggedEvents()).find((row) => row.message.includes('"assigned_status_without_berater" failed'));
+    assert.equal(warning.level, 'warning');
+    assert.equal(warning.context.httpStatus, 503);
+  });
+});
