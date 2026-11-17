@@ -24,24 +24,24 @@ import useSectionReveal from './hooks/useSectionReveal';
 import Preloader from './components/Preloader';
 import CardLogos from './components/CardLogos';
 import { documentTitle } from './pages/dashboard/helpers';
-import { applyTheme, readThemePreference, setThemeAudience, subscribeTheme, writeThemePreference } from './lib/theme';
+import { applyTheme, readThemePreference, subscribeTheme, writeThemePreference } from './lib/theme';
 
 function ThemeSync() {
-  const { user, loading, isAdmin } = useAuth();
+  const { user, loading } = useAuth();
 
   useEffect(() => subscribeTheme(() => {}), []);
 
   useEffect(() => {
-    if (loading || !user || isAdmin || !user.settings?.appearance) return;
+    if (loading || !user || !user.settings?.appearance) return;
     writeThemePreference(user.settings.appearance);
-  }, [loading, isAdmin, user, user?.id, user?.settings?.appearance]);
+  }, [loading, user, user?.id, user?.settings?.appearance]);
 
   return null;
 }
 
 function AppContent() {
   const location = useLocation();
-  const { isAdmin, loading } = useAuth();
+  const { isAdmin } = useAuth();
   const isImpressum = location.hash === '#impressum' || location.pathname === '/impressum';
   const isDatenschutz = location.hash === '#datenschutz' || location.pathname === '/datenschutz';
   const isAgb = location.hash === '#agb' || location.pathname === '/agb';
@@ -59,11 +59,8 @@ function AppContent() {
   const isAppShell = isAuth || isDashboard;
 
   useLayoutEffect(() => {
-    if (loading) setThemeAudience('pending');
-    else if (isAdmin) setThemeAudience('admin');
-    else setThemeAudience('app');
     applyTheme(readThemePreference());
-  }, [loading, isAdmin, location.pathname, location.hash]);
+  }, [location.pathname, location.hash]);
 
   useSectionReveal([location.pathname, location.hash, isLegal]);
 

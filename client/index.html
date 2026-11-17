@@ -5,12 +5,6 @@
       (function () {
         var path = (location.pathname || '/').replace(/\/+$/, '') || '/';
         var dashboard = path === '/dashboard' || path.indexOf('/dashboard/') === 0;
-        var admin = false;
-        try {
-          var session = JSON.parse(localStorage.getItem('vantaro-auth') || 'null');
-          var role = session && session.user && String(session.user.role || '').toLowerCase();
-          admin = role === 'admin';
-        } catch (e) {}
         var pref = 'dark';
         try {
           var saved = localStorage.getItem('vantaro.theme');
@@ -20,13 +14,11 @@
         try {
           if (localStorage.getItem('vantaro.publicTheme') === 'light') publicTheme = 'light';
         } catch (e) {}
-        var resolved = admin
-          ? 'dark'
-          : (dashboard
-            ? (pref === 'device'
-              ? (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark')
-              : pref)
-            : publicTheme);
+        var resolved = dashboard
+          ? (pref === 'device'
+            ? (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark')
+            : pref)
+          : publicTheme;
         var root = document.documentElement;
         root.setAttribute('data-theme', resolved);
         root.style.colorScheme = resolved;

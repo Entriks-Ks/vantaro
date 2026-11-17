@@ -27,10 +27,6 @@ export function resolveTheme(preference) {
   return pref === 'device' ? systemTheme() : pref;
 }
 
-const AUTH_STORAGE_KEY = 'vantaro-auth';
-
-let themeAudience = 'pending';
-
 function currentPath(pathname = window.location.pathname) {
   return String(pathname || '/').replace(/\/+$/, '') || '/';
 }
@@ -48,33 +44,9 @@ export function readPublicTheme() {
   }
 }
 
-export function isStoredAdmin() {
-  return storedRole() === 'admin';
-}
-
-function storedRole() {
-  try {
-    const session = JSON.parse(localStorage.getItem(AUTH_STORAGE_KEY) || 'null');
-    return String(session?.user?.role || '').toLowerCase();
-  } catch {
-    return '';
-  }
-}
-
-export function setThemeAudience(audience) {
-  themeAudience = audience === 'admin' || audience === 'app' ? audience : 'pending';
-}
-
-function forceDarkTheme() {
-  if (themeAudience === 'admin') return true;
-  return themeAudience === 'pending' && storedRole() === 'admin';
-}
-
 export function applyTheme(preference) {
   const pref = normalizeAppearance(preference);
-  const resolved = forceDarkTheme()
-    ? 'dark'
-    : (isDashboardPath() ? resolveTheme(pref) : readPublicTheme());
+  const resolved = isDashboardPath() ? resolveTheme(pref) : readPublicTheme();
   const root = document.documentElement;
   root.dataset.theme = resolved;
   root.style.colorScheme = resolved;

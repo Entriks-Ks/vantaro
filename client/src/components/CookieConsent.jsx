@@ -1,9 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Cookie, Moon, Sun, X } from 'lucide-react';
 import { applyConsent, CONSENT_STORAGE_KEY, DEFAULT_PREFS } from '../lib/analytics';
-import { useAuth } from '../hooks/useAuth';
 import {
-  isStoredAdmin,
   PUBLIC_THEME_EVENT,
   readPublicTheme,
   writePublicTheme,
@@ -31,7 +29,6 @@ function saveConsent(prefs) {
 }
 
 function PublicThemeToggle() {
-  const { isAdmin, loading } = useAuth();
   const [theme, setTheme] = useState(readPublicTheme);
 
   useEffect(() => {
@@ -42,8 +39,6 @@ function PublicThemeToggle() {
     window.addEventListener(PUBLIC_THEME_EVENT, onChange);
     return () => window.removeEventListener(PUBLIC_THEME_EVENT, onChange);
   }, []);
-
-  if (isAdmin || (loading && isStoredAdmin())) return null;
 
   const isLight = theme === 'light';
   const Icon = isLight ? Sun : Moon;
