@@ -238,6 +238,56 @@ describe('users', () => {
     assert.equal(unblock.status, 200);
     assert.equal(unblock.body.user.blocked, false);
   });
+
+  test('a confirmation code can be created for a user who gets no email; only its hash is kept', async () => {
+    const { user } = addUser({ email: `no-mail-${crypto.randomUUID()}@vantaro.test`, metadata: { email_verified: false } });
+
+    const noNote = await call('POST', `/users/${user.id}/verification-code`, { body: {}, lang: 'en' });
+    assert.equal(noNote.status, 400);
+    assert.match(noNote.body.error, /^Please enter a reason/);
+
+    const before = Date.now();
+    const result = await call('POST', `/users/${user.id}/verification-code`, { body: { reason: 'Ticket 42: email never arrives', hours: 24 } });
+    assert.equal(result.status, 200);
+    assert.match(result.body.code, /^\d{6}$/);
+    const hours = (new Date(result.body.expiresAt).getTime() - before) / 3_600_000;
+    assert.ok(hours > 23.9 && hours <= 24.01, `valid for ${hours} h`);
+    assert.equal(result.body.user.verificationMethod, 'manual');
+
+    const stored = db.users.get(user.id).user_metadata.email_verification;
+    assert.equal(stored.method, 'manual');
+    assert.ok(!JSON.stringify(stored).includes(result.body.code), 'code must not be stored in plain text');
+
+    const [entry] = auditRows();
+    assert.equal(entry.action, 'user.verification_code');
+    assert.equal(entry.reason, 'Ticket 42: email never arrives');
+    assert.ok(!JSON.stringify(entry).includes(result.body.code), 'code must not be in the activity log');
+
+    // The user enters it on /verify-email like an emailed code.
+    const { verifyUserCode } = await import('../src/lib/verification.js');
+    await verifyUserCode(db.users.get(user.id), result.body.code);
+    assert.equal(db.users.get(user.id).user_metadata.email_verified, true);
+  });
+
+  test('IT Support can delete an advisor account without business data', async () => {
+    const { user } = addUser({ email: `delete-me-${crypto.randomUUID()}@vantaro.test` });
+    const result = await call('DELETE', `/users/${user.id}`, { body: { reason: 'Testkonto entfernen', confirmEmail: user.email } });
+    assert.equal(result.status, 200, JSON.stringify(result.body));
+    assert.equal(db.users.has(user.id), false);
+    assert.equal(auditRows()[0].action, 'user.delete');
+  });
+
+  test('no confirmation code for confirmed, staff or unknown-duration requests', async () => {
+    const verified = await call('POST', `/users/${berater.user.id}/verification-code`, { body: { reason: 'Kein Zugriff' } });
+    assert.equal(verified.status, 400);
+    const staff = await call('POST', `/users/${admin.user.id}/verification-code`, { body: { reason: 'Kein Zugriff' } });
+    assert.equal(staff.status, 403);
+    const { user } = addUser({ email: `odd-${crypto.randomUUID()}@vantaro.test`, metadata: { email_verified: false } });
+    const odd = await call('POST', `/users/${user.id}/verification-code`, { body: { reason: 'Kein Zugriff', hours: 9999 } });
+    assert.equal(odd.status, 400);
+    assert.equal(db.users.get(user.id).user_metadata.email_verification, undefined);
+    assert.equal(auditRows().length, 0);
+  });
 });
 
 describe('payments', () => {

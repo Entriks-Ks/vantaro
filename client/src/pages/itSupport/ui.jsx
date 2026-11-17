@@ -514,7 +514,10 @@ export function ActionDialog({ dialog, onClose }) {
   useEffect(() => {
     if (!dialog) return undefined;
     const onKey = (event) => {
-      if (event.key === 'Escape' && !busy) onClose();
+      if (event.key !== 'Escape') return;
+      // Keep Escape from also reaching the panel underneath once this dialog is gone.
+      event.stopImmediatePropagation();
+      if (!busy) onClose();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -595,11 +598,11 @@ export function ActionDialog({ dialog, onClose }) {
           ))}
           {dialog.reason ? (
             <label className="its-field">
-              <span>{L('Begründung', 'Reason')}{reasonRequired ? ' *' : L(' (optional)', ' (optional)')}</span>
+              <span>{dialog.reasonLabel || L('Begründung', 'Reason')}{reasonRequired ? ' *' : L(' (optional)', ' (optional)')}</span>
               <textarea
                 rows={3}
                 value={reason}
-                placeholder={L('z. B. Ticket-Nr., Anfrage des Beraters, Testdaten …', 'e.g. ticket no., advisor request, test data …')}
+                placeholder={dialog.reasonPlaceholder || L('z. B. Ticket-Nr., Anfrage des Beraters, Testdaten …', 'e.g. ticket no., advisor request, test data …')}
                 onChange={(event) => setReason(event.target.value)}
               />
               <small>{L('Wird mit Ihrem Namen und Zeitstempel im Aktivitätsprotokoll gespeichert.', 'Stored in the activity log with your name and a timestamp.')}</small>

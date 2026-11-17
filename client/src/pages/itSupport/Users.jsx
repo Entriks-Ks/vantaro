@@ -1,17 +1,21 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
+  Check,
+  Copy,
   KeyRound,
   ListRestart,
   Lock,
   LockOpen,
   MailCheck,
+  RectangleEllipsis,
   RefreshCw,
   Save,
   Send,
   Trash2,
   UserCheck,
   UserX,
+  X,
 } from 'lucide-react';
 import { api } from './api';
 import ActivityTimeline from './ActivityTimeline';
@@ -189,9 +193,86 @@ function UserEditForm({ user, onSaved }) {
   );
 }
 
+/**
+ * Shows a code IT Support just created. It is displayed only here, once: the server keeps a hash
+ * and the activity log never contains it.
+ */
+function IssuedCodeDialog({ issued, onClose }) {
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    if (!issued) return undefined;
+    setCopied(false);
+    const onKey = (event) => {
+      if (event.key !== 'Escape') return;
+      // Closing re-renders before the panel's own Escape listener runs; stop it so only this window closes.
+      event.stopImmediatePropagation();
+      onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [issued, onClose]);
+
+  if (!issued) return null;
+  const origin = window.location.origin;
+  const copy = () => {
+    navigator.clipboard?.writeText(issued.code).then(() => setCopied(true)).catch(() => {});
+  };
+
+  return (
+    <div className="its-modal-layer" role="presentation">
+      <button type="button" className="its-drawer-scrim" aria-label={L('Schließen', 'Close')} onClick={onClose} />
+      <div className="its-modal" role="dialog" aria-modal="true" aria-label={L('Bestätigungscode erstellt', 'Confirmation code created')}>
+        <header>
+          <h2>{L('Bestätigungscode erstellt', 'Confirmation code created')}</h2>
+          <Button size="sm" tone="ghost" icon={X} onClick={onClose} aria-label={L('Schließen', 'Close')} />
+        </header>
+        <div className="its-modal-body">
+          <div className="its-code-box">
+            <output className="its-code" aria-label={issued.code.split('').join(' ')}>
+              {issued.code.slice(0, 3)}&thinsp;{issued.code.slice(3)}
+            </output>
+            <Button size="sm" icon={copied ? Check : Copy} onClick={copy}>{copied ? L('Kopiert', 'Copied') : L('Kopieren', 'Copy')}</Button>
+          </div>
+          <p className="its-code-meta">
+            {L(`Für ${issued.email} · gültig bis ${formatDateTime(issued.expiresAt)}`, `For ${issued.email} · valid until ${formatDateTime(issued.expiresAt)}`)}
+          </p>
+          <div className="its-effects">
+            <span>{L('So geht es weiter', 'Next steps')}</span>
+            <ol>
+              <li>{L(
+                'Geben Sie den Code persönlich weiter – telefonisch oder vor Ort. Nicht an die E-Mail-Adresse senden, auf die der Nutzer keinen Zugriff hat.',
+                'Pass the code on personally – by phone or in person. Do not send it to the email address the user cannot access.',
+              )}</li>
+              <li>{L(
+                `Der Nutzer meldet sich unter ${origin}/login mit E-Mail und Passwort an. Die Bestätigungsseite öffnet sich, dort gibt er den Code ein.`,
+                `The user signs in at ${origin}/login with their email and password. The confirmation page opens, and they enter the code there.`,
+              )}</li>
+              <li>{L(
+                `Hat er die Registrierung nie abgeschlossen, registriert er sich unter ${origin}/register erneut mit derselben E-Mail-Adresse – der Code bleibt gültig, es kommt keine E-Mail.`,
+                `If they never finished registering, they register again at ${origin}/register with the same email address – the code stays valid and no email is sent.`,
+              )}</li>
+              <li>{L('Nach 5 falschen Eingaben ist der Code gesperrt – dann einen neuen erstellen.', 'After 5 wrong entries the code is locked – then create a new one.')}</li>
+            </ol>
+          </div>
+          <Banner tone="warn">{L(
+            'Der Code wird nur jetzt angezeigt und nirgends lesbar gespeichert. Geht er verloren, erstellen Sie einen neuen – der alte wird dann ungültig.',
+            'The code is shown only now and is not stored in readable form anywhere. If it gets lost, create a new one – the old one then stops working.',
+          )}</Banner>
+        </div>
+        <footer>
+          <Button tone="primary" onClick={onClose}>{L('Fertig', 'Done')}</Button>
+        </footer>
+      </div>
+    </div>
+  );
+}
+
 function UserDrawer({ id, onClose, onChanged }) {
   const { data, error, loading, reload } = useApi(id ? `/users/${id}` : null);
   const [tab, setTab] = useState('overview');
+  const [issued, setIssued] = useState(null);
+  const closeIssued = useCallback(() => setIssued(null), []);
   const dialog = useActionDialog();
   const navigate = useNavigate();
   useEffect(() => setTab('overview'), [id]);
@@ -236,6 +317,56 @@ function UserDrawer({ id, onClose, onChanged }) {
         reason: 'optional',
         confirmLabel: L('Code senden', 'Send code'),
         success: L('Bestätigungscode gesendet.', 'Confirmation code sent.'),
+      }),
+    },
+    {
+      id: 'code',
+      icon: RectangleEllipsis,
+      label: L('Bestätigungscode erstellen', 'Create confirmation code'),
+      description: L(
+        'Wenn die E-Mail nicht ankommt oder der Nutzer keinen Zugriff auf das Postfach hat: 6-stelliger Code, den Sie selbst weitergeben. Es wird keine E-Mail gesendet.',
+        'If the email does not arrive or the user cannot access the inbox: a 6-digit code that you pass on yourself. No email is sent.',
+      ),
+      hidden: user.verified,
+      disabled: !manageable,
+      disabledReason: lockedReason,
+      onClick: () => dialog.open({
+        title: L('Bestätigungscode erstellen', 'Create confirmation code'),
+        description: L(`Für ${user.fullName || user.email} (${user.email}).`, `For ${user.fullName || user.email} (${user.email}).`),
+        effects: [
+          L(
+            'Ein neuer 6-stelliger Code wird erstellt und Ihnen einmalig angezeigt. Es wird keine E-Mail gesendet.',
+            'A new 6-digit code is created and shown to you once. No email is sent.',
+          ),
+          L(
+            'Ein vorheriger Code wird ungültig. „Code erneut senden“ auf der Bestätigungsseite ersetzt diesen Code nicht.',
+            'Any earlier code stops working. "Resend code" on the confirmation page does not replace this code.',
+          ),
+          L('Ihre Notiz wird im Aktivitätsprotokoll gespeichert – der Code selbst nie.', 'Your note is stored in the activity log – the code itself never is.'),
+        ],
+        fields: [{
+          name: 'hours',
+          label: L('Gültig für', 'Valid for'),
+          type: 'select',
+          options: [
+            { value: '24', label: L('24 Stunden', '24 hours') },
+            { value: '72', label: L('3 Tage', '3 days') },
+            { value: '168', label: L('7 Tage', '7 days') },
+          ],
+        }],
+        initialValues: { hours: '24' },
+        reason: 'required',
+        reasonLabel: L('Notiz – warum wird der Code erstellt?', 'Note – why are you creating this code?'),
+        reasonPlaceholder: L(
+          'z. B. Ticket-Nr., Bestätigungs-E-Mail kommt nicht an, kein Zugriff auf das Postfach …',
+          'e.g. ticket no., confirmation email does not arrive, no access to the inbox …',
+        ),
+        confirmLabel: L('Code erstellen', 'Create code'),
+        onConfirm: async ({ reason, values }) => {
+          const result = await api.post(`/users/${id}/verification-code`, { reason, hours: Number(values.hours || 24) });
+          setIssued({ code: result.code, expiresAt: result.expiresAt, email: user.email });
+          refresh();
+        },
       }),
     },
     {
@@ -526,6 +657,7 @@ function UserDrawer({ id, onClose, onChanged }) {
             <ActivityTimeline entries={data.activity} empty={L('IT-Support hat an diesem Konto noch nichts geändert.', 'IT Support has not changed anything on this account yet.')} />
           ) : null}
           {dialog.element}
+          <IssuedCodeDialog issued={issued} onClose={closeIssued} />
         </>
       ) : null}
     </Drawer>

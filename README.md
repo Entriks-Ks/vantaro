@@ -106,7 +106,7 @@ IT Support has its own interface at **`/it-support`** (separate from the Berater
 
 The console is in **English by default** with a DE/EN switch in its sidebar (remembered per browser). English exists only in this console; the rest of VANTARO stays German. Activity-log entries are stored in both languages (`summary`, `summary_en`).
 
-Admins can open the console too (sidebar → *IT-Support-Konsole*). IT Support can correct, reset, reassign and delete records, resolve login problems, re-check payments with the bank and test integrations. It cannot change prices, discounts, complaint decisions or roles, and cannot modify admin or IT Support accounts. Destructive actions require a written reason, which is stored in the activity log.
+Admins can open the console too (sidebar → *IT-Support-Konsole*). IT Support can correct, reset, reassign and delete records, resolve login problems, re-check payments with the bank and test integrations. For users who never receive the verification email, *Users → Actions → Create confirmation code* creates a 6-digit code (valid 24 h, 3 or 7 days) that IT Support passes on personally; a note is required, and only a hash is stored – the code itself never appears in the activity log. (`server/scripts/manual-verification-code.js` remains for addresses that have no account yet.) It cannot change prices, discounts, complaint decisions or roles, and cannot modify admin or IT Support accounts. Destructive actions require a written reason, which is stored in the activity log.
 
 ### ProCredit payments
 

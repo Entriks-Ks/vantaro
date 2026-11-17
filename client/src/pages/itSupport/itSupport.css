@@ -854,7 +854,32 @@ html:has(body.it-support-page) {
 }
 
 .its-effects > span { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--its-muted); }
-.its-effects ul { margin: 6px 0 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; color: var(--its-text-2); }
+.its-effects ul,
+.its-effects ol { margin: 6px 0 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; color: var(--its-text-2); }
+
+/* One-time confirmation code created by IT Support */
+.its-code-box {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 10px;
+  border: 1px solid var(--its-border-strong);
+  background: var(--its-sunken);
+}
+.its-code {
+  font-family: var(--its-mono);
+  font-size: 32px;
+  font-weight: 600;
+  letter-spacing: .12em;
+  color: var(--its-text);
+  user-select: all;
+}
+.its-code-meta { margin: -6px 0 0; font-size: 13px; color: var(--its-muted); overflow-wrap: anywhere; }
+@media (max-width: 420px) {
+  .its-code { font-size: 26px; letter-spacing: .08em; }
+}
 
 .its-field { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
 .its-field > span { font-size: 12px; font-weight: 600; color: var(--its-text-2); }

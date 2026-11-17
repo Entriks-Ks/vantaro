@@ -4,7 +4,7 @@ import { isUuid } from '../../lib/leads.js';
 import { buildFullName, normalizePhone } from '../../lib/profile.js';
 import { ROLES, STAFF_ROLES, getUserRole } from '../../lib/roles.js';
 import { findUserByEmail, isEmailVerified, isOAuthUser, toDirectoryUser } from '../../lib/users.js';
-import { issueVerificationCode } from '../../lib/verification.js';
+import { issueVerificationCode, setManualVerificationCode } from '../../lib/verification.js';
 import { issuePasswordReset } from '../../lib/passwordReset.js';
 import { toPublicPayment } from '../../lib/payments.js';
 import { diffFields, listActivityFor, logItAction } from '../../lib/itSupportAudit.js';
@@ -273,6 +273,55 @@ router.post('/:id/resend-verification', route(async (req, res) => {
     summary: both('Neuen Bestätigungscode per E-Mail gesendet (15 Minuten gültig)', 'New confirmation code sent by email (valid for 15 minutes)'),
   });
   res.json({ user: consoleUser(updated) });
+}));
+
+// How long a code created by IT Support stays valid (hours). Five wrong entries lock it either way.
+export const MANUAL_CODE_HOURS = [24, 72, 168];
+const DEFAULT_MANUAL_CODE_HOURS = 24;
+
+function berlinTime(date, lang) {
+  return date.toLocaleString(lang === 'en' ? 'en-GB' : 'de-DE', { timeZone: 'Europe/Berlin', dateStyle: 'short', timeStyle: 'short' });
+}
+
+/**
+ * For users who never get the verification email: creates a 6-digit code that IT Support passes on
+ * personally. No email is sent. Only a hash is stored – the code is returned once and never logged.
+ */
+router.post('/:id/verification-code', route(async (req, res) => {
+  requireDb(req);
+  const t = tr(req);
+  const reason = requireReason(req);
+  const hours = Number(req.body?.hours ?? DEFAULT_MANUAL_CODE_HOURS);
+  if (!MANUAL_CODE_HOURS.includes(hours)) {
+    throw fail(t('Ungültige Gültigkeitsdauer.', 'Invalid validity period.'));
+  }
+  const raw = await loadAuthUser(req);
+  assertManageable(req, raw);
+  if (isEmailVerified(raw)) {
+    throw fail(t(
+      'Die E-Mail-Adresse ist bereits bestätigt – der Nutzer braucht keinen Code. Bei vergessenem Passwort den Passwort-Link senden.',
+      'The email address is already confirmed – the user does not need a code. If the password is forgotten, send the password reset link.',
+    ));
+  }
+
+  const previous = raw.user_metadata?.email_verification || null;
+  const { user: updated, code, expiresAt } = await setManualVerificationCode(raw, { ttlMs: hours * 60 * 60 * 1000 });
+  await logItAction(req, {
+    action: 'user.verification_code',
+    targetType: 'user',
+    targetId: raw.id,
+    targetLabel: userLabel(raw),
+    reason,
+    summary: both(
+      `Bestätigungscode manuell erstellt (gültig bis ${berlinTime(expiresAt, 'de')})`,
+      `Confirmation code created manually (valid until ${berlinTime(expiresAt, 'en')})`,
+    ),
+    before: { codeMethod: previous?.method || null, codeExpiresAt: previous?.expires_at || null },
+    after: { codeMethod: 'manual', codeExpiresAt: expiresAt.toISOString() },
+  });
+
+  res.set('Cache-Control', 'no-store');
+  res.json({ user: consoleUser(updated), code, expiresAt: expiresAt.toISOString() });
 }));
 
 router.post('/:id/password-reset', route(async (req, res) => {

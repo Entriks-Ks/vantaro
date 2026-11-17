@@ -117,6 +117,7 @@ export const ACTION = {
   'user.update': ['Nutzer bearbeitet', 'User edited'],
   'user.verify_email': ['E-Mail bestätigt', 'Email confirmed'],
   'user.resend_verification': ['Bestätigungscode gesendet', 'Confirmation code sent'],
+  'user.verification_code': ['Bestätigungscode manuell erstellt', 'Confirmation code created manually'],
   'user.password_reset': ['Passwort-Link gesendet', 'Password link sent'],
   'user.block': ['Konto gesperrt', 'Account blocked'],
   'user.unblock': ['Sperre aufgehoben', 'Account unblocked'],
