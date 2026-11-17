@@ -72,7 +72,9 @@ export default function Preloader() {
       const isLanding =
         location.pathname === '/' &&
         location.hash !== '#impressum' &&
-        location.hash !== '#datenschutz';
+        location.hash !== '#datenschutz' &&
+        location.hash !== '#agb' &&
+        location.hash !== '#erstattung';
 
       if (isLanding) {
         tasks.push(waitForEvent('vantaro:veil-ready', VEIL_MS));

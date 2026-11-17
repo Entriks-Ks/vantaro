@@ -146,6 +146,7 @@ router.post('/checkout', checkoutRateLimit, async (req, res) => {
         desiredTimeframe: req.body?.desiredTimeframe ?? req.body?.desired_timeframe,
         browser: req.body?.browser,
         useOneTimeId: req.body?.useOneTimeId ?? req.body?.use_one_time_id ?? req.body?.useOneTimeDiscountId,
+        acceptedTerms: req.body?.acceptedTerms ?? req.body?.accepted_terms,
       },
       req,
     );

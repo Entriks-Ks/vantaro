@@ -21952,6 +21952,37 @@ html[data-theme="light"] .broker-pipeline-card-bar {
 .broker-checkout-cards {
     margin-bottom: 1.25rem;
 }
+.broker-checkout-terms {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin: 0 0 1.25rem;
+    padding: 12px 14px;
+    border-radius: 10px;
+    border: 1px solid var(--wash-16);
+    background: var(--wash-08);
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--muted);
+    cursor: pointer;
+}
+.broker-checkout-terms input[type="checkbox"] {
+    flex-shrink: 0;
+    width: 16px;
+    height: 16px;
+    margin: 2px 0 0;
+    accent-color: var(--thread);
+    cursor: pointer;
+}
+.broker-checkout-terms a {
+    color: var(--thread);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+.broker-checkout-terms-req {
+    white-space: nowrap;
+    opacity: 0.8;
+}
 .broker-checkout-actions {
     display: flex;
     align-items: center;

@@ -64,6 +64,7 @@ import { ENERGY_UNIT_CENTS } from './packages';
 import { useBroker } from '../../hooks/useBroker';
 import { returnTo, returnLabel } from './LeadDetail';
 import { OneTimeDiscountOffer, oneTimePickFor, visibleOneTimeOffers } from './OneTimeDiscountOffer';
+import CheckoutTermsConsent from '../../components/CheckoutTermsConsent';
 
 const MIN_LEADS = 10;
 const LEAD_STEP = 5;
@@ -628,7 +629,7 @@ export function EnergyOrders() {
   };
 
   const confirmPay = async () => {
-    if (!checkoutPkg || !checkout || paying) return;
+    if (!checkoutPkg || !checkout || paying || !checkout.acceptedTerms) return;
     const area = String(checkout.territory || '').trim();
     const period = String(timeframe || '').trim();
     if (!area || !period) {
@@ -646,6 +647,7 @@ export function EnergyOrders() {
         desiredTimeframe: period,
         browser: collectBrowserPaymentMeta(),
         useOneTimeId: checkoutUseId || undefined,
+        acceptedTerms: true,
       });
       setActiveProductId(checkout.productId);
       setCheckout(null);
@@ -943,9 +945,20 @@ export function EnergyOrders() {
               Sie werden zur sicheren Zahlungsseite der ProCredit Bank weitergeleitet.
               Kartendaten werden ausschließlich bei der Bank eingegeben.
             </p>
+            <CheckoutTermsConsent
+              checked={checkout.acceptedTerms}
+              disabled={paying}
+              onChange={(acceptedTerms) => setCheckout((prev) => (prev ? { ...prev, acceptedTerms } : prev))}
+            />
             <div className="broker-checkout-actions">
               <button type="button" className="btn btn-outline" disabled={paying} onClick={() => setCheckout(null)}>Abbrechen</button>
-              <button type="button" className="btn btn-primary" disabled={paying} onClick={confirmPay}>
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={paying || !checkout.acceptedTerms}
+                title={checkout.acceptedTerms ? undefined : 'Bitte zuerst AGB und Erstattungsrichtlinie akzeptieren.'}
+                onClick={confirmPay}
+              >
                 {paying ? 'Weiterleitung…' : `${formatEuroExact(checkoutNet)} bezahlen`}
               </button>
             </div>

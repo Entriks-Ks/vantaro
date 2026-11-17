@@ -16,6 +16,7 @@ const lib = (name) => new URL(`../src/lib/${name}`, import.meta.url).href;
 const { db, client } = createFakeSupabase();
 
 const sentAlerts = [];
+const sentConfirmations = [];
 mock.module(lib('supabase.js'), {
   namedExports: {
     supabase: client,
@@ -37,7 +38,10 @@ mock.module(lib('mailer.js'), {
     hasCustomMailer: () => true,
     hasLeadsMailer: () => true,
     sendAdminLeadRequestEmail: async () => 'mock',
-    sendPaymentConfirmationEmail: async () => 'mock',
+    sendPaymentConfirmationEmail: async (payload) => {
+      sentConfirmations.push(payload);
+      return 'mock';
+    },
     sendPaymentSecurityAlertEmail: async (payload) => {
       sentAlerts.push(payload);
       return 'mock';
@@ -69,6 +73,11 @@ const { default: paymentsRouter } = await import('../src/routes/payments.js');
 const { decideMockOrder } = await import('../src/lib/mockGateway.js');
 const { failureLockUntil, resetPaymentSecurityState } = await import('../src/lib/paymentSecurity.js');
 const { sanitizeAuditMetadata } = await import('../src/lib/paymentAudit.js');
+const {
+  CHECKOUT_TERMS_VERSION,
+  extractCardHints,
+  extractReceipt,
+} = await import('../src/lib/payments.js');
 
 function addUser(token, { email, role = 'berater' }) {
   const user = {
@@ -120,10 +129,10 @@ async function api(method, path, { token, body } = {}) {
   return { status: response.status, headers: response.headers, data };
 }
 
-async function checkout(token) {
+async function checkout(token, { acceptedTerms = true } = {}) {
   const result = await api('POST', '/checkout', {
     token,
-    body: { packageId: 'pkv-deutschlandweit', requestedCount: 10 },
+    body: { packageId: 'pkv-deutschlandweit', requestedCount: 10, acceptedTerms },
   });
   if (result.status !== 201) return result;
   const redirect = new URL(result.data.redirectUrl);
@@ -170,7 +179,75 @@ describe('checkout, return and audit log', () => {
     assert.ok(entry);
     assert.equal(entry.user_id, userA.id);
     assert.ok(entry.ip);
+    assert.equal(entry.metadata.termsAccepted, true);
+    assert.equal(entry.metadata.termsVersion, CHECKOUT_TERMS_VERSION);
     assertNoSecrets(entry, order.password);
+  });
+
+  test('checkout without accepted AGB/Erstattungsrichtlinie is refused before any order exists', async () => {
+    const before = db.tables.lead_payments.length;
+    for (const acceptedTerms of [false, undefined, 'true', 1]) {
+      const result = await api('POST', '/checkout', {
+        token: 'token-c',
+        body: { packageId: 'pkv-deutschlandweit', requestedCount: 10, acceptedTerms },
+      });
+      assert.equal(result.status, 400, `acceptedTerms=${String(acceptedTerms)}`);
+      assert.match(result.data.error, /AGB/);
+    }
+    assert.equal(db.tables.lead_payments.length, before);
+  });
+
+  test('the confirmation email gets order ID, approval code, card brand, last 4 and transaction time', async () => {
+    const order = await checkout('token-a');
+    await finishPayment(order, 'paid');
+    let sent;
+    for (let i = 0; i < 50 && !sent; i += 1) {
+      sent = sentConfirmations.find((entry) => entry.payment.id === order.data.paymentId);
+      if (!sent) await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    assert.ok(sent, 'no confirmation email sent');
+    assert.equal(sent.to, 'a@vantaro.test');
+    assert.equal(sent.payment.pgOrderId, order.orderId);
+    assert.match(sent.payment.approvalCode, /^\d{6}$/);
+    assert.equal(sent.payment.cardBrand, 'Visa');
+    assert.equal(sent.payment.cardLast4, '3572');
+    assert.match(sent.payment.transactionAt, /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/);
+    assert.ok(sent.pdf?.length > 0, 'invoice PDF missing');
+  });
+
+  test('receipt fields are read from a real ProCredit Get Order response', () => {
+    // Sample paid order from the bank (receipt requirements).
+    const order = {
+      id: 24390,
+      typeRid: '1',
+      status: 'FullyPaid',
+      prevStatus: 'Preparing',
+      amount: 10,
+      currency: 'EUR',
+      createTime: '2026-04-27 13:11:32',
+      trans: [{
+        approvalCode: '014513',
+        actionId: '260427-11130604-02gx7q=',
+        orderId: 24390,
+        isReversal: false,
+        regTime: '2026-04-27 13:13:06',
+        amount: 10,
+        currency: 'EUR',
+        phase: 'Single',
+        type: 'Purchase',
+        pmoResultCode: '1',
+      }],
+      srcToken: {
+        paymentMethod: 'Card',
+        displayName: '410221******3572',
+        owner: { name: 'B H' },
+        card: { expiration: '1226', brand: 'Visa' },
+      },
+    };
+    assert.deepEqual(extractReceipt(order), { approvalCode: '014513', tranTime: '2026-04-27 13:13:06' });
+    assert.deepEqual(extractCardHints(order), {
+      last4: '3572', brand: 'Visa', holder: 'B H', expMonth: 12, expYear: 2026,
+    });
   });
 
   test('a paid return logs payment_paid and redirects to success', async () => {

@@ -180,6 +180,8 @@ export function dashboardDocumentTitle(pathname, isAdmin = false) {
 export function documentTitle(pathname, hash = '', isAdmin = false) {
   if (hash === '#impressum' || pathname === '/impressum') return 'Impressum — VANTARO';
   if (hash === '#datenschutz' || pathname === '/datenschutz') return 'Datenschutz — VANTARO';
+  if (hash === '#agb' || pathname === '/agb') return 'AGB — VANTARO';
+  if (hash === '#erstattung' || pathname === '/erstattung') return 'Erstattungsrichtlinie — VANTARO';
   if (pathname === '/login') return 'Anmelden — VANTARO';
   if (pathname === '/auth/callback') return 'Anmeldung — VANTARO';
   if (pathname === '/register') return 'Registrieren — VANTARO';

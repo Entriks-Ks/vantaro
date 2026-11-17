@@ -77,6 +77,7 @@ import {
 } from '../../lib/brokerSettings';
 import { applyConsent, CONSENT_STORAGE_KEY, DEFAULT_PREFS, readStoredConsent } from '../../lib/analytics';
 import CardLogos from '../../components/CardLogos';
+import CheckoutTermsConsent from '../../components/CheckoutTermsConsent';
 import {
   CLOSE_OUTCOMES,
   LEAD_STATUSES,
@@ -4156,7 +4157,7 @@ export function BeraterPayments() {
   };
 
   const confirmPay = async () => {
-    if (!checkoutPkg || paying) return;
+    if (!checkoutPkg || paying || !checkout?.acceptedTerms) return;
     setPaying(true);
     setError('');
     setNotice('');
@@ -4166,6 +4167,7 @@ export function BeraterPayments() {
         requestedCount: checkoutQty,
         browser: collectBrowserPaymentMeta(),
         useOneTimeId: checkoutUseId || undefined,
+        acceptedTerms: true,
       });
       selectPackage(checkoutPkg.id);
       if (result.redirectUrl) {
@@ -4439,6 +4441,11 @@ export function BeraterPayments() {
               Kartendaten werden ausschließlich bei der Bank eingegeben.
             </p>
             <CardLogos className="broker-checkout-cards" />
+            <CheckoutTermsConsent
+              checked={checkout?.acceptedTerms}
+              disabled={paying}
+              onChange={(acceptedTerms) => setCheckout((prev) => (prev ? { ...prev, acceptedTerms } : prev))}
+            />
 
             <div className="broker-checkout-actions">
               <button
@@ -4452,7 +4459,8 @@ export function BeraterPayments() {
               <button
                 type="button"
                 className="btn btn-primary"
-                disabled={paying}
+                disabled={paying || !checkout?.acceptedTerms}
+                title={checkout?.acceptedTerms ? undefined : 'Bitte zuerst AGB und Erstattungsrichtlinie akzeptieren.'}
                 onClick={confirmPay}
               >
                 {paying ? 'Weiterleitung…' : `${formatEuroExact(checkoutNet)} bezahlen`}

@@ -1167,7 +1167,7 @@ function formatEuroMail(cents) {
 }
 
 /** Customer receipt after a ProCredit card payment (fields per the bank's invoice template). */
-function paymentConfirmationEmail({ payment, dashboardUrl }) {
+export function paymentConfirmationEmail({ payment, dashboardUrl }) {
   const year = new Date().getFullYear();
   const name = payment.billingName || payment.billingCompany || '';
   const greeting = name ? `Hallo ${name}` : 'Hallo';

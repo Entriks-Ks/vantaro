@@ -30,6 +30,7 @@ export async function createPurchaseOrder({ amountCents, description, hppRedirec
     amountCents: Number(amountCents) || 0,
     description: String(description || ''),
     hppRedirectUrl,
+    createTime: bankTime(),
   });
   const hppUrl = `${getApiOrigin()}/api/payments/mock-hpp`;
   const redirect = new URL(hppUrl);
@@ -45,15 +46,45 @@ export async function createPurchaseOrder({ amountCents, description, hppRedirec
   };
 }
 
+/** "YYYY-MM-DD HH:mm:ss" without zone, the way the bank sends regTime. */
+function bankTime(date = new Date()) {
+  const pad = (value) => String(value).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} `
+    + `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+}
+
 export async function getOrderDetails(orderId, password) {
   const order = orders.get(String(orderId));
   if (!order || order.password !== String(password)) return { status: 'Preparing' };
-  return {
+  const amount = order.amountCents / 100;
+  const details = {
     id: orderId,
+    typeRid: '1',
     status: order.status,
-    card: order.status === 'Approved'
-      ? { last4: '4242', brand: 'VISA', holder: 'Test User' }
-      : {},
+    amount,
+    currency: 'EUR',
+    createTime: order.createTime,
+  };
+  if (order.status !== 'FullyPaid') return details;
+  // Same shape as a real ProCredit Get Order Details response for a paid Purchase.
+  return {
+    ...details,
+    trans: [{
+      approvalCode: order.approvalCode,
+      orderId,
+      regTime: order.paidTime,
+      amount,
+      currency: 'EUR',
+      isReversal: false,
+      phase: 'Single',
+      type: 'Purchase',
+    }],
+    srcToken: {
+      paymentMethod: 'Card',
+      displayName: '410221******3572',
+      owner: { name: 'Test User' },
+      card: { expiration: '1229', brand: 'Visa' },
+    },
   };
 }
 
@@ -67,8 +98,11 @@ export function getMockOrder(orderId, password) {
 export function decideMockOrder(orderId, password, outcome) {
   const order = getMockOrder(orderId, password);
   if (!order) return null;
-  if (outcome === 'paid') order.status = 'Approved';
-  else if (outcome === 'failed') order.status = 'Declined';
+  if (outcome === 'paid') {
+    order.status = 'FullyPaid';
+    order.approvalCode = String(crypto.randomInt(0, 1_000_000)).padStart(6, '0');
+    order.paidTime = bankTime();
+  } else if (outcome === 'failed') order.status = 'Declined';
   else if (outcome === 'cancel') order.status = 'Cancelled';
   return order.hppRedirectUrl;
 }

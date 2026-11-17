@@ -8,6 +8,8 @@ import CookieConsent from './components/CookieConsent';
 import Analytics from './components/Analytics';
 import Impressum from './pages/Impressum';
 import Datenschutz from './pages/Datenschutz';
+import AGB from './pages/AGB';
+import Erstattung from './pages/Erstattung';
 import Login from './pages/Login';
 import AuthCallback from './pages/AuthCallback';
 import Register from './pages/Register';
@@ -42,6 +44,8 @@ function AppContent() {
   const { isAdmin, loading } = useAuth();
   const isImpressum = location.hash === '#impressum' || location.pathname === '/impressum';
   const isDatenschutz = location.hash === '#datenschutz' || location.pathname === '/datenschutz';
+  const isAgb = location.hash === '#agb' || location.pathname === '/agb';
+  const isErstattung = location.hash === '#erstattung' || location.pathname === '/erstattung';
   const isLogin = location.pathname === '/login';
   const isAuthCallback = location.pathname === '/auth/callback';
   const isRegister = location.pathname === '/register';
@@ -50,7 +54,7 @@ function AppContent() {
   const isAcceptInvite = location.pathname === '/einladung';
   const isVerifyEmail = location.pathname === '/verify-email';
   const isDashboard = location.pathname.startsWith('/dashboard');
-  const isLegal = isImpressum || isDatenschutz;
+  const isLegal = isImpressum || isDatenschutz || isAgb || isErstattung;
   const isAuth = isLogin || isAuthCallback || isRegister || isForgotPassword || isResetPassword || isAcceptInvite || isVerifyEmail;
   const isAppShell = isAuth || isDashboard;
 
@@ -116,6 +120,10 @@ function AppContent() {
               <Impressum />
             ) : isDatenschutz ? (
               <Datenschutz />
+            ) : isAgb ? (
+              <AGB />
+            ) : isErstattung ? (
+              <Erstattung />
             ) : (
               <main id="inhalt">
                 <Hero />
@@ -152,6 +160,8 @@ function AppContent() {
                 <h4>Rechtliches</h4>
                 <a href="#impressum">Impressum</a>
                 <a href="#datenschutz">Datenschutz</a>
+                <a href="#agb">AGB</a>
+                <a href="#erstattung">Erstattungsrichtlinie</a>
                 <a href="#datenschutz">Compliance &amp; Hinweise</a>
               </div>
             </div>
@@ -162,6 +172,8 @@ function AppContent() {
             <nav className="footer-bottom-nav" aria-label="Rechtliches">
               <a href="#impressum">Impressum</a>
               <a href="#datenschutz">Datenschutz</a>
+              <a href="#agb">AGB</a>
+              <a href="#erstattung">Erstattung</a>
               <button
                 type="button"
                 onClick={() => window.dispatchEvent(new Event('vantaro:cookies'))}

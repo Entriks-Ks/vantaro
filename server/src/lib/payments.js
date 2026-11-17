@@ -27,6 +27,13 @@ import { assertPaymentsAllowed, evaluateFailedPaymentLock } from './paymentSecur
 
 const TAX_RATE = 0;
 
+/**
+ * Version ("Stand") of the AGB + Erstattungsrichtlinie the customer must accept before the bank redirect
+ * (ProCredit requirement). Bump it whenever client/src/pages/AGB.jsx or Erstattung.jsx change materially;
+ * the accepted version is recorded per checkout in payment_audit_log.
+ */
+export const CHECKOUT_TERMS_VERSION = '2026-11-17';
+
 function fail(message, status = 400) {
   const error = new Error(message);
   error.status = status;
@@ -264,7 +271,7 @@ async function loadPaymentByReturnToken(token) {
   return data || null;
 }
 
-function extractCardHints(order) {
+export function extractCardHints(order) {
   // ProCredit: masked PAN in srcToken.displayName, brand under srcToken.card.
   const src = order?.srcToken;
   if (src) {
@@ -287,7 +294,7 @@ function extractCardHints(order) {
 }
 
 /** Approval code + time of the purchase transaction (required on the customer receipt). */
-function extractReceipt(order) {
+export function extractReceipt(order) {
   const trans = Array.isArray(order?.trans) ? order.trans : [];
   const tran = trans.find((t) => t?.approvalCode && !t.isReversal) || order?.tran || {};
   return {
@@ -502,10 +509,15 @@ export async function checkoutLeadPackage(user, {
   useOneTimeId,
   use_one_time_id,
   useOneTimeDiscountId,
+  acceptedTerms,
 } = {}, req = null) {
   requireDb();
   if (user?.role !== ROLES.BERATER) {
     throw fail('Nur Berater können Leads kaufen.', 403);
+  }
+  // Bank requirement: AGB + Erstattungsrichtlinie must be accepted before the HPP redirect.
+  if (acceptedTerms !== true) {
+    throw fail('Bitte akzeptieren Sie die AGB und die Erstattungsrichtlinie, bevor Sie zur Zahlung weitergehen.');
   }
   await assertPaymentsAllowed(user.id, { req });
 
@@ -658,6 +670,8 @@ export async function checkoutLeadPackage(user, {
         discountCents: quoted.discountCents,
         pgOrderId: order.orderId,
         testMode: config.testMode,
+        termsAccepted: true,
+        termsVersion: CHECKOUT_TERMS_VERSION,
       },
     });
 
