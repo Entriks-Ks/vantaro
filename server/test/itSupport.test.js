@@ -138,6 +138,8 @@ describe('access', () => {
   test('a Berater is refused', async () => {
     const result = await call('GET', '/system/activity', { token: berater.token });
     assert.equal(result.status, 403);
+    assert.equal(result.body.code, 'not_it_support');
+    assert.match(result.body.error, /berater@vantaro.test/);
   });
 
   test('IT Support and admins are allowed', async () => {

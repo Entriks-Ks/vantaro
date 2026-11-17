@@ -1,12 +1,12 @@
 import { Router } from 'express';
-import { requireAuth, requireRole } from '../../lib/auth.js';
+import { requireAuth } from '../../lib/auth.js';
 import { ROLES } from '../../lib/roles.js';
 import { supabase } from '../../lib/supabase.js';
 import { auditLogReady, requireAuditLog, toPublicActivity } from '../../lib/itSupportAudit.js';
 import { runChecks } from '../../lib/itSupportChecks.js';
 import { flushSystemEvents } from '../../lib/systemEvents.js';
 import { requireDb, route } from './common.js';
-import { langOf } from './i18n.js';
+import { langOf, tr } from './i18n.js';
 import leadsRouter from './leads.js';
 import appointmentsRouter from './appointments.js';
 import usersRouter from './users.js';
@@ -21,7 +21,23 @@ import systemRouter from './system.js';
  */
 const router = Router();
 
-router.use(requireAuth, requireRole(ROLES.IT_SUPPORT, ROLES.ADMIN), requireAuditLog);
+/**
+ * Like requireRole(IT_SUPPORT, ADMIN), but says which account the request came from. The browser keeps
+ * one shared sign-in, so an open console tab sends another account's token after someone else signs in.
+ */
+function requireConsoleRole(req, res, next) {
+  if ([ROLES.IT_SUPPORT, ROLES.ADMIN].includes(req.user?.role)) return next();
+  const email = req.user?.email || '?';
+  return res.status(403).json({
+    code: 'not_it_support',
+    error: tr(req)(
+      `Keine Berechtigung: Diese Anfrage kam vom Konto ${email}, das keinen IT-Support-Zugang hat. Wurde in diesem Browser ein anderes Konto angemeldet? Bitte abmelden und als IT-Support neu anmelden.`,
+      `Access denied: this request came from the account ${email}, which has no IT Support access. Was another account signed in in this browser? Please sign out and sign in again as IT Support.`,
+    ),
+  });
+}
+
+router.use(requireAuth, requireConsoleRole, requireAuditLog);
 
 router.get('/overview', route(async (req, res) => {
   requireDb(req);
