@@ -6,6 +6,10 @@ import { getClientOrigins } from './lib/clientOrigin.js';
 import { startFollowUpReminderJob } from './lib/followUpReminders.js';
 import { supabaseConfig } from './lib/supabase.js';
 import { assertPaymentEncryptionConfigured } from './lib/paymentCrypto.js';
+import { installConsoleCapture } from './lib/systemEvents.js';
+
+// Mirror console.error / console.warn into public.system_events for the IT Support console.
+installConsoleCapture();
 
 // ProCredit order passwords are encrypted at rest; refuse to start in production without the key.
 try {

@@ -333,6 +333,7 @@ export async function listDirectoryUsers() {
       total: mapped.length,
       berater: mapped.filter((user) => user.role === ROLES.BERATER).length,
       admin: mapped.filter((user) => user.role === ROLES.ADMIN).length,
+      itSupport: mapped.filter((user) => user.role === ROLES.IT_SUPPORT).length,
       unverified: mapped.filter((user) => !user.verified).length,
     },
     recent: mapped.slice(0, 8),

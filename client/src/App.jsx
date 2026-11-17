@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect } from 'react';
+import { lazy, Suspense, useEffect, useLayoutEffect } from 'react';
 import { BrowserRouter, Navigate, Routes, Route, useLocation } from 'react-router-dom';
 import Header from './components/Header';
 import Hero from './components/Hero';
@@ -23,8 +23,12 @@ import { AuthProvider, useAuth } from './hooks/useAuth';
 import useSectionReveal from './hooks/useSectionReveal';
 import Preloader from './components/Preloader';
 import CardLogos from './components/CardLogos';
+import BootScreen from './components/BootScreen';
 import { documentTitle } from './pages/dashboard/helpers';
 import { applyTheme, readThemePreference, subscribeTheme, writeThemePreference } from './lib/theme';
+
+// Separate chunk: Berater and admins never download the IT Support console.
+const ItSupportApp = lazy(() => import('./pages/itSupport/ItSupportApp'));
 
 function ThemeSync() {
   const { user, loading } = useAuth();
@@ -54,9 +58,10 @@ function AppContent() {
   const isAcceptInvite = location.pathname === '/einladung';
   const isVerifyEmail = location.pathname === '/verify-email';
   const isDashboard = location.pathname.startsWith('/dashboard');
+  const isItSupport = location.pathname === '/it-support' || location.pathname.startsWith('/it-support/');
   const isLegal = isImpressum || isDatenschutz || isAgb || isErstattung;
   const isAuth = isLogin || isAuthCallback || isRegister || isForgotPassword || isResetPassword || isAcceptInvite || isVerifyEmail;
-  const isAppShell = isAuth || isDashboard;
+  const isAppShell = isAuth || isDashboard || isItSupport;
 
   useLayoutEffect(() => {
     applyTheme(readThemePreference());
@@ -68,9 +73,11 @@ function AppContent() {
     document.body.classList.toggle('is-legal', isLegal);
     document.body.classList.toggle('auth-page', isAuth);
     document.body.classList.toggle('dashboard-page', isDashboard);
-    document.title = documentTitle(location.pathname, location.hash, isAdmin);
+    document.body.classList.toggle('it-support-page', isItSupport);
+    // The IT Support console sets its own (English or German) title.
+    if (!isItSupport) document.title = documentTitle(location.pathname, location.hash, isAdmin);
 
-    if (isLegal || isAuth || isDashboard) {
+    if (isLegal || isAuth || isDashboard || isItSupport) {
       window.scrollTo(0, 0);
       return undefined;
     }
@@ -85,7 +92,7 @@ function AppContent() {
       document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, 120);
     return () => window.clearTimeout(timer);
-  }, [location.pathname, location.hash, isLegal, isAuth, isDashboard, isAdmin]);
+  }, [location.pathname, location.hash, isLegal, isAuth, isDashboard, isItSupport, isAdmin]);
 
   return (
     <>
@@ -107,6 +114,16 @@ function AppContent() {
           element={(
             <RequireAuth>
               <Dashboard />
+            </RequireAuth>
+          )}
+        />
+        <Route
+          path="/it-support/*"
+          element={(
+            <RequireAuth>
+              <Suspense fallback={<BootScreen caption="IT Support" />}>
+                <ItSupportApp />
+              </Suspense>
             </RequireAuth>
           )}
         />
@@ -181,7 +198,7 @@ function AppContent() {
           </div>
         </footer>
       )}
-      {!isDashboard && <CookieConsent />}
+      {!isDashboard && !isItSupport && <CookieConsent />}
       <Analytics />
     </>
   );

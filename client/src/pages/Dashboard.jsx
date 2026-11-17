@@ -46,13 +46,15 @@ function RedirectAnfordernDetail() {
 }
 
 export default function Dashboard() {
-  const { isAdmin, user } = useAuth();
+  const { isAdmin, isItSupport, user } = useAuth();
   const energy = !isAdmin && user?.vertical === 'energy';
   const partnerPages = isAdmin ? null : allowedPartnerPages(user);
   const companyMain = !isAdmin && !partnerPages;
   const canPage = (pageId) => !partnerPages || partnerPages.includes(pageId);
   const firstPage = `/dashboard/${partnerPages?.find((id) => id !== 'dashboard') || 'profil'}`;
 
+  // IT Support works only in its own console, never in the Berater/Admin portal.
+  if (isItSupport) return <Navigate to="/it-support" replace />;
   if (!isAdmin && user?.needsVertical) return <VerticalChoice />;
 
   return (

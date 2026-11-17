@@ -16,7 +16,63 @@ class Query {
   }
 
   // insert(...).select() / update(...).select() keep their op; a plain select() is the default.
-  select() {
+  select(_columns, options = {}) {
+    if (options.count) this.count = true;
+    if (options.head) this.head = true;
+    return this;
+  }
+
+  delete() {
+    this.op = 'delete';
+    return this;
+  }
+
+  is(column, value) {
+    this.filters.push((row) => (value === null ? row[column] == null : row[column] === value));
+    return this;
+  }
+
+  not(column, operator, value) {
+    if (operator === 'is') this.filters.push((row) => (value === null ? row[column] != null : row[column] !== value));
+    else if (operator === 'eq') this.filters.push((row) => row[column] !== value);
+    return this;
+  }
+
+  lt(column, value) {
+    this.filters.push((row) => row[column] != null && row[column] < value);
+    return this;
+  }
+
+  gt(column, value) {
+    this.filters.push((row) => row[column] != null && row[column] > value);
+    return this;
+  }
+
+  like(column, pattern) {
+    const regex = new RegExp(`^${String(pattern).replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/%/g, '.*')}$`);
+    this.filters.push((row) => regex.test(String(row[column] ?? '')));
+    return this;
+  }
+
+  ilike(column, pattern) {
+    const regex = new RegExp(`^${String(pattern).replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/%/g, '.*')}$`, 'i');
+    this.filters.push((row) => regex.test(String(row[column] ?? '')));
+    return this;
+  }
+
+  // PostgREST logic trees are not modelled; tests that need them filter in code.
+  or() {
+    return this;
+  }
+
+  limit(count) {
+    this.limitCount = count;
+    return this;
+  }
+
+  range(from, to) {
+    this.rangeFrom = from;
+    this.rangeTo = to;
     return this;
   }
 
@@ -81,13 +137,21 @@ class Query {
       if (this.op === 'update') {
         for (const row of matched) Object.assign(row, structuredClone(this.payload));
       }
+      if (this.op === 'delete') {
+        for (const row of matched) rows.splice(rows.indexOf(row), 1);
+      }
       result = matched;
     }
     if (this.sort) {
       const { column, ascending } = this.sort;
       result = [...result].sort((a, b) => (a[column] > b[column] ? 1 : -1) * (ascending ? 1 : -1));
     }
+    const count = result.length;
+    if (this.rangeFrom != null) result = result.slice(this.rangeFrom, this.rangeTo + 1);
+    if (this.limitCount != null) result = result.slice(0, this.limitCount);
     result = result.map((row) => structuredClone(row));
+    if (this.head) return { data: null, count, error: null };
+    if (this.count && this.mode === 'many') return { data: result, count, error: null };
     if (this.mode === 'single') {
       return result.length === 1
         ? { data: result[0], error: null }

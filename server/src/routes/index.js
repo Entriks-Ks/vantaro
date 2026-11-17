@@ -14,6 +14,7 @@ import calendarRouter from './calendar.js';
 import energyRouter from './energy.js';
 import partnersRouter from './partners.js';
 import tcdialWebhookRouter from './webhooks/tcdial.js';
+import itSupportRouter from './itSupport/index.js';
 
 const router = Router();
 
@@ -33,5 +34,6 @@ router.use('/energy/partners', partnersRouter);
 router.use('/energy', energyRouter);
 router.use('/partners', partnersRouter);
 router.use('/webhooks/tcdial', tcdialWebhookRouter);
+router.use('/it-support', itSupportRouter);
 
 export default router;

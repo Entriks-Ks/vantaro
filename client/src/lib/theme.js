@@ -33,7 +33,8 @@ function currentPath(pathname = window.location.pathname) {
 
 export function isDashboardPath(pathname = window.location.pathname) {
   const path = currentPath(pathname);
-  return path === '/dashboard' || path.startsWith('/dashboard/');
+  return path === '/dashboard' || path.startsWith('/dashboard/')
+    || path === '/it-support' || path.startsWith('/it-support/');
 }
 
 export function readPublicTheme() {

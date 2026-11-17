@@ -11,8 +11,10 @@ export const FAILED_PAYMENT_LIMIT = 5;
 export const FAILED_PAYMENT_WINDOW = HOUR;
 export const FAILED_PAYMENT_LOCK = HOUR;
 
-// Failures we caused ourselves (bank unreachable, discount race) do not count against the customer.
-const INTERNAL_FAILURES = ['create_order_failed', 'discount_reserve_failed'];
+// Failures we caused ourselves (bank unreachable, discount race, abandoned checkout closed by IT Support)
+// do not count against the customer.
+export const SUPPORT_CANCELLED_STATUS = 'support_cancelled';
+const INTERNAL_FAILURES = ['create_order_failed', 'discount_reserve_failed', SUPPORT_CANCELLED_STATUS];
 
 function fail(message, status = 400, extra = {}) {
   const error = new Error(message);

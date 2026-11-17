@@ -18,6 +18,7 @@ import {
   wasWebhookProcessed,
 } from '../../lib/tcdial/verify.js';
 import { handleLeadError, tableMissingResponse } from '../../lib/leads.js';
+import { logSystemEvent } from '../../lib/systemEvents.js';
 
 const router = Router();
 const adminOnly = [requireAuth, requireRole(ROLES.ADMIN)];
@@ -93,6 +94,13 @@ router.post('/agent-set-disposition', async (req, res) => {
 
     const result = await ingestTcDialDisposition(req.body || {});
     rememberWebhookId(verified.webhookId);
+    // One de-duplicated row per outcome: occurrence count + last receipt time for the IT Support console.
+    logSystemEvent({
+      level: 'info',
+      source: 'tcdial',
+      message: result.created ? 'TC-Dial webhook received: new lead created' : 'TC-Dial webhook received: existing lead updated',
+      context: { leadId: result.lead?.id || null, externalId: result.externalId || null },
+    });
     res.status(result.created ? 201 : 200).json(summarizeIngest(result));
   } catch (error) {
     if (columnMissingExternalId(error)) {

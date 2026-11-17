@@ -25,6 +25,8 @@ services:
         sync: false
       - key: ADMIN_EMAILS
         sync: false
+      - key: IT_SUPPORT_EMAILS
+        sync: false
       - key: PROCREDIT_API_BASE_URL
         sync: false
       - key: PROCREDIT_MERCHANT_ID

@@ -18,6 +18,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Wallet,
+  Wrench,
 } from 'lucide-react';
 import Brand from '../../components/Brand';
 import { useAuth } from '../../hooks/useAuth';
@@ -165,6 +166,13 @@ const ADMIN_NAV = [
     label: 'Konto',
     links: [
       { to: '/dashboard/zahlung', label: 'Zahlung', icon: Landmark },
+    ],
+  },
+  {
+    label: 'Technik',
+    links: [
+      // Admins can open the IT Support console to review its activity log.
+      { to: '/it-support', label: 'IT-Support-Konsole', icon: Wrench },
     ],
   },
 ];

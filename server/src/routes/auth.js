@@ -17,7 +17,7 @@ import {
   validateCompanyFields,
   validatePassword,
 } from '../lib/profile.js';
-import { DEFAULT_ROLE, isAdmin } from '../lib/roles.js';
+import { DEFAULT_ROLE, isStaff } from '../lib/roles.js';
 import { supabase, supabaseAuth } from '../lib/supabase.js';
 import { allocateCustomerNumber, createUserSession, ensureUserRole, finalizeOAuthUser, findUserByEmail, isEmailVerified, isSupportedOAuthUser, revokeSession } from '../lib/users.js';
 import { hasManualVerificationCode, issueVerificationCode, secondsUntilResend, verifyUserCode, verifyUserToken } from '../lib/verification.js';
@@ -410,7 +410,8 @@ router.put('/profile', requireAuth, async (req, res) => {
   const firstName = String(req.body?.firstName ?? current.firstName).trim();
   const lastName = String(req.body?.lastName ?? current.lastName).trim();
   const phone = normalizePhone(req.body?.phone ?? current.phone);
-  const adminUser = isAdmin(req.authUser);
+  // Platform staff (admin, IT Support) have no Stammdaten: no phone, company or customer number required.
+  const adminUser = isStaff(req.authUser);
 
   const accountErrors = validateAccountFields({
     firstName,

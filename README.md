@@ -97,6 +97,17 @@ Lead records live in Postgres (`public.leads`). The API uses the service role; R
 
 Run [`server/supabase/leads.sql`](server/supabase/leads.sql) in the **SQL Editor** of each Supabase project you use (Development and Production). Then run [`server/supabase/lead_requests.sql`](server/supabase/lead_requests.sql) for Berater-Anforderungen. Existing projects also need [`server/supabase/lead_workflow.sql`](server/supabase/lead_workflow.sql) (request statuses, complaints, refunds). After that, run [`server/supabase/lead_scope.sql`](server/supabase/lead_scope.sql) so leads and requests are split into **deutschlandweit** and **regional**. Then run [`server/supabase/lead_payments.sql`](server/supabase/lead_payments.sql) and [`server/supabase/lead_payments_procredit.sql`](server/supabase/lead_payments_procredit.sql) for ProCredit checkout (pending invoices + gateway order fields). Then run [`server/supabase/lead_follow_up.sql`](server/supabase/lead_follow_up.sql) for Termin / Wiedervorlage timestamps and reminder mail. Re-run the workflow script after pulling this change so complaint statuses become `pending | approved | declined` and `admin_note` exists. Repeat after switching projects.
 
+### IT Support console
+
+IT Support has its own interface at **`/it-support`** (separate from the Berater/Admin portal) for leads, appointments, users, payments, integrations, system errors and an activity log.
+
+1. Run [`server/supabase/it_support.sql`](server/supabase/it_support.sql) in each Supabase project. It creates `it_support_audit_log` (every console change: who, when, why, before/after) and `system_events` (server errors and warnings, captured automatically from `console.error` / `console.warn`). Console changes are refused until the activity log exists.
+2. Put the IT Support login(s) in `IT_SUPPORT_EMAILS` (comma-separated, works like `ADMIN_EMAILS`) in `server/.env` and on Render. The account gets the `it_support` role on its next request and lands on `/it-support` after login.
+
+The console is in **English by default** with a DE/EN switch in its sidebar (remembered per browser). English exists only in this console; the rest of VANTARO stays German. Activity-log entries are stored in both languages (`summary`, `summary_en`).
+
+Admins can open the console too (sidebar → *IT-Support-Konsole*). IT Support can correct, reset, reassign and delete records, resolve login problems, re-check payments with the bank and test integrations. It cannot change prices, discounts, complaint decisions or roles, and cannot modify admin or IT Support accounts. Destructive actions require a written reason, which is stored in the activity log.
+
 ### ProCredit payments
 
 Berater buy lead packages on **Mein Paket** via ProCredit Hosted Payment Page (one-time Purchase only). See [`server/docs/procredit-onboarding.md`](server/docs/procredit-onboarding.md) for bank onboarding, CSR, and env vars (`PROCREDIT_*`, `API_PUBLIC_URL`).

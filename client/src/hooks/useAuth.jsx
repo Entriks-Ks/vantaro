@@ -128,6 +128,7 @@ export function AuthProvider({ children }) {
       role: user ? role : null,
       isBerater: Boolean(user) && role === ROLES.BERATER,
       isAdmin: Boolean(user) && role === ROLES.ADMIN,
+      isItSupport: Boolean(user) && role === ROLES.IT_SUPPORT,
       loading,
       login,
       loginWithGoogle,

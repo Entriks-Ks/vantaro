@@ -12,6 +12,17 @@ const MISSING_COLS = /follow_up_at|appointment_at|contact_status|follow_up_remin
 
 let running = false;
 let timer = null;
+let lastRun = null;
+
+/** For the IT Support console: is the in-process reminder job alive and what did it do last? */
+export function reminderJobState() {
+  return {
+    started: Boolean(timer),
+    running,
+    intervalSec: INTERVAL_MS / 1000,
+    lastRun,
+  };
+}
 
 function leadDisplayName(row) {
   return `${row?.first_name || ''} ${row?.last_name || ''}`.trim() || 'einem Lead';
@@ -273,13 +284,18 @@ export async function processDueFollowUps() {
 export async function tickFollowUpReminders() {
   if (running) return { sent: 0, skipped: 0, busy: true };
   running = true;
+  const startedAt = new Date().toISOString();
+  let result = null;
   try {
-    return await processDueFollowUps();
+    result = await processDueFollowUps();
+    return result;
   } catch (error) {
     console.error('Schedule reminder job failed:', error.message);
-    return { sent: 0, skipped: 0, error: error.message };
+    result = { sent: 0, skipped: 0, error: error.message };
+    return result;
   } finally {
     running = false;
+    lastRun = { at: startedAt, finishedAt: new Date().toISOString(), ...(result || {}) };
   }
 }
 
