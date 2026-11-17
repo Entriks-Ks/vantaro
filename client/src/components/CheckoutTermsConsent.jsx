@@ -4,7 +4,7 @@
  */
 export default function CheckoutTermsConsent({ checked, onChange, disabled = false }) {
   return (
-    <label className="broker-checkout-terms">
+    <label className={`broker-checkout-terms${checked ? ' is-checked' : ''}`}>
       <input
         type="checkbox"
         checked={Boolean(checked)}

@@ -63,7 +63,6 @@ import {
   syncMyPayment,
 } from '../../lib/payments';
 import {
-  discountLineLabel,
   fetchMyDiscounts,
   matchingOneTimes,
   quoteForPackage,
@@ -76,8 +75,7 @@ import {
   writeBrokerSettings,
 } from '../../lib/brokerSettings';
 import { applyConsent, CONSENT_STORAGE_KEY, DEFAULT_PREFS, readStoredConsent } from '../../lib/analytics';
-import CardLogos from '../../components/CardLogos';
-import CheckoutTermsConsent from '../../components/CheckoutTermsConsent';
+import CheckoutConfirmModal from '../../components/CheckoutConfirmModal';
 import {
   CLOSE_OUTCOMES,
   LEAD_STATUSES,
@@ -4387,42 +4385,15 @@ export function BeraterPayments() {
 
       {/* Confirm → redirect to ProCredit Hosted Payment Page */}
       {checkoutPkg ? (
-        <div
-          className="broker-checkout-overlay"
-          role="dialog"
-          aria-modal="true"
-          onClick={(event) => {
-            if (event.target === event.currentTarget && !paying) setCheckout(null);
-          }}
-        >
-          <div className="broker-checkout-panel broker-simple-modal">
-            <div className="broker-simple-modal-head">
-              <div>
-                <h2>Zahlung bestätigen</h2>
-                <p>
-                  {checkoutQty} Leads
-                </p>
-              </div>
-              <button
-                type="button"
-                className="broker-checkout-close"
-                disabled={paying}
-                onClick={() => setCheckout(null)}
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            <div className="broker-simple-sum-row" style={{ marginBottom: '1rem' }}>
-              <span>{checkoutPkg.label}</span>
-              <strong>{formatEuroExact(checkoutQuote?.listCents ?? checkoutNet)}</strong>
-            </div>
-            {(checkoutQuote?.lines || []).map((line) => (
-              <div key={line.discount?.id || line.role} className="broker-simple-sum-row" style={{ marginBottom: '0.5rem' }}>
-                <span>{discountLineLabel(line)}</span>
-                <strong>− {formatEuroExact(line.amountCents)}</strong>
-              </div>
-            ))}
+        <CheckoutConfirmModal
+          productLabel={checkoutPkg.label}
+          productTitle={checkoutPkg.title}
+          quantity={checkoutQty}
+          unitPlural="Leads"
+          listCents={checkoutQuote?.listCents ?? checkoutList}
+          netCents={checkoutNet}
+          discountLines={checkoutQuote?.lines || []}
+          offers={(
             <OneTimeDiscountOffer
               offers={checkoutOffers}
               selectedId={checkoutUseId}
@@ -4430,44 +4401,14 @@ export function BeraterPayments() {
               unitLabel="Lead"
               compact
             />
-            {checkoutQuote?.discountCents ? (
-              <div className="broker-simple-sum-row" style={{ marginBottom: '1rem' }}>
-                <span>Zu zahlen</span>
-                <strong>{formatEuroExact(checkoutNet)}</strong>
-              </div>
-            ) : null}
-            <p className="lede" style={{ marginBottom: '1.25rem' }}>
-              Sie werden zur sicheren Zahlungsseite der ProCredit Bank weitergeleitet.
-              Kartendaten werden ausschließlich bei der Bank eingegeben.
-            </p>
-            <CardLogos className="broker-checkout-cards" />
-            <CheckoutTermsConsent
-              checked={checkout?.acceptedTerms}
-              disabled={paying}
-              onChange={(acceptedTerms) => setCheckout((prev) => (prev ? { ...prev, acceptedTerms } : prev))}
-            />
-
-            <div className="broker-checkout-actions">
-              <button
-                type="button"
-                className="btn btn-outline"
-                disabled={paying}
-                onClick={() => setCheckout(null)}
-              >
-                Abbrechen
-              </button>
-              <button
-                type="button"
-                className="btn btn-primary"
-                disabled={paying || !checkout?.acceptedTerms}
-                title={checkout?.acceptedTerms ? undefined : 'Bitte zuerst AGB und Erstattungsrichtlinie akzeptieren.'}
-                onClick={confirmPay}
-              >
-                {paying ? 'Weiterleitung…' : `${formatEuroExact(checkoutNet)} bezahlen`}
-              </button>
-            </div>
-          </div>
-        </div>
+          )}
+          acceptedTerms={Boolean(checkout?.acceptedTerms)}
+          onAcceptedTermsChange={(acceptedTerms) => setCheckout((prev) => (prev ? { ...prev, acceptedTerms } : prev))}
+          error={error}
+          paying={paying}
+          onCancel={() => setCheckout(null)}
+          onConfirm={confirmPay}
+        />
       ) : null}
 
       {/* Invoices List */}

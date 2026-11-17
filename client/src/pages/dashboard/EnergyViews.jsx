@@ -19,7 +19,6 @@ import {
   Sparkles,
   UserPlus,
   Users,
-  X,
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { isComplaintBlockedLead, isComplaintFlowLead } from '../../lib/complaints';
@@ -36,7 +35,6 @@ import {
   syncMyPayment,
 } from '../../lib/payments';
 import {
-  discountLineLabel,
   fetchMyDiscounts,
   matchingOneTimes,
   quoteForPackage,
@@ -64,7 +62,7 @@ import { ENERGY_UNIT_CENTS } from './packages';
 import { useBroker } from '../../hooks/useBroker';
 import { returnTo, returnLabel } from './LeadDetail';
 import { OneTimeDiscountOffer, oneTimePickFor, visibleOneTimeOffers } from './OneTimeDiscountOffer';
-import CheckoutTermsConsent from '../../components/CheckoutTermsConsent';
+import CheckoutConfirmModal from '../../components/CheckoutConfirmModal';
 
 const MIN_LEADS = 10;
 const LEAD_STEP = 5;
@@ -650,7 +648,7 @@ export function EnergyOrders() {
         acceptedTerms: true,
       });
       setActiveProductId(checkout.productId);
-      setCheckout(null);
+      // Keep the dialog open ("Weiterleitung zur Bank…") until the browser leaves for the bank.
       if (result.redirectUrl) {
         window.location.assign(result.redirectUrl);
         return;
@@ -882,52 +880,39 @@ export function EnergyOrders() {
       </div>
 
       {checkoutPkg && checkout ? (
-        <div
-          className="broker-checkout-overlay"
-          role="dialog"
-          aria-modal="true"
-          onClick={(event) => {
-            if (event.target === event.currentTarget && !paying) setCheckout(null);
-          }}
-        >
-          <div className="broker-checkout-panel broker-simple-modal">
-            <div className="broker-simple-modal-head">
-              <div>
-                <h2>Zahlung bestätigen</h2>
-                <p>
-                  {checkout.qty} × {checkoutPkg.label}
-                  {checkout.territory ? ` · ${checkout.territory}` : ''}
-                </p>
-              </div>
-              <button type="button" className="broker-checkout-close" disabled={paying} onClick={() => setCheckout(null)}>
-                <X size={18} />
-              </button>
-            </div>
-            <div className="broker-form-grid">
-              <label>
+        <CheckoutConfirmModal
+          productLabel={checkoutPkg.label}
+          productTitle={checkoutPkg.title}
+          quantity={checkout.qty}
+          unitPlural={String(checkoutPkg.id || '').includes('APPOINTMENT') ? 'Termine' : 'Leads'}
+          listCents={checkoutQuote?.listCents ?? ENERGY_UNIT_CENTS * checkout.qty}
+          netCents={checkoutNet}
+          discountLines={checkoutQuote?.lines || []}
+          details={(
+            <div className="checkout-modal__fields">
+              <label className="checkout-modal__field">
                 Gebiet / PLZ
                 <input
                   value={checkout.territory}
                   onChange={(event) => setCheckout((prev) => (prev ? { ...prev, territory: event.target.value } : prev))}
                   placeholder="z. B. 50667 oder Köln"
+                  disabled={paying}
                   required
                 />
               </label>
-              <label>
+              <label className="checkout-modal__field">
                 Gewünschter Zeitraum
-                <input value={timeframe} onChange={(event) => setTimeframe(event.target.value)} placeholder="z. B. Oktober 2026" required />
+                <input
+                  value={timeframe}
+                  onChange={(event) => setTimeframe(event.target.value)}
+                  placeholder="z. B. Oktober 2026"
+                  disabled={paying}
+                  required
+                />
               </label>
             </div>
-            <div className="broker-simple-sum-row" style={{ marginBottom: '1rem' }}>
-              <span>{checkoutPkg.label}</span>
-              <strong>{formatEuroExact(checkoutQuote?.listCents ?? checkoutNet)}</strong>
-            </div>
-            {(checkoutQuote?.lines || []).map((line) => (
-              <div key={line.discount?.id || line.role} className="broker-simple-sum-row" style={{ marginBottom: '0.5rem' }}>
-                <span>{discountLineLabel(line)}</span>
-                <strong>− {formatEuroExact(line.amountCents)}</strong>
-              </div>
-            ))}
+          )}
+          offers={(
             <OneTimeDiscountOffer
               offers={checkoutOffers}
               selectedId={checkoutUseId}
@@ -935,35 +920,14 @@ export function EnergyOrders() {
               unitLabel={String(checkoutPkg.id || '').includes('APPOINTMENT') ? 'Termin' : 'Lead'}
               compact
             />
-            {checkoutQuote?.discountCents ? (
-              <div className="broker-simple-sum-row" style={{ marginBottom: '1rem' }}>
-                <span>Zu zahlen</span>
-                <strong>{formatEuroExact(checkoutNet)}</strong>
-              </div>
-            ) : null}
-            <p className="lede" style={{ marginBottom: '1.25rem' }}>
-              Sie werden zur sicheren Zahlungsseite der ProCredit Bank weitergeleitet.
-              Kartendaten werden ausschließlich bei der Bank eingegeben.
-            </p>
-            <CheckoutTermsConsent
-              checked={checkout.acceptedTerms}
-              disabled={paying}
-              onChange={(acceptedTerms) => setCheckout((prev) => (prev ? { ...prev, acceptedTerms } : prev))}
-            />
-            <div className="broker-checkout-actions">
-              <button type="button" className="btn btn-outline" disabled={paying} onClick={() => setCheckout(null)}>Abbrechen</button>
-              <button
-                type="button"
-                className="btn btn-primary"
-                disabled={paying || !checkout.acceptedTerms}
-                title={checkout.acceptedTerms ? undefined : 'Bitte zuerst AGB und Erstattungsrichtlinie akzeptieren.'}
-                onClick={confirmPay}
-              >
-                {paying ? 'Weiterleitung…' : `${formatEuroExact(checkoutNet)} bezahlen`}
-              </button>
-            </div>
-          </div>
-        </div>
+          )}
+          acceptedTerms={Boolean(checkout.acceptedTerms)}
+          onAcceptedTermsChange={(acceptedTerms) => setCheckout((prev) => (prev ? { ...prev, acceptedTerms } : prev))}
+          error={error}
+          paying={paying}
+          onCancel={() => setCheckout(null)}
+          onConfirm={confirmPay}
+        />
       ) : null}
 
       <section className="broker-panel broker-invoice-panel">
