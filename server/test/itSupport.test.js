@@ -300,3 +300,43 @@ describe('console language', () => {
     assert.equal(german.body.problems[0].label, 'Status „Zugewiesen“, aber kein Berater');
   });
 });
+
+describe('IT Support schema check', () => {
+  // Answers the check's SELECT ... LIMIT 0 probes like PostgREST would for the given schema.
+  async function schemaWith(absent) {
+    const realFrom = client.from;
+    client.from = (table) => ({
+      select: (columns) => ({
+        limit: async () => {
+          if (absent.has(table)) return { data: null, error: { code: 'PGRST205', message: `Could not find the table 'public.${table}'` } };
+          const column = String(columns).split(',').find((name) => absent.has(`${table}.${name}`));
+          if (column) return { data: null, error: { code: '42703', message: `column ${table}.${column} does not exist` } };
+          return { data: [], error: null };
+        },
+      }),
+    });
+    try {
+      const { checkSchema } = await import('../src/routes/itSupport/integrations.js');
+      const result = await checkSchema('en');
+      return Object.fromEntries(result.scripts.map((script) => [script.file.replace('server/supabase/', ''), script]));
+    } finally {
+      client.from = realFrom;
+    }
+  }
+
+  test('energy_portal.sql is not reported for the parts unify_leads.sql removed on purpose', async () => {
+    const scripts = await schemaWith(new Set([
+      'energy_complaints', 'energy_delivery_lines', 'energy_billing_profiles', 'leads.energy_status', 'berater_discounts.expires_at',
+    ]));
+    assert.equal(scripts['energy_portal.sql'].ok, true);
+    assert.equal(scripts['unify_leads.sql'].ok, true);
+    assert.deepEqual(scripts['berater_discounts_expires.sql'].missing, ['berater_discounts.expires_at']);
+  });
+
+  test('unify_leads.sql is reported while removed energy tables still exist', async () => {
+    const scripts = await schemaWith(new Set(['energy_delivery_lines', 'energy_billing_profiles', 'leads.energy_status']));
+    assert.equal(scripts['unify_leads.sql'].ok, false);
+    assert.deepEqual(scripts['unify_leads.sql'].missing, ['table energy_complaints still exists']);
+    assert.equal(scripts['energy_portal.sql'].ok, true);
+  });
+});

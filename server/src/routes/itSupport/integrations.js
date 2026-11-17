@@ -38,17 +38,28 @@ export const SCHEMA_SCRIPTS = [
   { file: 'lead_complaint_admin_seen.sql', checks: [['lead_complaints', ['admin_seen_at']]] },
   { file: 'lead_complaint_replacement.sql', checks: [['lead_complaints', ['replacement_lead_id']]] },
   { file: 'vertical.sql', checks: [['leads', ['vertical', 'energy_product', 'delivery_type']], ['lead_requests', ['vertical', 'territory']]] },
-  { file: 'energy_portal.sql', checks: [['leads', ['energy_holder_id', 'calendar_sync_status', 'google_event_id']], ['energy_calendar_connections', ['user_id']], ['energy_complaints', ['id']], ['energy_delivery_lines', ['id']], ['energy_billing_profiles', ['company_id']]] },
+  // Only the parts of energy_portal.sql that unify_leads.sql keeps.
+  { file: 'energy_portal.sql', checks: [['leads', ['energy_holder_id', 'google_event_id', 'google_event_etag', 'calendar_sync_status']], ['energy_calendar_connections', ['user_id', 'sync_status']]] },
+  // unify_leads.sql removes the rest of energy_portal.sql again, so it is checked by what must be gone.
+  { file: 'unify_leads.sql', gone: [['leads', 'energy_status'], ['energy_complaints'], ['energy_delivery_lines'], ['energy_billing_profiles']] },
   { file: 'berater_discounts.sql', checks: [['berater_discounts', ['id', 'berater_id']], ['lead_payments', ['list_cents', 'discount_cents', 'discount_snapshot']]] },
   { file: 'berater_discounts_expires.sql', checks: [['berater_discounts', ['expires_at']]] },
   { file: 'payment_audit_log.sql', checks: [['payment_audit_log', ['id', 'event', 'payment_id']]] },
   { file: 'it_support.sql', checks: [['it_support_audit_log', ['id', 'action', 'reason', 'summary_en']], ['system_events', ['id', 'occurrences', 'resolved_at']]] },
 ];
 
+function tableMissing(error) {
+  return error.code === '42P01' || error.code === 'PGRST205' || /could not find the table|relation .* does not exist/i.test(error.message || '');
+}
+
+function columnMissing(error) {
+  return error.code === '42703' || error.code === 'PGRST204' || /column .* does not exist|could not find the .* column/i.test(error.message || '');
+}
+
 async function probe(table, columns, t) {
   const { error } = await supabase.from(table).select(columns.join(',')).limit(0);
   if (!error) return [];
-  if (error.code === '42P01' || error.code === 'PGRST205' || /could not find the table|relation .* does not exist/i.test(error.message || '')) {
+  if (tableMissing(error)) {
     return [t(`Tabelle ${table}`, `table ${table}`)];
   }
   const missing = [];
@@ -59,12 +70,26 @@ async function probe(table, columns, t) {
   return missing.length ? missing : [`${table}: ${error.message}`];
 }
 
+// For scripts that remove things: reports a table or column that still exists.
+async function leftover(table, column, t) {
+  const { error } = await supabase.from(table).select(column || '*').limit(0);
+  if (!error) {
+    return column
+      ? t(`${table}.${column} noch vorhanden`, `${table}.${column} still exists`)
+      : t(`Tabelle ${table} noch vorhanden`, `table ${table} still exists`);
+  }
+  if (tableMissing(error) || (column && columnMissing(error))) return null;
+  return `${table}: ${error.message}`;
+}
+
 export async function checkSchema(lang = 'de') {
   if (!supabaseConfig.configured || !supabase) return { scripts: [], missingCount: 0 };
   const t = tr(lang);
   const scripts = await Promise.all(SCHEMA_SCRIPTS.map(async (script) => {
-    const missing = (await Promise.all(script.checks.map(([table, columns]) => probe(table, columns, t)))).flat();
-    return { file: `server/supabase/${script.file}`, ok: !missing.length, missing };
+    const missing = (await Promise.all((script.checks || []).map(([table, columns]) => probe(table, columns, t)))).flat();
+    const leftovers = (await Promise.all((script.gone || []).map(([table, column]) => leftover(table, column, t)))).filter(Boolean);
+    const problems = [...missing, ...leftovers];
+    return { file: `server/supabase/${script.file}`, ok: !problems.length, missing: problems };
   }));
   return { scripts, missingCount: scripts.filter((script) => !script.ok).length };
 }
