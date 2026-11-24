@@ -12,19 +12,24 @@ import {
   TriangleAlert,
   Zap,
 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { L, pick } from './i18n';
+import { Cell, TableIcon } from './dbUi';
 import { Banner, Button, CopyId, DataTable, Drawer, ErrorBanner, Loading, SearchInput, Tabs, useApi, useToast } from './ui';
 import {
   AUTH_USERS,
   cellText,
   checksOf,
   cleanTable,
+  columnLabel,
   deleteTree,
+  displayValue,
   deleteTriggersOf,
   incomingKeys,
   listColumns,
   outgoingKeys,
   PARENT_RULE_TEXT,
+  rowPage,
   RULE_TEXT,
   sqlLiteral,
   supabaseDashboardUrl,
@@ -143,6 +148,7 @@ export default function TableInfo({ rel, projectRef, target, onClose }) {
   const info = useApi(table && key && !frame?.column ? '/database/record' : null, table && key ? { table, key: JSON.stringify(key) } : undefined);
   const isRow = Boolean(frame?.row);
   const current = info.data?.row || frame?.row || null;
+  const page = isRow ? rowPage(table, current) : null;
 
   const outgoing = useMemo(() => (table ? outgoingKeys(rel, table) : []), [rel, table]);
   const incoming = useMemo(() => {
@@ -224,8 +230,31 @@ export default function TableInfo({ rel, projectRef, target, onClose }) {
           ) : (
             <>
               <div className="its-info-hero">
-                <span className="its-info-kind">{isRow ? L('Dieser Eintrag', 'This row') : L('Diese Tabelle', 'This table')}</span>
+                <div className="its-info-hero-top">
+                  <TableIcon table={table} size="lg" />
+                  <div>
+                    <span className="its-info-kind">{isRow ? L('Dieser Eintrag', 'This row') : L('Diese Tabelle', 'This table')}</span>
+                    <strong className="its-info-title">{tableLabel(table)}</strong>
+                  </div>
+                  {page ? (
+                    <Link className="its-btn is-primary is-sm" to={page} onClick={onClose}>
+                      <span>{L('In der Konsole öffnen', 'Open in console')}</span> <ArrowRight size={13} />
+                    </Link>
+                  ) : null}
+                </div>
                 <p>{tableAbout(table, meta?.comment)}</p>
+                {isRow && !counting ? (
+                  <p className={`its-info-plain${blocked.length ? ' is-error' : cascadeCount ? ' is-warn' : nullCount ? ' is-info' : ' is-ok'}`}>
+                    {blocked.length
+                      ? L('Diese Zeile kann so nicht gelöscht werden: andere Zeilen hängen noch daran.', 'This row cannot be deleted as is: other rows still depend on it.')
+                      : cascadeCount || nullCount
+                        ? L(
+                          `Wird diese Zeile gelöscht, werden ${cascadeCount} weitere Zeilen mitgelöscht und bei ${nullCount} Zeilen die Verknüpfung geleert.`,
+                          `If this row is deleted, ${cascadeCount} other rows are deleted too and ${nullCount} rows lose their link.`,
+                        )
+                        : L('Nichts anderes hängt an dieser Zeile.', 'Nothing else depends on this row.')}
+                  </p>
+                ) : null}
                 {key ? (
                   <div className="its-info-keys">
                     {pk.map((column) => (
@@ -266,9 +295,9 @@ export default function TableInfo({ rel, projectRef, target, onClose }) {
                 onChange={setTab}
                 tabs={[
                   { value: 'overview', label: L('Überblick', 'Overview') },
-                  { value: 'links', label: L('Verknüpfungen', 'Connections'), count: outgoing.length + incoming.length },
-                  { value: 'delete', label: L('Löschen', 'Delete') },
-                  { value: 'fields', label: L('Felder', 'Fields'), count: meta?.columns?.length },
+                  { value: 'links', label: L('Verknüpfte Daten', 'Connected data'), count: outgoing.length + incoming.length },
+                  { value: 'delete', label: L('Beim Löschen', 'If deleted') },
+                  { value: 'fields', label: L('Alle Felder', 'All fields'), count: meta?.columns?.length },
                   { value: 'sql', label: 'SQL' },
                 ]}
               />
@@ -287,8 +316,8 @@ export default function TableInfo({ rel, projectRef, target, onClose }) {
                     <dl className="its-kv">
                       {listColumns(meta, table).map((column) => (
                         <div key={column}>
-                          <dt><code>{column}</code></dt>
-                          <dd>{cellText(current[column]) || '—'}</dd>
+                          <dt>{columnLabel(column)}</dt>
+                          <dd><Cell table={table} column={column} value={current[column]} /></dd>
                         </div>
                       ))}
                     </dl>
@@ -317,8 +346,9 @@ export default function TableInfo({ rel, projectRef, target, onClose }) {
                           <div key={fk.name} className="its-link-row">
                             <div>
                               <div className="its-link-title">
-                                <code>{fk.columns.join(', ')}</code> <ArrowRight size={12} /> <strong>{tableLabel(fk.ref_table)}</strong>
-                                <code className="its-muted">{cleanTable(fk.ref_table)}.{fk.ref_columns.join(', ')}</code>
+                                <TableIcon table={fk.ref_table} size="sm" />
+                                <strong>{fk.columns.map(columnLabel).join(', ')}</strong> <ArrowRight size={12} /> <strong>{tableLabel(fk.ref_table)}</strong>
+                                <code className="its-muted">{fk.columns.join(', ')} → {cleanTable(fk.ref_table)}.{fk.ref_columns.join(', ')}</code>
                               </div>
                               {isRow ? <div className="its-muted"><code>= {values.map((value) => cellText(value) || 'NULL').join(', ')}</code></div> : null}
                               <div className="its-muted"><RuleBadge rule={fk.on_delete} /> {pick(PARENT_RULE_TEXT[fk.on_delete])}</div>
@@ -338,7 +368,12 @@ export default function TableInfo({ rel, projectRef, target, onClose }) {
                         return (
                           <div key={fk.name} className={`its-link-row${isRow && !has && info.data ? ' is-dim' : ''}`}>
                             <div>
-                              <div className="its-link-title"><strong>{tableLabel(fk.table)}</strong> <code className="its-muted">{cleanTable(fk.table)}.{fk.columns.join(', ')}</code></div>
+                              <div className="its-link-title">
+                                <TableIcon table={fk.table} size="sm" />
+                                <strong>{tableLabel(fk.table)}</strong>
+                                <span className="its-muted">{L(`als „${fk.columns.map(columnLabel).join(', ')}“`, `as "${fk.columns.map(columnLabel).join(', ')}"`)}</span>
+                                <code className="its-muted">{cleanTable(fk.table)}.{fk.columns.join(', ')}</code>
+                              </div>
                               <div className="its-muted"><RuleBadge rule={fk.on_delete} /> {pick(RULE_TEXT[fk.on_delete])}</div>
                             </div>
                             {isRow ? (
@@ -403,6 +438,7 @@ export default function TableInfo({ rel, projectRef, target, onClose }) {
                     {fields.map((column) => (
                       <div key={column.name}>
                         <dt>
+                          {columnLabel(column.name) !== column.name ? <strong>{columnLabel(column.name)}</strong> : null}
                           <code>{column.name}</code>
                           {column.type ? <small>{column.type}{column.nullable ? '' : ' · not null'}{column.default ? ` · default ${column.default}` : ''}</small> : null}
                         </dt>
@@ -410,7 +446,16 @@ export default function TableInfo({ rel, projectRef, target, onClose }) {
                           {!isRow ? <span className="its-muted">—</span>
                             : current?.[column.name] === null || current?.[column.name] === undefined
                               ? <span className="its-muted">NULL</span>
-                              : <code>{typeof current[column.name] === 'object' ? JSON.stringify(current[column.name], null, 2) : String(current[column.name])}</code>}
+                              : typeof current[column.name] === 'object'
+                                ? <code>{JSON.stringify(current[column.name], null, 2)}</code>
+                                : (
+                                  <span className="its-field-value">
+                                    <Cell table={table} column={column.name} value={current[column.name]} />
+                                    {displayValue(table, column.name, current[column.name]).text !== String(current[column.name])
+                                      ? <code className="its-muted">{String(current[column.name])}</code>
+                                      : null}
+                                  </span>
+                                )}
                         </dd>
                       </div>
                     ))}

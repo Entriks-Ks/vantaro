@@ -1,66 +1,130 @@
 import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { ArrowRight, Database as DatabaseIcon, Info, RefreshCw, UserRound } from 'lucide-react';
+import {
+  ArrowRight,
+  ArrowUpRight,
+  Database as DatabaseIcon,
+  Eraser,
+  Info,
+  Link2,
+  RefreshCw,
+  Table2,
+  Trash2,
+  UserRound,
+  Users,
+} from 'lucide-react';
 import { label, ROLE } from './format';
 import { L } from './i18n';
-import { Banner, Button, Card, Chip, CopyId, DataTable, EmptyState, ErrorBanner, Loading, Page, SearchInput, Segmented, useApi } from './ui';
+import { Banner, Button, Card, Chip, CopyId, DataTable, EmptyState, ErrorBanner, Loading, Page, SearchInput, Segmented, Stat, useApi } from './ui';
 import TableInfo, { RuleBadge } from './TableInfo';
+import { Cell, TableIcon } from './dbUi';
 import {
   AUTH_USERS,
   AUTH_USERS_META,
-  cellText,
+  cleanTable,
+  columnLabel,
+  GROUPS,
   incomingKeys,
   listColumns,
   outgoingKeys,
+  rowPage,
   tableAbout,
   tableLabel,
   tableMeta,
+  tableOrder,
+  tableUi,
 } from './schemaDocs';
 
+function Legend() {
+  return (
+    <div className="its-db-legend">
+      <strong>{L('So lesen:', 'How to read:')}</strong>
+      <span><RuleBadge rule="CASCADE" /> {L('wird beim Löschen mitgelöscht', 'deleted along with it')}</span>
+      <span><RuleBadge rule="SET NULL" /> {L('bleibt, Verknüpfung wird geleert', 'kept, link is cleared')}</span>
+      <span><RuleBadge rule="NO ACTION" /> {L('blockiert das Löschen', 'blocks the delete')}</span>
+      <span><RuleBadge rule={null} /> {L('Verknüpfung ohne Fremdschlüssel', 'link without a foreign key')}</span>
+    </div>
+  );
+}
+
 /* ---------- Tables tab ---------- */
+
+function TableCard({ rel, table, count, onOpen }) {
+  const out = outgoingKeys(rel, table);
+  const targets = [...new Set(out.map((fk) => cleanTable(fk.ref_table)))];
+  const linkedFrom = new Set(incomingKeys(rel, table).map((fk) => cleanTable(fk.table))).size;
+  const ui = tableUi(table);
+  return (
+    <button type="button" className="its-db-card" onClick={() => onOpen({ table })}>
+      <div className="its-db-card-top">
+        <TableIcon table={table} />
+        <div className="its-db-card-name">
+          <strong>{tableLabel(table)}</strong>
+          <code>{table === AUTH_USERS ? AUTH_USERS : `public.${table}`}</code>
+        </div>
+        <div className="its-db-card-count">
+          <strong>{count ?? '—'}</strong>
+          <span>{L('Zeilen', 'rows')}</span>
+        </div>
+      </div>
+      <p>{ui.summary || tableAbout(table)}</p>
+      <div className="its-db-card-links">
+        {targets.length ? targets.map((target) => (
+          <span key={target} className="its-db-pill"><ArrowUpRight size={11} /> {tableLabel(target)}</span>
+        )) : <span className="its-db-pill is-muted">{L('verweist auf nichts', 'links to nothing')}</span>}
+        {linkedFrom ? <span className="its-db-pill is-in"><Link2 size={11} /> {linkedFrom === 1 ? L('1 Tabelle verweist hierher', '1 table links here') : L(`${linkedFrom} Tabellen verweisen hierher`, `${linkedFrom} tables link here`)}</span> : null}
+      </div>
+    </button>
+  );
+}
 
 function TablesView({ map, onOpen }) {
   const { relations: rel, counts } = map;
   const [q, setQ] = useState('');
   const tables = useMemo(() => [AUTH_USERS_META, ...rel.tables], [rel]);
   const needle = q.trim().toLowerCase();
-  const rows = tables.filter((table) => !needle
+  const visible = tables.filter((table) => !needle
     || table.table.toLowerCase().includes(needle)
     || tableLabel(table.table).toLowerCase().includes(needle)
     || table.columns.some((column) => column.name.toLowerCase().includes(needle)));
+  const totalRows = rel.tables.reduce((sum, table) => sum + (counts?.[table.table] || 0), 0);
 
   return (
-    <Card
-      flush
-      title={L('Tabellen', 'Tables')}
-      description={L(
-        'Alle Tabellen mit Zweck, Zeilenzahl und Verknüpfungen. Klick öffnet das Info-Fenster: Verknüpfungen, was ein Löschen auslöst, Felder und SQL.',
-        'Every table with its purpose, row count and links. A click opens the info window: connections, what a delete sets off, fields and SQL.',
-      )}
-      actions={<SearchInput value={q} onChange={setQ} placeholder={L('Tabelle oder Spalte …', 'Table or column …')} />}
-    >
-      <DataTable
-        rowKey={(row) => row.table}
-        rows={rows}
-        onRowClick={(row) => onOpen({ table: row.table })}
-        columns={[
-          {
-            key: 'table',
-            label: L('Tabelle', 'Table'),
-            render: (row) => (
-              <div className="its-db-name">
-                <strong>{tableLabel(row.table)}</strong>
-                <code>{row.table === AUTH_USERS ? AUTH_USERS : `public.${row.table}`}</code>
-              </div>
-            ),
-          },
-          { key: 'about', label: L('Wofür', 'What for'), render: (row) => <span className="its-db-about">{tableAbout(row.table, row.comment)}</span> },
-          { key: 'rows', label: L('Zeilen', 'Rows'), className: 'is-num', render: (row) => (counts?.[row.table] ?? '—') },
-          { key: 'out', label: L('Verweist auf', 'Links to'), className: 'is-num', render: (row) => outgoingKeys(rel, row.table).length },
-          { key: 'in', label: L('Verwiesen von', 'Linked from'), className: 'is-num', render: (row) => incomingKeys(rel, row.table).length },
-        ]}
-      />
-    </Card>
+    <div className="its-stack">
+      <div className="its-stats is-compact">
+        <Stat label={L('Tabellen', 'Tables')} value={tables.length} icon={Table2} hint={L('inkl. Logins', 'incl. logins')} />
+        <Stat label={L('Zeilen gesamt', 'Rows in total')} value={totalRows.toLocaleString()} icon={DatabaseIcon} hint={L('ohne Logins', 'without logins')} />
+        <Stat label={L('Konten', 'Accounts')} value={counts?.[AUTH_USERS]} icon={Users} hint="auth.users" />
+        <Stat label={L('Verknüpfungen', 'Links')} value={rel.foreign_keys.length} icon={Link2} hint={L('zwischen Tabellen', 'between tables')} />
+      </div>
+
+      <Card>
+        <div className="its-db-toolbar">
+          <SearchInput value={q} onChange={setQ} placeholder={L('Tabelle oder Spalte suchen …', 'Search table or column …')} />
+          <Legend />
+        </div>
+      </Card>
+
+      {!visible.length ? <EmptyState icon={Table2} title={L('Keine passende Tabelle', 'No matching table')} /> : null}
+
+      {GROUPS.map((group) => {
+        const inGroup = visible.filter((table) => tableUi(table.table).group === group.id).sort((a, b) => tableOrder(a.table) - tableOrder(b.table));
+        if (!inGroup.length) return null;
+        return (
+          <section key={group.id} className="its-db-group">
+            <header>
+              <h2>{L(group.label[0], group.label[1])}</h2>
+              <span>{L(group.hint[0], group.hint[1])}</span>
+            </header>
+            <div className="its-db-grid">
+              {inGroup.map((table) => (
+                <TableCard key={table.table} rel={rel} table={table.table} count={counts?.[table.table]} onOpen={onOpen} />
+              ))}
+            </div>
+          </section>
+        );
+      })}
+    </div>
   );
 }
 
@@ -70,8 +134,16 @@ function UserPicker({ onPick }) {
   const [q, setQ] = useState('');
   const users = useApi(q ? '/users' : null, { q, limit: 8 });
   return (
-    <Card title={L('Nutzer wählen', 'Pick a user')} description={L('Name, E-Mail, Kundennummer oder ID.', 'Name, email, customer number or ID.')}>
-      <SearchInput value={q} onChange={setQ} autoFocus placeholder={L('Nutzer suchen …', 'Search user …')} />
+    <Card>
+      <div className="its-db-picker">
+        <span className="its-db-picker-icon"><UserRound size={22} /></span>
+        <h2>{L('Wessen Daten möchten Sie sehen?', 'Whose data do you want to see?')}</h2>
+        <p>{L(
+          'Nutzer suchen: Sie sehen danach alles, was in der Datenbank zu diesem Konto gehört.',
+          'Search a user: you will then see everything in the database that belongs to that account.',
+        )}</p>
+        <SearchInput value={q} onChange={setQ} autoFocus placeholder={L('Name, E-Mail, Kundennummer oder ID …', 'Name, email, customer number or ID …')} />
+      </div>
       <ErrorBanner error={users.error} />
       {q ? (
         <DataTable
@@ -79,15 +151,33 @@ function UserPicker({ onPick }) {
           loading={users.loading}
           onRowClick={(row) => onPick(row.id)}
           columns={[
-            { key: 'name', label: 'Name', render: (row) => row.fullName || '—' },
+            {
+              key: 'name',
+              label: 'Name',
+              render: (row) => (
+                <span className="its-db-person">
+                  <span className="its-avatar" aria-hidden="true">{initials(row.fullName || row.email)}</span>
+                  <strong>{row.fullName || '—'}</strong>
+                </span>
+              ),
+            },
             { key: 'email', label: L('E-Mail', 'Email') },
-            { key: 'role', label: L('Rolle', 'Role'), render: (row) => label(ROLE, row.role) },
-            { key: 'id', label: 'ID', render: (row) => <CopyId value={row.id} /> },
+            { key: 'role', label: L('Rolle', 'Role'), render: (row) => <Chip tone={row.role === 'berater' ? 'neutral' : 'info'} icon={false}>{label(ROLE, row.role)}</Chip> },
+            { key: 'go', label: '', className: 'is-num', render: () => <ArrowRight size={14} className="its-muted" /> },
           ]}
         />
       ) : null}
     </Card>
   );
+}
+
+function initials(text) {
+  return String(text || '?').split(/[\s@.]+/).filter(Boolean).slice(0, 2).map((part) => part[0].toUpperCase()).join('');
+}
+
+function displayName(user) {
+  const meta = user.user_metadata || {};
+  return meta.full_name || [meta.first_name, meta.last_name].filter(Boolean).join(' ') || user.email;
 }
 
 function sectionTitle(section) {
@@ -96,98 +186,131 @@ function sectionTitle(section) {
   return tableLabel(section.table);
 }
 
+function sectionVia(section) {
+  if (section.table === AUTH_USERS) return L('über user_metadata.energy_company_id', 'via user_metadata.energy_company_id');
+  if (section.noForeignKey) return L(`über ${section.column}`, `via ${section.column}`);
+  return L(`als „${columnLabel(section.column)}“`, `as "${columnLabel(section.column)}"`);
+}
+
+const sectionAnchor = (section) => `db-${section.key.replace(/[^a-z0-9]+/gi, '-')}`;
+
 function UserData({ map, userId, onOpen, onClear }) {
   const rel = map.relations;
   const { data, error, loading, reload } = useApi(`/database/users/${userId}`);
-  const [hideEmpty, setHideEmpty] = useState(true);
 
   if (!data && loading) return <Loading />;
   if (!data) return <ErrorBanner error={error} onRetry={reload} />;
 
   const { user, sections } = data;
   const withRows = sections.filter((section) => section.total);
-  const shown = hideEmpty ? withRows : sections;
-  const cascade = sections.filter((section) => section.onDelete === 'CASCADE').reduce((sum, section) => sum + (section.total || 0), 0);
-  const cleared = sections.filter((section) => section.onDelete === 'SET NULL').reduce((sum, section) => sum + (section.total || 0), 0);
+  const empty = sections.filter((section) => !section.total && !section.error);
+  const sum = (rule) => sections.filter((section) => section.onDelete === rule).reduce((total, section) => total + (section.total || 0), 0);
+  const cascade = sum('CASCADE');
+  const cleared = sum('SET NULL');
+  const name = displayName(user);
 
   return (
     <div className="its-stack">
-      <Card
-        title={<span className="its-search-head"><UserRound size={16} /> {user.email}</span>}
-        description={L(
-          'Alle Zeilen in der Datenbank, die zu diesem Login gehören, gruppiert nach Tabelle und Spalte. Klick auf eine Zeile öffnet das Info-Fenster.',
-          'Every row in the database that belongs to this login, grouped by table and column. Click a row for the info window.',
-        )}
-        actions={(
-          <>
-            <Button size="sm" tone="ghost" icon={RefreshCw} onClick={reload} aria-label={L('Neu laden', 'Reload')} />
-            <Button size="sm" icon={Info} onClick={() => onOpen({ table: AUTH_USERS, row: user })}>{L('Login-Info', 'Login info')}</Button>
-            <Link className="its-btn is-default is-sm" to={`/it-support/users?id=${user.id}`}><span>{L('In „Nutzer“ öffnen', 'Open in Users')}</span></Link>
-            <Button size="sm" tone="ghost" onClick={onClear}>{L('Anderer Nutzer', 'Other user')}</Button>
-          </>
-        )}
-      >
-        <div className="its-drawer-chips">
-          <Chip tone="info" icon={false}>{label(ROLE, user.role)}</Chip>
-          <CopyId value={user.id} full />
-          {data.company ? (
-            <Chip icon={false}>{L('Partner der Firma', 'Partner of company')} <CopyId value={data.company} /></Chip>
-          ) : null}
+      <section className="its-db-profile">
+        <span className="its-db-avatar" aria-hidden="true">{initials(name)}</span>
+        <div className="its-db-profile-text">
+          <h2>{name}</h2>
+          <p>{user.email}</p>
+          <div className="its-db-profile-chips">
+            <Chip tone={user.role === 'berater' ? 'neutral' : 'info'} icon={false}>{label(ROLE, user.role)}</Chip>
+            <CopyId value={user.id} />
+            {data.company ? <Chip icon={false}>{L('Partner einer Firma', 'Partner of a company')} <CopyId value={data.company} /></Chip> : null}
+          </div>
         </div>
-        <div className="its-info-sums is-light">
-          <div><span>{L('Tabellen mit Daten', 'Tables with data')}</span><strong>{withRows.length} / {sections.length}</strong></div>
-          <div className={cascade ? 'is-error' : ''}><span>{L('Beim Löschen des Logins mitgelöscht', 'Deleted with the login')}</span><strong>{cascade}</strong></div>
-          <div className={cleared ? 'is-warn' : ''}><span>{L('Beim Löschen geleert (NULL)', 'Cleared on delete (NULL)')}</span><strong>{cleared}</strong></div>
+        <div className="its-db-profile-actions">
+          <Link className="its-btn is-primary is-sm" to={`/it-support/users?id=${user.id}`}><UserRound size={14} /><span>{L('Nutzerseite', 'User page')}</span></Link>
+          <Button size="sm" icon={Info} onClick={() => onOpen({ table: AUTH_USERS, row: user })}>{L('Login-Details', 'Login details')}</Button>
+          <Button size="sm" tone="ghost" icon={RefreshCw} onClick={reload} aria-label={L('Neu laden', 'Reload')} />
+          <Button size="sm" tone="ghost" onClick={onClear}>{L('Anderer Nutzer', 'Other user')}</Button>
         </div>
-        <label className="its-check">
-          <input type="checkbox" checked={hideEmpty} onChange={(event) => setHideEmpty(event.target.checked)} />
-          {L('Leere Tabellen ausblenden', 'Hide empty tables')}
-        </label>
-      </Card>
+      </section>
 
-      {!shown.length ? <EmptyState icon={DatabaseIcon} title={L('Keine Daten zu diesem Nutzer.', 'No data for this user.')} /> : null}
+      <div className="its-db-impact">
+        <div><DatabaseIcon size={16} /><span><strong>{withRows.reduce((total, section) => total + section.total, 0)}</strong> {L(`Zeilen in ${withRows.length} Bereichen`, `rows in ${withRows.length} areas`)}</span></div>
+        <div className={cascade ? 'is-error' : ''}><Trash2 size={16} /><span><strong>{cascade}</strong> {L('würden beim Löschen des Kontos mitgelöscht', 'would be deleted with the account')}</span></div>
+        <div className={cleared ? 'is-warn' : ''}><Eraser size={16} /><span><strong>{cleared}</strong> {L('würden ihre Verknüpfung verlieren (NULL)', 'would lose their link (NULL)')}</span></div>
+      </div>
 
-      {shown.map((section) => {
+      {withRows.length ? (
+        <div className="its-db-tiles">
+          {withRows.map((section) => (
+            <a key={section.key} className="its-db-tile" href={`#${sectionAnchor(section)}`}>
+              <TableIcon table={section.table} size="sm" />
+              <span>
+                <strong>{sectionTitle(section)}</strong>
+                <small>{sectionVia(section)}</small>
+              </span>
+              <em>{section.total}</em>
+            </a>
+          ))}
+        </div>
+      ) : <EmptyState icon={DatabaseIcon} title={L('Zu diesem Konto gibt es keine Daten.', 'There is no data for this account.')} />}
+
+      {empty.length ? (
+        <p className="its-db-none">
+          {L('Keine Daten in: ', 'No data in: ')}
+          {empty.map((section) => `${sectionTitle(section)} (${columnLabel(section.column)})`).join(' · ')}
+        </p>
+      ) : null}
+
+      {sections.filter((section) => section.total || section.error).map((section) => {
         const meta = tableMeta(rel, section.table);
         const pk = meta?.primary_key || ['id'];
         const columns = listColumns(meta, section.table).slice(0, 5);
+        const withPage = section.rows.some((row) => rowPage(section.table, row));
         return (
-          <Card
-            key={section.key}
-            flush
-            title={(
-              <span className="its-search-head">
-                {sectionTitle(section)} <em>{section.total ?? '?'}</em>
-              </span>
-            )}
-            description={(
-              <span className="its-db-via">
-                <code>{section.table === AUTH_USERS ? section.column : `${section.table}.${section.column}`}</code>
-                <ArrowRight size={12} /> <code>{AUTH_USERS}.id</code>
-                <RuleBadge rule={section.onDelete} />
-                {section.truncated ? <span>{L(`erste ${data.rowLimit} Zeilen`, `first ${data.rowLimit} rows`)}</span> : null}
-              </span>
-            )}
-            actions={<Button size="sm" tone="ghost" icon={Info} onClick={() => onOpen({ table: section.table })}>{L('Tabelle', 'Table')}</Button>}
-          >
-            {section.error ? <Banner tone="error">{section.error}</Banner> : null}
-            <DataTable
-              rows={section.rows}
-              rowKey={(row) => JSON.stringify(pk.map((column) => row[column]))}
-              onRowClick={(row) => onOpen({ table: section.table, row })}
-              empty={<EmptyState title={L('Keine Zeilen', 'No rows')} />}
-              columns={[
-                { key: '_id', label: pk.join(', '), render: (row) => <CopyId value={String(row[pk[0]] ?? '')} /> },
-                ...columns.map((key) => ({
-                  key,
-                  label: key,
-                  render: (row) => <span className="its-cell-clip">{cellText(row[key]) || '—'}</span>,
-                })),
-              ]}
-            />
-          </Card>
+          <section key={section.key} id={sectionAnchor(section)} className="its-card is-flush its-db-section">
+            <header className="its-card-head">
+              <div className="its-db-section-title">
+                <TableIcon table={section.table} />
+                <div>
+                  <h2>{sectionTitle(section)} <em>{section.total ?? '?'}</em></h2>
+                  <p className="its-db-via">
+                    {sectionVia(section)} <RuleBadge rule={section.onDelete} />
+                    {section.truncated ? <span>{L(`erste ${data.rowLimit} angezeigt`, `first ${data.rowLimit} shown`)}</span> : null}
+                  </p>
+                </div>
+              </div>
+              <div className="its-card-actions">
+                <Button size="sm" tone="ghost" icon={Info} onClick={() => onOpen({ table: section.table })}>{L('Über die Tabelle', 'About the table')}</Button>
+              </div>
+            </header>
+            <div className="its-card-body">
+              {section.error ? <Banner tone="error">{section.error}</Banner> : null}
+              <DataTable
+                rows={section.rows}
+                rowKey={(row) => JSON.stringify(pk.map((column) => row[column]))}
+                onRowClick={(row) => onOpen({ table: section.table, row })}
+                empty={<EmptyState title={L('Keine Zeilen', 'No rows')} />}
+                columns={[
+                  ...columns.map((key) => ({
+                    key,
+                    label: columnLabel(key),
+                    render: (row) => <Cell table={section.table} column={key} value={row[key]} />,
+                  })),
+                  ...(withPage ? [{
+                    key: '_page',
+                    label: '',
+                    className: 'is-num',
+                    render: (row) => (rowPage(section.table, row) ? (
+                      <Link className="its-link" to={rowPage(section.table, row)} onClick={(event) => event.stopPropagation()}>
+                        {L('Öffnen', 'Open')} <ArrowRight size={12} />
+                      </Link>
+                    ) : null),
+                  }] : []),
+                ]}
+              />
+            </div>
+          </section>
         );
       })}
+
+      <Card><Legend /></Card>
     </div>
   );
 }
@@ -211,8 +334,8 @@ export default function DatabasePage() {
     <Page
       title={L('Datenbank', 'Database')}
       description={L(
-        'Wo welche Daten liegen, womit sie verknüpft sind und was ein Löschen auslösen würde. Nur lesen: Änderungen werden in Supabase gemacht.',
-        'Where data lives, what it is linked to and what a delete would set off. Read-only: changes are made in Supabase.',
+        'Wo welche Daten liegen und womit sie verknüpft sind. Nur lesen: Änderungen werden in Supabase gemacht.',
+        'Where data lives and what it is linked to. Read-only: changes are made in Supabase.',
       )}
       actions={(
         <>
@@ -220,8 +343,8 @@ export default function DatabasePage() {
             value={view}
             onChange={(next) => update(next === 'user' ? { view: 'user' } : { view: '', user: '' })}
             options={[
-              { value: 'tables', label: L('Tabellen', 'Tables') },
-              { value: 'user', label: L('Daten eines Nutzers', 'User data') },
+              { value: 'tables', label: L('Alle Tabellen', 'All tables') },
+              { value: 'user', label: L('Daten eines Nutzers', 'Data of a user') },
             ]}
           />
           <Button size="sm" tone="ghost" icon={RefreshCw} onClick={map.reload} aria-label={L('Neu laden', 'Reload')} />

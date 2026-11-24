@@ -2,7 +2,41 @@
  * Database page: the live table map comes from the server (public.it_support_relations()).
  * This file adds what the database cannot know: what each table is for in VANTARO, in plain words.
  */
-import { L } from './i18n';
+import {
+  BadgePercent,
+  CalendarSync,
+  CircleAlert,
+  ClipboardList,
+  CreditCard,
+  FileWarning,
+  ListChecks,
+  MessageSquareWarning,
+  ReceiptText,
+  ScrollText,
+  ShieldCheck,
+  Table2,
+  UserRound,
+} from 'lucide-react';
+import {
+  ACTION,
+  COMPLAINT_STATUS,
+  CONTACT_STATUS,
+  EVENT_LEVEL,
+  EVENT_SOURCE,
+  formatDateTime,
+  formatEuro,
+  label,
+  LEAD_SOURCE,
+  LEAD_STATUS,
+  PAYMENT_EVENT,
+  PAYMENT_STATUS,
+  REQUEST_STATUS,
+  ROLE,
+  SCOPE,
+  TARGET_TYPE,
+  VERTICAL,
+} from './format';
+import { L, pick } from './i18n';
 
 export const AUTH_USERS = 'auth.users';
 
@@ -206,4 +240,167 @@ export function cellText(value) {
   if (Array.isArray(value)) return value.map(cellText).join(', ');
   if (typeof value === 'object') return JSON.stringify(value);
   return String(value);
+}
+
+/* ---------- presentation: groups, icons, short summaries, links to console pages ---------- */
+
+export const GROUPS = [
+  { id: 'people', label: ['Konten', 'Accounts'], hint: ['Wer sich anmeldet', 'Who signs in'] },
+  { id: 'leads', label: ['Leads & Aufträge', 'Leads & orders'], hint: ['Was Berater bestellen und bearbeiten', 'What Berater order and work on'] },
+  { id: 'money', label: ['Zahlungen & Rabatte', 'Payments & discounts'], hint: ['Geld und Preise', 'Money and prices'] },
+  { id: 'system', label: ['Technik & Protokolle', 'Technical & logs'], hint: ['Fehler, Verlauf, Verbindungen', 'Errors, history, connections'] },
+  { id: 'old', label: ['Alt (wird entfernt)', 'Old (being removed)'], hint: ['Nur noch vor unify_leads.sql vorhanden', 'Only there before unify_leads.sql'] },
+  { id: 'other', label: ['Weitere Tabellen', 'Other tables'], hint: ['Noch ohne Beschreibung', 'No description yet'] },
+];
+
+const UI = {
+  [AUTH_USERS]: { group: 'people', icon: UserRound, tone: 'accent', summary: ['Alle Konten: Berater, Partner, Admins, IT-Support.', 'All accounts: Berater, partners, admins, IT Support.'], page: (row) => `/it-support/users?id=${row.id}` },
+  leads: { group: 'leads', icon: ListChecks, tone: 'accent', summary: ['Interessenten, die an Berater geliefert werden.', 'Prospects delivered to Berater.'], page: (row) => `/it-support/leads?id=${row.id}` },
+  lead_requests: { group: 'leads', icon: ClipboardList, summary: ['Bestellungen von Leads durch Berater.', 'Lead orders placed by Berater.'] },
+  lead_complaints: { group: 'leads', icon: MessageSquareWarning, summary: ['Reklamationen zu gelieferten Leads.', 'Complaints about delivered leads.'] },
+  lead_payments: { group: 'money', icon: CreditCard, tone: 'accent', summary: ['Kartenzahlungen für Lead-Pakete (ProCredit).', 'Card payments for lead packages (ProCredit).'], page: (row) => `/it-support/payments?id=${row.id}` },
+  berater_discounts: { group: 'money', icon: BadgePercent, summary: ['Rabatte für einzelne Berater.', 'Discounts for single Berater.'] },
+  payment_audit_log: { group: 'money', icon: ShieldCheck, summary: ['Sicherheitsprotokoll jeder Zahlung.', 'Security log of every payment.'] },
+  energy_calendar_connections: { group: 'system', icon: CalendarSync, summary: ['Google-Kalender von Energie-Partnern.', 'Google Calendar of energy partners.'] },
+  it_support_audit_log: { group: 'system', icon: ScrollText, summary: ['Jede Änderung aus dieser Konsole.', 'Every change made in this console.'] },
+  system_events: { group: 'system', icon: CircleAlert, summary: ['Serverfehler und Warnungen.', 'Server errors and warnings.'], page: () => '/it-support/errors' },
+  energy_billing_profiles: { group: 'old', icon: ReceiptText, summary: ['Alte Energie-Abrechnung.', 'Old energy billing.'] },
+  energy_delivery_lines: { group: 'old', icon: ReceiptText, summary: ['Alte Energie-Lieferzeilen.', 'Old energy delivery lines.'] },
+  energy_complaints: { group: 'old', icon: FileWarning, summary: ['Alte Energie-Reklamationen.', 'Old energy complaints.'] },
+};
+
+export function tableUi(table) {
+  const entry = UI[cleanTable(table)];
+  return {
+    group: entry?.group || 'other',
+    icon: entry?.icon || Table2,
+    tone: entry?.tone || 'neutral',
+    summary: entry ? pick(entry.summary) : null,
+    page: entry?.page || null,
+  };
+}
+
+/** Position in the curated list, so the main table of each group comes first. */
+export function tableOrder(table) {
+  const index = Object.keys(UI).indexOf(cleanTable(table));
+  return index === -1 ? 999 : index;
+}
+
+/** Link to the normal console page for a row, when there is one. */
+export function rowPage(table, row) {
+  const page = UI[cleanTable(table)]?.page;
+  return page && row ? page(row) : null;
+}
+
+/* ---------- friendly column names and values ---------- */
+
+const COLUMN_LABELS = {
+  id: ['ID', 'ID'],
+  email: ['E-Mail', 'Email'],
+  phone: ['Telefon', 'Phone'],
+  role: ['Rolle', 'Role'],
+  first_name: ['Vorname', 'First name'],
+  last_name: ['Nachname', 'Last name'],
+  status: ['Status', 'Status'],
+  contact_status: ['Kontaktstatus', 'Contact status'],
+  vertical: ['Bereich', 'Area'],
+  scope: ['Gebiet', 'Area covered'],
+  code: ['Code', 'Code'],
+  requested_count: ['Anzahl Leads', 'Leads ordered'],
+  lead_type: ['Lead-Typ', 'Lead type'],
+  invoice_number: ['Rechnung', 'Invoice'],
+  package_label: ['Paket', 'Package'],
+  gross_cents: ['Betrag (brutto)', 'Amount (gross)'],
+  net_cents: ['Betrag (netto)', 'Amount (net)'],
+  paid_at: ['Bezahlt am', 'Paid at'],
+  created_at: ['Erstellt', 'Created'],
+  updated_at: ['Geändert', 'Updated'],
+  last_sign_in_at: ['Letzter Login', 'Last sign-in'],
+  reason: ['Grund', 'Reason'],
+  lead_id: ['Lead', 'Lead'],
+  payment_id: ['Zahlung', 'Payment'],
+  kind: ['Art', 'Kind'],
+  value_type: ['Wert-Typ', 'Value type'],
+  value: ['Wert', 'Value'],
+  event: ['Ereignis', 'Event'],
+  ip: ['IP', 'IP'],
+  sync_status: ['Sync-Status', 'Sync status'],
+  calendar_id: ['Kalender', 'Calendar'],
+  last_synced_at: ['Zuletzt synchronisiert', 'Last synced'],
+  sync_error: ['Sync-Fehler', 'Sync error'],
+  actor_email: ['Von', 'By'],
+  action: ['Aktion', 'Action'],
+  target_type: ['Ziel', 'Target'],
+  target_label: ['Betrifft', 'Concerns'],
+  level: ['Stufe', 'Level'],
+  source: ['Quelle', 'Source'],
+  message: ['Meldung', 'Message'],
+  occurrences: ['Anzahl', 'Count'],
+  last_seen_at: ['Zuletzt', 'Last seen'],
+  assigned_to: ['Zugewiesen an', 'Assigned to'],
+  created_by: ['Erstellt von', 'Created by'],
+  berater_id: ['Berater', 'Berater'],
+  energy_holder_id: ['Bearbeitet von (Partner)', 'Worked by (partner)'],
+  request_id: ['Auftrag', 'Order'],
+  user_id: ['Nutzer', 'User'],
+  reviewed_by: ['Geprüft von', 'Reviewed by'],
+  revoked_by: ['Widerrufen von', 'Revoked by'],
+  actor_id: ['Ausgeführt von', 'Done by'],
+  resolved_by: ['Erledigt von', 'Resolved by'],
+  target_id: ['Ziel-ID', 'Target ID'],
+  company_id: ['Firma', 'Company'],
+  opened_by: ['Eröffnet von', 'Opened by'],
+  decided_by: ['Entschieden von', 'Decided by'],
+};
+
+export function columnLabel(column) {
+  const entry = COLUMN_LABELS[column];
+  return entry ? pick(entry) : column;
+}
+
+const DISCOUNT_STATUS = { active: ['Aktiv', 'Active'], reserved: ['Reserviert', 'Reserved'], consumed: ['Verbraucht', 'Used'], revoked: ['Widerrufen', 'Revoked'] };
+const SYNC_STATUS = { connected: ['Verbunden', 'Connected'], error: ['Fehler', 'Error'], pending: ['Ausstehend', 'Pending'], disconnected: ['Getrennt', 'Disconnected'] };
+
+const VALUE_MAPS = {
+  'leads.status': LEAD_STATUS,
+  'leads.contact_status': CONTACT_STATUS,
+  'leads.source': LEAD_SOURCE,
+  'lead_requests.status': REQUEST_STATUS,
+  'lead_payments.status': PAYMENT_STATUS,
+  'lead_complaints.status': COMPLAINT_STATUS,
+  'berater_discounts.status': DISCOUNT_STATUS,
+  'payment_audit_log.event': PAYMENT_EVENT,
+  'energy_calendar_connections.sync_status': SYNC_STATUS,
+  'it_support_audit_log.action': ACTION,
+  'it_support_audit_log.target_type': TARGET_TYPE,
+  'system_events.level': EVENT_LEVEL,
+  'system_events.source': EVENT_SOURCE,
+  '*.vertical': VERTICAL,
+  '*.scope': SCOPE,
+  '*.role': ROLE,
+};
+
+const OK = /^(paid|active|completed|approved|connected|erledigt|abgeschlossen|consumed)$/;
+const BAD = /^(failed|error|declined|rejected|suspicious_activity|return_invalid_token|revoked|cancelled)$/;
+const WARN = /^(warning|partial|info_needed|pending|reserved|wiedervorlage|termin)$/;
+const INFO = /^(neu|new|zugewiesen|kontaktiert|info|refunded)$/;
+
+/**
+ * A cell as shown to people: { text, tone?, title? }. tone means "show as a coloured chip".
+ * Status-like columns get readable labels, money columns euros, dates the local date and time.
+ */
+export function displayValue(table, column, value) {
+  if (value === null || value === undefined || value === '') return { text: '—', empty: true };
+  const name = cleanTable(table);
+  const map = VALUE_MAPS[`${name}.${column}`] || VALUE_MAPS[`*.${column}`];
+  if (map && typeof value === 'string') {
+    const tone = OK.test(value) ? 'ok' : BAD.test(value) ? 'error' : WARN.test(value) ? 'warn' : INFO.test(value) ? 'info' : 'neutral';
+    return { text: label(map, value), tone, title: value };
+  }
+  if (typeof value === 'boolean') return { text: value ? L('ja', 'yes') : L('nein', 'no'), tone: value ? 'ok' : 'neutral' };
+  if (/_cents$/.test(column) && Number.isFinite(Number(value))) return { text: formatEuro(value), title: `${value} cents` };
+  if (/(_at|_until)$/.test(column) && typeof value === 'string') return { text: formatDateTime(value), title: value };
+  if (Array.isArray(value)) return { text: value.map(cellText).join(', ') || '—' };
+  if (typeof value === 'object') return { text: JSON.stringify(value) };
+  return { text: String(value) };
 }
