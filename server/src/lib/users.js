@@ -341,10 +341,11 @@ export async function listDirectoryUsers() {
   };
 }
 
-export async function revokeSession(accessToken) {
+/** scope 'global' (default) ends every session of the user; 'local' only the one behind this token. */
+export async function revokeSession(accessToken, { scope = 'global' } = {}) {
   if (!accessToken || !supabaseConfig.url) return;
 
-  await fetch(`${supabaseConfig.url}/auth/v1/logout`, {
+  await fetch(`${supabaseConfig.url}/auth/v1/logout?scope=${scope === 'local' ? 'local' : 'global'}`, {
     method: 'POST',
     headers: {
       apikey: supabaseConfig.serviceRoleKey || supabaseConfig.anonKey,

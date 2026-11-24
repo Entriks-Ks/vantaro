@@ -24,6 +24,7 @@ import useSectionReveal from './hooks/useSectionReveal';
 import Preloader from './components/Preloader';
 import CardLogos from './components/CardLogos';
 import BootScreen from './components/BootScreen';
+import ImpersonationBanner from './components/ImpersonationBanner';
 import { documentTitle } from './pages/dashboard/helpers';
 import { applyTheme, readThemePreference, subscribeTheme, writeThemePreference } from './lib/theme';
 
@@ -97,6 +98,7 @@ function AppContent() {
   return (
     <>
       <ThemeSync />
+      <ImpersonationBanner />
       <Preloader />
       {!isAppShell && <Header solid={isLegal} />}
       <Routes>

@@ -3,7 +3,8 @@ import { supabase } from '../../lib/supabase.js';
 import { isUuid } from '../../lib/leads.js';
 import { buildFullName, normalizePhone } from '../../lib/profile.js';
 import { ROLES, STAFF_ROLES, getUserRole } from '../../lib/roles.js';
-import { findUserByEmail, isEmailVerified, isOAuthUser, toDirectoryUser } from '../../lib/users.js';
+import { createUserSession, findUserByEmail, isEmailVerified, isOAuthUser, revokeSession, toDirectoryUser } from '../../lib/users.js';
+import { publicSession } from '../../lib/auth.js';
 import { issueVerificationCode, setManualVerificationCode } from '../../lib/verification.js';
 import { issuePasswordReset } from '../../lib/passwordReset.js';
 import { toPublicPayment } from '../../lib/payments.js';
@@ -343,6 +344,64 @@ router.post('/:id/password-reset', route(async (req, res) => {
     targetLabel: userLabel(raw),
     reason: optionalReason(req),
     summary: both('Link zum Zurücksetzen des Passworts gesendet (30 Minuten gültig)', 'Password reset link sent (valid for 30 minutes)'),
+  });
+  res.json({ ok: true });
+}));
+
+/**
+ * "Sign in as user": a normal session for an advisor account, so IT Support sees exactly what the
+ * customer sees (e.g. a checkout error). Reason is mandatory; start and end land in the activity log.
+ * Staff accounts and blocked accounts are excluded. Nothing is sent to the user.
+ */
+router.post('/:id/impersonate', route(async (req, res) => {
+  requireDb(req);
+  const t = tr(req);
+  const reason = requireReason(req);
+  const raw = await loadAuthUser(req);
+  const role = assertManageable(req, raw);
+  if (role !== ROLES.BERATER) {
+    throw fail(t('Anmelden als Nutzer ist nur für Berater-Konten möglich.', 'Signing in as a user is only possible for advisor accounts.'), 403);
+  }
+  if (raw.banned_until && new Date(raw.banned_until).getTime() > Date.now()) {
+    throw fail(t('Das Konto ist gesperrt. Bitte zuerst die Sperre aufheben.', 'The account is blocked. Please unblock it first.'), 409);
+  }
+
+  const session = await createUserSession(raw);
+  if (!session?.session?.access_token) {
+    throw fail(t('Supabase hat keine Sitzung für dieses Konto erstellt.', 'Supabase did not create a session for this account.'), 502);
+  }
+  try {
+    await logItAction(req, {
+      action: 'user.impersonate',
+      targetType: 'user',
+      targetId: raw.id,
+      targetLabel: userLabel(raw),
+      reason,
+      summary: both('Als dieser Nutzer angemeldet (Support-Sitzung)', 'Signed in as this user (support session)'),
+    });
+  } catch (error) {
+    // No log entry, no session.
+    await revokeSession(session.session.access_token, { scope: 'local' });
+    throw error;
+  }
+
+  res.set('Cache-Control', 'no-store');
+  res.json({
+    session: publicSession(session.session, session.user || raw),
+    target: { id: raw.id, email: raw.email, fullName: consoleUser(raw).fullName || '' },
+  });
+}));
+
+router.post('/:id/impersonate/end', route(async (req, res) => {
+  requireDb(req);
+  const raw = await loadAuthUser(req);
+  // The support session itself was already revoked by the browser (local scope only, the customer stays signed in).
+  await logItAction(req, {
+    action: 'user.impersonate_end',
+    targetType: 'user',
+    targetId: raw.id,
+    targetLabel: userLabel(raw),
+    summary: both('Support-Sitzung als dieser Nutzer beendet', 'Support session as this user ended'),
   });
   res.json({ ok: true });
 }));

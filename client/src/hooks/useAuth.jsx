@@ -19,6 +19,7 @@ import {
   verifyEmailTokenRequest,
 } from '../lib/auth';
 import { ROLES, normalizeRole } from '../lib/roles';
+import { endImpersonation, readImpersonation } from '../lib/impersonation';
 
 const AuthContext = createContext(null);
 
@@ -100,6 +101,12 @@ export function AuthProvider({ children }) {
   ), []);
 
   const logout = useCallback(async () => {
+    // During an IT Support "sign in as user", signing out returns to the console
+    // and must not sign the customer out on their own devices.
+    if (readImpersonation()) {
+      await endImpersonation();
+      return;
+    }
     await logoutRequest();
     window.location.replace('/');
   }, []);

@@ -363,7 +363,8 @@ router.post('/vertical', requireAuth, async (req, res) => {
 });
 
 router.post('/logout', async (req, res) => {
-  await revokeSession(getBearerToken(req));
+  // ?scope=local ends only this session (used when IT Support leaves a "sign in as user" session).
+  await revokeSession(getBearerToken(req), { scope: req.query?.scope === 'local' ? 'local' : 'global' });
   res.json({ ok: true });
 });
 

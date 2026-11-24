@@ -7,6 +7,7 @@ import {
   ListRestart,
   Lock,
   LockOpen,
+  LogIn,
   MailCheck,
   RectangleEllipsis,
   RefreshCw,
@@ -18,6 +19,7 @@ import {
   X,
 } from 'lucide-react';
 import { api } from './api';
+import { startImpersonation } from '../../lib/impersonation';
 import ActivityTimeline from './ActivityTimeline';
 import {
   formatDateTime,
@@ -297,6 +299,41 @@ function UserDrawer({ id, onClose, onChanged }) {
   });
 
   const actions = user ? [
+    {
+      id: 'impersonate',
+      icon: LogIn,
+      label: L('Als dieser Nutzer anmelden', 'Sign in as this user'),
+      description: L(
+        'Das Portal genau so sehen wie der Kunde, z. B. um einen Fehler beim Bezahlen nachzuvollziehen. Funktioniert auch bei Google-/Apple-Konten.',
+        'See the portal exactly as the customer does, e.g. to reproduce a payment error. Also works for Google/Apple accounts.',
+      ),
+      hidden: user.role !== 'berater',
+      disabled: !manageable || user.blocked,
+      disabledReason: user.blocked ? L('Konto ist gesperrt.', 'The account is blocked.') : lockedReason,
+      onClick: () => dialog.open({
+        title: L('Als Nutzer anmelden', 'Sign in as user'),
+        tone: 'danger',
+        description: L(`Sie werden als ${user.fullName || user.email} (${user.email}) angemeldet.`, `You will be signed in as ${user.fullName || user.email} (${user.email}).`),
+        effects: [
+          L(
+            'Alles, was Sie danach tun (z. B. Bezahlen, Profil ändern), geschieht im echten Konto des Kunden.',
+            'Everything you do afterwards (e.g. paying, editing the profile) happens in the customer\'s real account.',
+          ),
+          L(
+            'Ein Banner zeigt die Support-Sitzung an. „Zurück zur IT-Support-Konsole“ beendet sie; der Kunde bleibt auf seinen Geräten angemeldet.',
+            'A banner marks the support session. "Back to the IT Support console" ends it; the customer stays signed in on their own devices.',
+          ),
+          L('Beginn und Ende werden mit Ihrer Begründung protokolliert. Der Kunde erhält keine E-Mail.', 'Start and end are logged with your reason. The customer gets no email.'),
+        ],
+        reason: 'required',
+        reasonPlaceholder: L('z. B. Ticket-Nr., Weiterleitung zur Bank funktioniert nicht', 'e.g. ticket no., redirect to the bank does not work'),
+        confirmLabel: L('Anmelden', 'Sign in'),
+        onConfirm: async ({ reason }) => {
+          const result = await api.post(`/users/${id}/impersonate`, { reason });
+          startImpersonation(result);
+        },
+      }),
+    },
     {
       id: 'resend',
       icon: Send,
