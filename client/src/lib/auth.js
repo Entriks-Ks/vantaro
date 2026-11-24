@@ -141,6 +141,21 @@ export async function completeOAuthRequest({ access_token, refresh_token, expire
 
 const oauthCallbackByCode = new Map();
 
+/** Storage key of the Supabase client in lib/supabase.js (session, user, PKCE verifier). */
+const OAUTH_CLIENT_STORAGE_KEY = 'vantaro-google-auth';
+
+function forgetOAuthClientSession() {
+  try {
+    for (const key of Object.keys(localStorage)) {
+      if (key === OAUTH_CLIENT_STORAGE_KEY || key.startsWith(`${OAUTH_CLIENT_STORAGE_KEY}-`)) {
+        localStorage.removeItem(key);
+      }
+    }
+  } catch {
+    // Storage blocked: nothing to clean up.
+  }
+}
+
 export async function exchangeOAuthCallback() {
   if (!supabase) {
     const error = new Error('Social-Anmeldung ist nicht konfiguriert.');
@@ -183,7 +198,10 @@ export async function exchangeOAuthCallback() {
     });
     clearSignupCategory();
 
-    await supabase.auth.signOut({ scope: 'local' }).catch(() => {});
+    // Only drop the Supabase client's own copy. Do NOT call supabase.auth.signOut(): even with
+    // scope 'local' it ends this session on the server, and that is the session we just stored
+    // (vantaro-auth) — every API call (e.g. checkout) would then fail with 401.
+    forgetOAuthClientSession();
     return session;
   })();
 
