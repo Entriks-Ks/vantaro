@@ -3,6 +3,7 @@ import { Link, Navigate, NavLink, Route, Routes, useLocation, useNavigate } from
 import {
   CalendarClock,
   CreditCard,
+  Database,
   Gauge,
   LayoutDashboard,
   ListChecks,
@@ -31,6 +32,7 @@ import IntegrationsPage from './Integrations';
 import SystemErrorsPage from './SystemErrors';
 import ActivityPage from './Activity';
 import SearchPage from './SearchPage';
+import DatabasePage from './Database';
 import './itSupport.css';
 
 const NAV = [
@@ -41,6 +43,7 @@ const NAV = [
   { to: '/it-support/users', label: ['Nutzer', 'Users'], icon: Users },
   { to: '/it-support/payments', label: ['Zahlungen', 'Payments'], icon: CreditCard, badge: 'payments' },
   { section: ['Technik', 'Technical'] },
+  { to: '/it-support/database', label: ['Datenbank', 'Database'], icon: Database },
   { to: '/it-support/integrations', label: ['Integrationen', 'Integrations'], icon: PlugZap, badge: 'integrations' },
   { to: '/it-support/errors', label: ['Systemfehler', 'System errors'], icon: TriangleAlert, badge: 'errors' },
   { to: '/it-support/activity', label: ['Aktivitätsprotokoll', 'Activity log'], icon: ScrollText },
@@ -63,6 +66,7 @@ const PAGE_TITLES = {
   appointments: ['Termine', 'Appointments'],
   users: ['Nutzer', 'Users'],
   payments: ['Zahlungen', 'Payments'],
+  database: ['Datenbank', 'Database'],
   integrations: ['Integrationen', 'Integrations'],
   errors: ['Systemfehler', 'System errors'],
   activity: ['Aktivitätsprotokoll', 'Activity log'],
@@ -262,6 +266,7 @@ function Shell({ lang, onLang }) {
             <Route path="appointments" element={<AppointmentsPage onChanged={overview.reload} />} />
             <Route path="users" element={<UsersPage />} />
             <Route path="payments" element={<PaymentsPage onChanged={overview.reload} />} />
+            <Route path="database" element={<DatabasePage />} />
             <Route path="integrations" element={<IntegrationsPage onChanged={overview.reload} />} />
             <Route path="errors" element={<SystemErrorsPage onChanged={overview.reload} />} />
             <Route path="activity" element={<ActivityPage />} />

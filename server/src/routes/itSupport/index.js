@@ -13,6 +13,7 @@ import usersRouter from './users.js';
 import paymentsRouter from './payments.js';
 import integrationsRouter, { checkSchema, listIntegrations } from './integrations.js';
 import systemRouter from './system.js';
+import databaseRouter from './database.js';
 
 /**
  * IT Support console API. Open to the IT Support role and to admins.
@@ -96,5 +97,6 @@ router.use('/users', usersRouter);
 router.use('/payments', paymentsRouter);
 router.use('/integrations', integrationsRouter);
 router.use('/system', systemRouter);
+router.use('/database', databaseRouter);
 
 export default router;

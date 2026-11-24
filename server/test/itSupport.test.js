@@ -432,3 +432,106 @@ describe('empty database errors', () => {
     assert.equal(warning.context.httpStatus, 503);
   });
 });
+
+const { resetRelationsCache, HIDDEN } = await import('../src/routes/itSupport/database.js');
+
+describe('database explorer', () => {
+
+  const fk = (name, table, column, refTable, onDelete, refColumn = 'id') => ({
+    name, table, columns: [column], ref_table: refTable, ref_columns: [refColumn], on_delete: onDelete,
+  });
+  const cols = (...names) => names.map((name) => ({ name, type: 'text', nullable: true, default: null }));
+  const RELATIONS = {
+    foreign_keys: [
+      fk('leads_assigned_to_fkey', 'leads', 'assigned_to', 'auth.users', 'SET NULL'),
+      fk('lead_requests_berater_id_fkey', 'lead_requests', 'berater_id', 'auth.users', 'CASCADE'),
+      fk('lead_payments_berater_id_fkey', 'lead_payments', 'berater_id', 'auth.users', 'CASCADE'),
+      fk('lead_payments_request_id_fkey', 'lead_payments', 'request_id', 'lead_requests', 'SET NULL'),
+      fk('lead_complaints_lead_id_fkey', 'lead_complaints', 'lead_id', 'leads', 'CASCADE'),
+    ],
+    delete_triggers: [],
+    checks: [],
+    tables: [
+      { table: 'leads', primary_key: ['id'], estimated_rows: 0, rls: true, comment: null, columns: cols('id', 'first_name', 'assigned_to', 'broker_notes', 'created_at') },
+      { table: 'lead_requests', primary_key: ['id'], estimated_rows: 0, rls: true, comment: null, columns: cols('id', 'berater_id', 'created_at') },
+      { table: 'lead_payments', primary_key: ['id'], estimated_rows: 0, rls: true, comment: null, columns: cols('id', 'berater_id', 'request_id', 'pg_order_password', 'created_at') },
+      { table: 'lead_complaints', primary_key: ['id'], estimated_rows: 0, rls: true, comment: null, columns: cols('id', 'lead_id', 'created_at') },
+      { table: 'it_support_audit_log', primary_key: ['id'], estimated_rows: 0, rls: true, comment: null, columns: cols('id', 'target_type', 'target_id', 'created_at') },
+    ],
+  };
+  let rpcResult;
+
+  beforeEach(() => {
+    resetRelationsCache();
+    rpcResult = { data: structuredClone(RELATIONS), error: null };
+    client.rpc = async (name) => (name === 'it_support_relations' ? rpcResult : { data: null, error: { message: 'unknown' } });
+  });
+
+  test('says which SQL file to run when the map function is missing', async () => {
+    rpcResult = { data: null, error: { code: 'PGRST202', message: 'Could not find the function public.it_support_relations' } };
+    const result = await call('GET', '/database/relations', { lang: 'en' });
+    assert.equal(result.status, 503);
+    assert.equal(result.body.code, 'schema_map_missing');
+    assert.match(result.body.error, /it_support_schema_map\.sql/);
+  });
+
+  test('relations come with exact row counts, including logins', async () => {
+    lead();
+    lead();
+    const result = await call('GET', '/database/relations');
+    assert.equal(result.status, 200);
+    assert.equal(result.body.counts.leads, 2);
+    assert.equal(result.body.counts['auth.users'], db.users.size);
+    assert.equal(result.body.relations.foreign_keys.length, RELATIONS.foreign_keys.length);
+  });
+
+  test('user data has one section per foreign key to auth.users, with secrets and private notes hidden', async () => {
+    lead({ assigned_to: berater.user.id, broker_notes: 'private' });
+    lead({ assigned_to: admin.user.id });
+    db.tables.lead_payments.push({ id: crypto.randomUUID(), berater_id: berater.user.id, pg_order_password: 'secret', created_at: new Date().toISOString() });
+    db.tables.it_support_audit_log.push({ id: crypto.randomUUID(), target_type: 'user', target_id: berater.user.id, created_at: new Date().toISOString() });
+
+    const result = await call('GET', `/database/users/${berater.user.id}`);
+    assert.equal(result.status, 200);
+    const section = (key) => result.body.sections.find((entry) => entry.key === key);
+    assert.equal(section('leads.assigned_to').total, 1);
+    assert.equal(section('leads.assigned_to').onDelete, 'SET NULL');
+    assert.equal(section('leads.assigned_to').rows[0].broker_notes, '(private, 7 characters)');
+    assert.equal(section('lead_payments.berater_id').rows[0].pg_order_password, HIDDEN);
+    assert.equal(section('lead_requests.berater_id').total, 0);
+    assert.equal(section('it_support_audit_log.target_id').total, 1);
+    assert.equal(result.body.user.email, 'berater@vantaro.test');
+    assert.equal(result.body.user.role, 'berater');
+  });
+
+  test('a row comes with live counts of the rows that point at it', async () => {
+    const row = lead({ assigned_to: berater.user.id });
+    db.tables.lead_complaints.push({ id: crypto.randomUUID(), lead_id: row.id }, { id: crypto.randomUUID(), lead_id: row.id });
+    const result = await call('GET', `/database/record?table=leads&key=${encodeURIComponent(JSON.stringify({ id: row.id }))}`);
+    assert.equal(result.status, 200);
+    assert.equal(result.body.row.id, row.id);
+    const complaints = result.body.incoming.find((entry) => entry.table === 'lead_complaints');
+    assert.equal(complaints.count, 2);
+    assert.equal(complaints.on_delete, 'CASCADE');
+
+    const login = await call('GET', `/database/record?table=auth.users&key=${encodeURIComponent(JSON.stringify({ id: berater.user.id }))}`);
+    assert.equal(login.status, 200);
+    assert.equal(login.body.incoming.find((entry) => entry.table === 'leads').count, 1);
+  });
+
+  test('linked rows can only be filtered by a foreign-key column, and the API stays read-only', async () => {
+    lead({ assigned_to: berater.user.id });
+    const ok = await call('GET', `/database/rows?table=leads&column=assigned_to&value=${berater.user.id}`);
+    assert.equal(ok.status, 200);
+    assert.equal(ok.body.total, 1);
+    const refused = await call('GET', '/database/rows?table=leads&column=first_name&value=Lea');
+    assert.equal(refused.status, 400);
+    const write = await call('POST', '/database/record', { body: { table: 'leads' } });
+    assert.equal(write.status, 404);
+  });
+
+  test('only IT Support and admins can read the map', async () => {
+    const result = await call('GET', '/database/relations', { token: berater.token });
+    assert.equal(result.status, 403);
+  });
+});

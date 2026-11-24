@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Check,
   Copy,
+  Database,
   KeyRound,
   ListRestart,
   Lock,
@@ -581,7 +582,16 @@ function UserDrawer({ id, onClose, onChanged }) {
       onClose={onClose}
       title={user ? (user.fullName || user.email) : L('Nutzer', 'User')}
       subtitle={user ? <>{user.email} · <CopyId value={user.id} /></> : null}
-      headerExtra={<Button size="sm" tone="ghost" icon={RefreshCw} onClick={reload} aria-label={L('Neu laden', 'Reload')} />}
+      headerExtra={(
+        <>
+          {user ? (
+            <Button size="sm" tone="ghost" icon={Database} onClick={() => navigate(`/it-support/database?user=${user.id}`)} title={L('Alle Daten dieses Nutzers in der Datenbank', 'All data of this user in the database')}>
+              {L('Datenbank', 'Database')}
+            </Button>
+          ) : null}
+          <Button size="sm" tone="ghost" icon={RefreshCw} onClick={reload} aria-label={L('Neu laden', 'Reload')} />
+        </>
+      )}
     >
       {!data && loading ? <Loading /> : null}
       <ErrorBanner error={error} onRetry={reload} />
