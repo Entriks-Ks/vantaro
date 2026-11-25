@@ -31,6 +31,8 @@ function DatenschutzDe() {
         E-Mail:{' '}
         <a href="mailto:info@vantaro.io">info@vantaro.io</a>
         <br />
+        Register: Kosovo Business Registration Agency (ARBK), NUI 811936668
+        <br />
         Weitere Angaben:{' '}
         <a href="#impressum">Impressum</a>
       </p>
@@ -281,7 +283,7 @@ function DatenschutzDe() {
         veröffentlichte Fassung.
       </p>
 
-      <p className="legal-updated">Stand: August 2026</p>
+      <p className="legal-updated">Stand: November 2026</p>
     </LegalLayout>
   );
 }
@@ -316,6 +318,8 @@ function DatenschutzEn() {
         <br />
         E-mail:{' '}
         <a href="mailto:info@vantaro.io">info@vantaro.io</a>
+        <br />
+        Register: Kosovo Business Registration Agency (ARBK), NUI 811936668
         <br />
         Further details:{' '}
         <a href="#impressum">Legal notice</a>
@@ -544,7 +548,7 @@ function DatenschutzEn() {
         changes. The version published on this page at the time applies.
       </p>
 
-      <p className="legal-updated">Last updated: August 2026</p>
+      <p className="legal-updated">Last updated: November 2026</p>
     </LegalLayout>
   );
 }

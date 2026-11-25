@@ -115,6 +115,19 @@ function ErstattungDe() {
         der Rechnungsnummer an{' '}
         <a href="mailto:info@vantaro.io">info@vantaro.io</a>.
       </p>
+      <p>
+        <strong>ENTRIKS L.L.C.</strong> (Betreiberin von VANTARO)
+        <br />
+        Lot Vaku L2.1, 10000 Prishtina, Kosovo
+        <br />
+        Telefon: <a href="tel:+38343889344">+383 43 889 344</a>
+        <br />
+        E-Mail: <a href="mailto:info@vantaro.io">info@vantaro.io</a>
+        <br />
+        Register: Kosovo Business Registration Agency (ARBK), NUI 811936668
+        <br />
+        Weitere Angaben: <a href="#impressum">Impressum</a>
+      </p>
 
       <p className="legal-updated">Stand: November 2026</p>
     </LegalLayout>
@@ -228,6 +241,19 @@ function ErstattungEn() {
         Please send questions about refunds and complaints, stating the invoice
         number, to{' '}
         <a href="mailto:info@vantaro.io">info@vantaro.io</a>.
+      </p>
+      <p>
+        <strong>ENTRIKS L.L.C.</strong> (operator of VANTARO)
+        <br />
+        Lot Vaku L2.1, 10000 Prishtina, Kosovo
+        <br />
+        Phone: <a href="tel:+38343889344">+383 43 889 344</a>
+        <br />
+        E-mail: <a href="mailto:info@vantaro.io">info@vantaro.io</a>
+        <br />
+        Register: Kosovo Business Registration Agency (ARBK), NUI 811936668
+        <br />
+        Further details: <a href="#impressum">Legal notice</a>
       </p>
 
       <p className="legal-updated">Last updated: November 2026</p>

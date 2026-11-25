@@ -185,16 +185,6 @@ function AppContent() {
             <div className="footer-brand">
               <Brand />
               <p>{L('Die Vertriebsplattform für Versicherung und Energie — vom Erstkontakt bis zum Ergebnis. Qualifizierte Chancen, exklusives Matching und messbares Follow-up in einer durchgängigen Strecke.', 'The sales platform for insurance and energy — from first contact to outcome. Qualified opportunities, exclusive matching and measurable follow-up in one seamless workflow.')}</p>
-              <address className="footer-company">
-                <span className="footer-company__label">{L('Betrieben von', 'Operated by')}</span>
-                <strong>ENTRIKS L.L.C.</strong>
-                <span>Lot Vaku L2.1, 10000 Prishtina, Kosovo</span>
-                <span className="footer-company__contact">
-                  <a href="tel:+38343889344">+383 43 889 344</a>
-                  <a href="mailto:info@vantaro.io">info@vantaro.io</a>
-                </span>
-                <span className="footer-company__meta">ARBK · NUI 811936668</span>
-              </address>
             </div>
             <div className="footer-links">
               <div className="footer-col">
