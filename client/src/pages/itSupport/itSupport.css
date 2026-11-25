@@ -1507,3 +1507,59 @@ html:has(body.it-support-page) {
 .its-db-section-title > div { min-width: 0; }
 .its-db-via { row-gap: 4px; }
 .its-info .its-search { max-width: none; width: 100%; }
+
+/* ---------- My profile ---------- */
+
+.its-avatar { overflow: hidden; }
+.its-avatar.has-photo { background: var(--its-sunken); }
+.its-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.its-avatar.is-lg { width: 64px; height: 64px; font-size: 22px; }
+.its-avatar.is-xl { width: 96px; height: 96px; font-size: 32px; }
+
+.its-user-link { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; color: inherit; text-decoration: none; border-radius: 8px; }
+.its-user-link:hover .its-user-text strong { color: var(--its-accent); }
+.its-user-link:focus-visible { outline: 2px solid var(--its-accent); outline-offset: 2px; }
+
+.its-profile-hero {
+  display: flex; align-items: center; gap: 16px; padding: 20px; margin-bottom: 16px;
+  border-radius: var(--its-radius); border: 1px solid var(--its-border); box-shadow: var(--its-shadow);
+  background: linear-gradient(135deg, var(--its-accent-soft), var(--its-surface) 65%);
+}
+.its-profile-hero .its-avatar.is-lg { box-shadow: 0 0 0 4px var(--its-surface); }
+.its-profile-hero-text { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.its-profile-hero-text h1 { font-size: 22px; font-weight: 600; letter-spacing: -.01em; word-break: break-word; }
+.its-profile-hero-text > p { display: inline-flex; align-items: center; gap: 6px; color: var(--its-muted); font-size: 13.5px; word-break: break-all; }
+.its-profile-hero .its-chip { gap: 4px; }
+
+.its-profile-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 1000px) { .its-profile-grid { grid-template-columns: minmax(0, 1fr); } }
+.its-profile-note { display: flex; align-items: center; gap: 6px; margin-top: 12px; font-size: 12px; }
+
+.its-photo { display: flex; align-items: center; gap: 18px; padding: 14px; border-radius: 12px; border: 2px dashed var(--its-border); transition: border-color .15s ease, background .15s ease; }
+.its-photo.is-dragging { border-color: var(--its-accent); background: var(--its-accent-soft); }
+.its-photo-frame { position: relative; flex: none; padding: 0; border: 0; border-radius: 50%; background: none; cursor: pointer; }
+.its-photo-frame:disabled { cursor: progress; opacity: .7; }
+.its-photo-frame:focus-visible { outline: 2px solid var(--its-accent); outline-offset: 3px; }
+.its-photo-overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: rgba(15, 23, 42, .5); color: #fff; opacity: 0; transition: opacity .15s ease; }
+.its-photo-frame:hover .its-photo-overlay, .its-photo-frame:focus-visible .its-photo-overlay { opacity: 1; }
+.its-photo-text { min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.its-photo-text strong { font-size: 14px; font-weight: 600; }
+.its-photo-text p { font-size: 12.5px; color: var(--its-muted); line-height: 1.45; }
+@media (max-width: 480px) { .its-photo { flex-direction: column; text-align: center; } .its-photo-text .its-row-actions { justify-content: center; } }
+
+.its-rules { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.its-rules li { display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 9px; border-radius: 999px; font-size: 11.5px; background: var(--its-sunken); color: var(--its-muted); }
+.its-rules li svg { opacity: .35; }
+.its-rules li.is-ok { background: var(--its-ok-soft); color: var(--its-ok); }
+.its-rules li.is-ok svg { opacity: 1; }
+
+.its-pref { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px 16px; padding: 10px 0; }
+.its-pref + .its-pref { border-top: 1px solid var(--its-border); }
+.its-pref > div:first-child { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.its-pref strong { font-size: 13.5px; font-weight: 600; }
+.its-pref small { font-size: 12px; color: var(--its-muted); }
+.its-seg-icon { display: inline-flex; align-items: center; gap: 5px; }
+
+/* Database page: a user's profile photo in the header */
+.its-db-avatar { overflow: hidden; }
+.its-db-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }

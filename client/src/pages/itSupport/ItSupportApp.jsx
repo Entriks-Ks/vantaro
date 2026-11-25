@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, Navigate, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import {
   CalendarClock,
+  CircleUserRound,
   CreditCard,
   Database,
   Gauge,
@@ -33,6 +34,7 @@ import SystemErrorsPage from './SystemErrors';
 import ActivityPage from './Activity';
 import SearchPage from './SearchPage';
 import DatabasePage from './Database';
+import ProfilePage, { Avatar } from './Profile';
 import './itSupport.css';
 
 const NAV = [
@@ -67,6 +69,7 @@ const PAGE_TITLES = {
   users: ['Nutzer', 'Users'],
   payments: ['Zahlungen', 'Payments'],
   database: ['Datenbank', 'Database'],
+  profile: ['Mein Profil', 'My profile'],
   integrations: ['Integrationen', 'Integrations'],
   errors: ['Systemfehler', 'System errors'],
   activity: ['Aktivitätsprotokoll', 'Activity log'],
@@ -192,9 +195,6 @@ function Shell({ lang, onLang }) {
     document.documentElement.lang = 'de';
   }, []);
 
-  const initials = (user?.fullName || user?.email || '?')
-    .split(/[\s@.]+/).filter(Boolean).slice(0, 2).map((part) => part[0].toUpperCase()).join('');
-
   return (
     <div className="its">
       <aside className={`its-side${menuOpen ? ' is-open' : ''}`}>
@@ -231,12 +231,18 @@ function Shell({ lang, onLang }) {
               <span>{L('Zum Admin-Portal', 'Back to admin portal')}</span>
             </Link>
           ) : null}
+          <NavLink to="/it-support/profile" className={({ isActive }) => `its-nav-link${isActive ? ' is-active' : ''}`}>
+            <CircleUserRound size={16} aria-hidden="true" />
+            <span>{L('Mein Profil', 'My profile')}</span>
+          </NavLink>
           <div className="its-user">
-            <span className="its-avatar" aria-hidden="true">{initials}</span>
-            <span className="its-user-text">
-              <strong>{user?.fullName || user?.email}</strong>
-              <em>{isAdmin ? 'Admin' : L('IT-Support', 'IT Support')}</em>
-            </span>
+            <Link to="/it-support/profile" className="its-user-link" title={L('Mein Profil', 'My profile')}>
+              <Avatar user={user} />
+              <span className="its-user-text">
+                <strong>{user?.fullName || user?.email}</strong>
+                <em>{isAdmin ? 'Admin' : L('IT-Support', 'IT Support')}</em>
+              </span>
+            </Link>
             <ThemeToggle />
             <button type="button" className="its-icon-btn" onClick={logout} aria-label={L('Abmelden', 'Sign out')} title={L('Abmelden', 'Sign out')}>
               <LogOut size={16} />
@@ -267,6 +273,7 @@ function Shell({ lang, onLang }) {
             <Route path="users" element={<UsersPage />} />
             <Route path="payments" element={<PaymentsPage onChanged={overview.reload} />} />
             <Route path="database" element={<DatabasePage />} />
+            <Route path="profile" element={<ProfilePage lang={lang} onLang={onLang} />} />
             <Route path="integrations" element={<IntegrationsPage onChanged={overview.reload} />} />
             <Route path="errors" element={<SystemErrorsPage onChanged={overview.reload} />} />
             <Route path="activity" element={<ActivityPage />} />

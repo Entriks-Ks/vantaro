@@ -18,6 +18,7 @@ import { L } from './i18n';
 import { Banner, Button, Card, Chip, CopyId, DataTable, EmptyState, ErrorBanner, Loading, Page, SearchInput, Segmented, Stat, useApi } from './ui';
 import TableInfo, { RuleBadge } from './TableInfo';
 import { Cell, TableIcon } from './dbUi';
+import { Avatar } from './Profile';
 import {
   AUTH_USERS,
   AUTH_USERS_META,
@@ -161,7 +162,7 @@ function UserPicker({ onPick }) {
           {results.map((row) => (
             <li key={row.id}>
               <button type="button" onClick={() => onPick(row.id)}>
-                <span className="its-avatar" aria-hidden="true">{initials(row.fullName || row.email)}</span>
+                <Avatar user={row} />
                 <span className="its-db-results-text">
                   <strong>{row.fullName || row.email}</strong>
                   <small>{row.email}</small>
@@ -218,7 +219,7 @@ function UserData({ map, userId, onOpen, onClear }) {
   return (
     <div className="its-stack">
       <section className="its-db-profile">
-        <span className="its-db-avatar" aria-hidden="true">{initials(name)}</span>
+        <span className="its-db-avatar" aria-hidden="true">{user.user_metadata?.avatar_url ? <img src={user.user_metadata.avatar_url} alt="" /> : initials(name)}</span>
         <div className="its-db-profile-text">
           <h2>{name}</h2>
           <p>{user.email}</p>
