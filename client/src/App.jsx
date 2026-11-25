@@ -185,6 +185,16 @@ function AppContent() {
             <div className="footer-brand">
               <Brand />
               <p>{L('Die Vertriebsplattform für Versicherung und Energie — vom Erstkontakt bis zum Ergebnis. Qualifizierte Chancen, exklusives Matching und messbares Follow-up in einer durchgängigen Strecke.', 'The sales platform for insurance and energy — from first contact to outcome. Qualified opportunities, exclusive matching and measurable follow-up in one seamless workflow.')}</p>
+              <address className="footer-company">
+                <span className="footer-company__label">{L('Betrieben von', 'Operated by')}</span>
+                <strong>ENTRIKS L.L.C.</strong>
+                <span>Lot Vaku L2.1, 10000 Prishtina, Kosovo</span>
+                <span className="footer-company__contact">
+                  <a href="tel:+38343889344">+383 43 889 344</a>
+                  <a href="mailto:info@vantaro.io">info@vantaro.io</a>
+                </span>
+                <span className="footer-company__meta">ARBK · NUI 811936668</span>
+              </address>
             </div>
             <div className="footer-links">
               <div className="footer-col">
@@ -200,7 +210,7 @@ function AppContent() {
                 <a href="#kontakt">{L('Pilotgespräch anfragen', 'Request a pilot call')}</a>
                 <a href="#preise">{L('Preise & Richtwerte', 'Pricing & guide prices')}</a>
                 <a href="#faq">{L('FAQ & Antworten', 'FAQ & answers')}</a>
-                <a href="mailto:info@vantaro.io?subject=VANTARO%20Anfrage">info@vantaro.io</a>
+                <a href="/login">{L('Zum Partnerportal', 'Partner portal login')}</a>
               </div>
               <div className="footer-col">
                 <h4>{L('Rechtliches', 'Legal')}</h4>
@@ -208,25 +218,26 @@ function AppContent() {
                 <a href="#datenschutz">{L('Datenschutz', 'Privacy policy')}</a>
                 <a href="#agb">{L('AGB', 'Terms & conditions')}</a>
                 <a href="#erstattung">{L('Erstattungsrichtlinie', 'Refund policy')}</a>
-                <a href="#datenschutz">{L('Compliance & Hinweise', 'Compliance & notices')}</a>
               </div>
             </div>
           </div>
           <div className="wrap footer-bottom">
-            <span className="footer-copy-text">© {new Date().getFullYear()} VANTARO, {L('ein Angebot der ENTRIKS L.L.C.', 'a service of ENTRIKS L.L.C.')}, Lot Vaku L2.1, 10000 Prishtina, Kosovo · +383 43 889 344 · info@vantaro.io</span>
-            <CardLogos />
-            <nav className="footer-bottom-nav" aria-label={L('Rechtliches', 'Legal')}>
-              <a href="#impressum">{L('Impressum', 'Legal notice')}</a>
-              <a href="#datenschutz">{L('Datenschutz', 'Privacy policy')}</a>
-              <a href="#agb">{L('AGB', 'Terms & conditions')}</a>
-              <a href="#erstattung">{L('Erstattung', 'Refunds')}</a>
+            <span className="footer-copy-text">
+              © {new Date().getFullYear()} ENTRIKS L.L.C. · VANTARO. {L('Alle Rechte vorbehalten.', 'All rights reserved.')}
+            </span>
+            <div className="footer-bottom-end">
+              <span className="footer-pay">
+                <span className="footer-pay__label">{L('Sichere Kartenzahlung', 'Secure card payment')}</span>
+                <CardLogos />
+              </span>
               <button
                 type="button"
+                className="footer-cookie-btn"
                 onClick={() => window.dispatchEvent(new Event('vantaro:cookies'))}
               >
                 {L('Cookie-Einstellungen', 'Cookie settings')}
               </button>
-            </nav>
+            </div>
           </div>
         </footer>
       )}

@@ -110,9 +110,14 @@ export default function Header({ solid = false }) {
               {link.label}
             </a>
           ))}
+          {/* Small phones: the switch moves into the menu so the header row fits. */}
+          <div className="nav-lang-menu">
+            <span>{L('Sprache', 'Language')}</span>
+            <LanguageSwitch />
+          </div>
         </nav>
         <div className="nav-end">
-          <LanguageSwitch />
+          <LanguageSwitch className="nav-lang-header" />
           {user ? (
             <Link to="/dashboard" className="btn btn-primary nav-auth-btn" onClick={close}>
               {L('Zum Portal', 'Go to portal')}
