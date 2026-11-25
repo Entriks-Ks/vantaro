@@ -133,41 +133,47 @@ function TablesView({ map, onOpen }) {
 function UserPicker({ onPick }) {
   const [q, setQ] = useState('');
   const users = useApi(q ? '/users' : null, { q, limit: 8 });
+  const results = users.data?.users || [];
   return (
-    <Card>
-      <div className="its-db-picker">
-        <span className="its-db-picker-icon"><UserRound size={22} /></span>
-        <h2>{L('Wessen Daten möchten Sie sehen?', 'Whose data do you want to see?')}</h2>
-        <p>{L(
-          'Nutzer suchen: Sie sehen danach alles, was in der Datenbank zu diesem Konto gehört.',
-          'Search a user: you will then see everything in the database that belongs to that account.',
-        )}</p>
+    <section className="its-card its-db-picker">
+      <header className="its-db-picker-head">
+        <span className="its-db-picker-icon" aria-hidden="true"><UserRound size={20} /></span>
+        <div>
+          <h2>{L('Wessen Daten möchten Sie sehen?', 'Whose data do you want to see?')}</h2>
+          <p>{L(
+            'Nutzer suchen und auswählen. Danach sehen Sie alles, was in der Datenbank zu diesem Konto gehört.',
+            'Search and pick a user. You will then see everything in the database that belongs to that account.',
+          )}</p>
+        </div>
+      </header>
+      <div className="its-db-picker-search">
         <SearchInput value={q} onChange={setQ} autoFocus placeholder={L('Name, E-Mail, Kundennummer oder ID …', 'Name, email, customer number or ID …')} />
       </div>
       <ErrorBanner error={users.error} />
-      {q ? (
-        <DataTable
-          rows={users.data?.users}
-          loading={users.loading}
-          onRowClick={(row) => onPick(row.id)}
-          columns={[
-            {
-              key: 'name',
-              label: 'Name',
-              render: (row) => (
-                <span className="its-db-person">
-                  <span className="its-avatar" aria-hidden="true">{initials(row.fullName || row.email)}</span>
-                  <strong>{row.fullName || '—'}</strong>
+      {!q ? (
+        <p className="its-db-picker-hint">{L('Tipp: Sie können auch in einem Nutzer-Fenster auf „Datenbank“ klicken.', 'Tip: you can also click "Database" in a user\'s panel on the Users page.')}</p>
+      ) : users.loading && !results.length ? (
+        <Loading />
+      ) : !results.length ? (
+        <EmptyState icon={UserRound} title={L('Kein Nutzer gefunden', 'No user found')}>{L('Anderen Suchbegriff versuchen.', 'Try another search term.')}</EmptyState>
+      ) : (
+        <ul className="its-db-results">
+          {results.map((row) => (
+            <li key={row.id}>
+              <button type="button" onClick={() => onPick(row.id)}>
+                <span className="its-avatar" aria-hidden="true">{initials(row.fullName || row.email)}</span>
+                <span className="its-db-results-text">
+                  <strong>{row.fullName || row.email}</strong>
+                  <small>{row.email}</small>
                 </span>
-              ),
-            },
-            { key: 'email', label: L('E-Mail', 'Email') },
-            { key: 'role', label: L('Rolle', 'Role'), render: (row) => <Chip tone={row.role === 'berater' ? 'neutral' : 'info'} icon={false}>{label(ROLE, row.role)}</Chip> },
-            { key: 'go', label: '', className: 'is-num', render: () => <ArrowRight size={14} className="its-muted" /> },
-          ]}
-        />
-      ) : null}
-    </Card>
+                <Chip tone={row.role === 'berater' ? 'neutral' : 'info'} icon={false}>{label(ROLE, row.role)}</Chip>
+                <ArrowRight size={15} className="its-db-results-go" aria-hidden="true" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }
 
@@ -239,7 +245,7 @@ function UserData({ map, userId, onOpen, onClear }) {
       {withRows.length ? (
         <div className="its-db-tiles">
           {withRows.map((section) => (
-            <a key={section.key} className="its-db-tile" href={`#${sectionAnchor(section)}`}>
+            <a key={section.key} className="its-db-tile" href={`#${sectionAnchor(section)}`} title={`${sectionTitle(section)} · ${sectionVia(section)}`}>
               <TableIcon table={section.table} size="sm" />
               <span>
                 <strong>{sectionTitle(section)}</strong>
@@ -252,10 +258,14 @@ function UserData({ map, userId, onOpen, onClear }) {
       ) : <EmptyState icon={DatabaseIcon} title={L('Zu diesem Konto gibt es keine Daten.', 'There is no data for this account.')} />}
 
       {empty.length ? (
-        <p className="its-db-none">
-          {L('Keine Daten in: ', 'No data in: ')}
-          {empty.map((section) => `${sectionTitle(section)} (${columnLabel(section.column)})`).join(' · ')}
-        </p>
+        <div className="its-db-none">
+          <span>{L('Keine Daten in', 'No data in')}</span>
+          {empty.map((section) => (
+            <span key={section.key} className="its-db-pill is-muted" title={section.key}>
+              {sectionTitle(section)}{section.table !== AUTH_USERS && section.table !== 'it_support_audit_log' ? ` · ${columnLabel(section.column)}` : ''}
+            </span>
+          ))}
+        </div>
       ) : null}
 
       {sections.filter((section) => section.total || section.error).map((section) => {

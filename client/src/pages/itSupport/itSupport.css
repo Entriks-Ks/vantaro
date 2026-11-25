@@ -1434,3 +1434,76 @@ html:has(body.it-support-page) {
 .its-field-value { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .its-fields dt strong { font-size: 12.5px; font-weight: 600; }
 .its-info-plain.is-info { background: var(--its-info-soft); color: var(--its-info); }
+
+/* ---------- Database page: layout polish ---------- */
+
+/* A search box in a vertical layout must not grow in height (flex-basis would apply to height). */
+.its-stack > .its-search,
+.its-info .its-search,
+.its-db-picker .its-search { flex: 0 0 auto; height: 40px; }
+
+/* Table cards: even columns that fill the row. */
+.its-db-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 1100px) { .its-db-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 640px) { .its-db-grid { grid-template-columns: minmax(0, 1fr); } }
+.its-db-card-name code { background: none; padding: 0; border-radius: 0; white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; }
+.its-db-toolbar { justify-content: space-between; }
+.its-db-toolbar .its-search { flex: 0 1 360px; }
+
+/* Technical names: plain mono text, no grey boxes. */
+.its-db-via code,
+.its-link-title code,
+.its-cascade-item code,
+.its-fields dt code,
+.its-db-name code,
+.its-drawer-head p code { background: none; padding: 0; color: var(--its-muted); font-size: 11.5px; }
+.its-fields dt code { font-size: 11px; }
+
+/* User picker */
+.its-db-picker { padding: 20px; display: flex; flex-direction: column; gap: 14px; }
+.its-db-picker-head { display: flex; align-items: flex-start; gap: 12px; }
+.its-db-picker-head h2 { font-size: 16px; font-weight: 600; }
+.its-db-picker-head p { font-size: 13px; color: var(--its-muted); margin-top: 2px; }
+.its-db-picker-icon { flex: none; width: 40px; height: 40px; border-radius: 10px; }
+.its-db-picker-search { display: flex; }
+.its-db-picker-search .its-search { width: 100%; max-width: 560px; }
+.its-db-picker-hint { font-size: 12.5px; color: var(--its-muted); }
+.its-db-results { list-style: none; margin: 0; padding: 0; border: 1px solid var(--its-border); border-radius: 10px; overflow: hidden; }
+.its-db-results li + li { border-top: 1px solid var(--its-border); }
+.its-db-results button { width: 100%; display: flex; align-items: center; gap: 12px; padding: 10px 14px; border: 0; background: var(--its-surface); color: var(--its-text); font: inherit; text-align: left; cursor: pointer; }
+.its-db-results button:hover, .its-db-results button:focus-visible { background: var(--its-accent-soft); outline: 0; }
+.its-db-results-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.its-db-results-text strong { font-size: 13.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.its-db-results-text small { font-size: 12px; color: var(--its-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.its-db-results-go { flex: none; color: var(--its-muted); }
+.its-db-results button:hover .its-db-results-go { color: var(--its-accent); }
+
+/* Data tiles: fill the row, one line each. */
+.its-db-tiles { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+.its-db-tile strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.its-db-none { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.its-db-none > span:first-child { font-size: 12px; font-weight: 600; color: var(--its-muted); margin-right: 2px; }
+
+/* Short IDs in tables */
+.its-db-uuid { font-family: var(--its-mono); font-size: 12px; color: var(--its-text-2); }
+
+/* Profile: id chip without grey box */
+.its-db-profile-chips .its-copy code { background: none; padding: 0; }
+
+/* Info window header: compact */
+.its-info-hero { gap: 8px; padding: 12px 14px; }
+.its-info-hero-top { flex-wrap: nowrap; align-items: center; }
+.its-info-hero-top > div { gap: 3px; }
+.its-info-keys { display: flex; flex-wrap: wrap; gap: 6px; }
+.its-info-keys button { padding: 2px 8px; font-size: 11.5px; }
+.its-info-keys code { background: none; padding: 0; }
+.its-facts { grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); }
+@media (max-width: 560px) { .its-info-hero-top { flex-wrap: wrap; } }
+
+.its-db-picker { align-items: stretch; text-align: left; }
+.its-db-picker-search .its-search { flex: 1 1 auto; width: 100%; max-width: 560px; margin-top: 0; }
+.its-db-section .its-card-head { flex-wrap: wrap; gap: 8px 12px; }
+.its-db-section-title { flex: 1 1 260px; }
+.its-db-section-title > div { min-width: 0; }
+.its-db-via { row-gap: 4px; }
+.its-info .its-search { max-width: none; width: 100%; }

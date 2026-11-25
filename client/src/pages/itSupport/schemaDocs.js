@@ -351,6 +351,11 @@ const COLUMN_LABELS = {
   company_id: ['Firma', 'Company'],
   opened_by: ['Eröffnet von', 'Opened by'],
   decided_by: ['Entschieden von', 'Decided by'],
+  consumed_payment_id: ['Eingelöst bei Zahlung', 'Used on payment'],
+  reserved_payment_id: ['Reserviert für Zahlung', 'Reserved for payment'],
+  replacement_lead_id: ['Ersatz-Lead', 'Replacement lead'],
+  broker_notes: ['Notizen des Beraters', 'Berater notes'],
+  refunded_at: ['Erstattet am', 'Refunded at'],
 };
 
 export function columnLabel(column) {

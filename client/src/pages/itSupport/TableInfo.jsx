@@ -5,10 +5,7 @@ import {
   ArrowRight,
   ArrowUpRight,
   Copy,
-  Eraser,
   ExternalLink,
-  ShieldAlert,
-  Trash2,
   TriangleAlert,
   Zap,
 } from 'lucide-react';
@@ -180,7 +177,7 @@ export default function TableInfo({ rel, projectRef, target, onClose }) {
           .join(' AND ')};`,
       })),
     ...(isAuth ? [] : [{
-      label: L('Löschen (erst Sicherung, Auswirkungen siehe „Löschen“)', 'Delete (back up first, see "Delete" for the impact)'),
+      label: L('Löschen (erst Sicherung, Auswirkungen siehe „Beim Löschen“)', 'Delete (back up first, see "If deleted" for the impact)'),
       sql: `DELETE FROM ${qualified} WHERE ${where};`,
     }]),
   ] : [];
@@ -231,10 +228,18 @@ export default function TableInfo({ rel, projectRef, target, onClose }) {
             <>
               <div className="its-info-hero">
                 <div className="its-info-hero-top">
-                  <TableIcon table={table} size="lg" />
+                  <TableIcon table={table} />
                   <div>
                     <span className="its-info-kind">{isRow ? L('Dieser Eintrag', 'This row') : L('Diese Tabelle', 'This table')}</span>
-                    <strong className="its-info-title">{tableLabel(table)}</strong>
+                    {key ? (
+                      <span className="its-info-keys">
+                        {pk.map((column) => (
+                          <button key={column} type="button" onClick={() => copy(String(key[column]))} title={L('Kopieren', 'Copy')}>
+                            <em>{column}</em> <code>{String(key[column])}</code> <Copy size={12} />
+                          </button>
+                        ))}
+                      </span>
+                    ) : null}
                   </div>
                   {page ? (
                     <Link className="its-btn is-primary is-sm" to={page} onClick={onClose}>
@@ -243,6 +248,15 @@ export default function TableInfo({ rel, projectRef, target, onClose }) {
                   ) : null}
                 </div>
                 <p>{tableAbout(table, meta?.comment)}</p>
+                {isRow && counting ? <p className="its-info-plain is-info">{L('Verknüpfte Zeilen werden gezählt …', 'Counting linked rows …')}</p> : null}
+                {!isRow ? (
+                  <p className="its-info-plain is-info">
+                    {L(
+                      `Beim Löschen einer Zeile: in ${incoming.filter((fk) => fk.on_delete === 'CASCADE').length} Tabellen wird mitgelöscht, in ${incoming.filter((fk) => ['SET NULL', 'SET DEFAULT'].includes(fk.on_delete)).length} Tabellen wird die Verknüpfung geleert.`,
+                      `Deleting a row here deletes linked rows in ${incoming.filter((fk) => fk.on_delete === 'CASCADE').length} tables and clears the link in ${incoming.filter((fk) => ['SET NULL', 'SET DEFAULT'].includes(fk.on_delete)).length} tables.`,
+                    )}
+                  </p>
+                ) : null}
                 {isRow && !counting ? (
                   <p className={`its-info-plain${blocked.length ? ' is-error' : cascadeCount ? ' is-warn' : nullCount ? ' is-info' : ' is-ok'}`}>
                     {blocked.length
@@ -255,37 +269,6 @@ export default function TableInfo({ rel, projectRef, target, onClose }) {
                         : L('Nichts anderes hängt an dieser Zeile.', 'Nothing else depends on this row.')}
                   </p>
                 ) : null}
-                {key ? (
-                  <div className="its-info-keys">
-                    {pk.map((column) => (
-                      <button key={column} type="button" onClick={() => copy(String(key[column]))}>
-                        <em>{column}</em> <code>{String(key[column])}</code> <Copy size={12} />
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
-                <div className="its-info-sums">
-                  <div className={cascadeCount > 0 ? 'is-error' : ''}>
-                    <span><Trash2 size={12} /> {L('Würde mitgelöscht', 'Would be deleted too')}</span>
-                    <strong>
-                      {isRow
-                        ? (counting ? '…' : cascadeCount)
-                        : `${incoming.filter((fk) => fk.on_delete === 'CASCADE').length} ${L('Tabellen', 'tables')}`}
-                    </strong>
-                  </div>
-                  <div className={nullCount > 0 ? 'is-warn' : ''}>
-                    <span><Eraser size={12} /> {L('Würde geleert (NULL)', 'Would be cleared (NULL)')}</span>
-                    <strong>
-                      {isRow
-                        ? (counting ? '…' : nullCount)
-                        : `${incoming.filter((fk) => ['SET NULL', 'SET DEFAULT'].includes(fk.on_delete)).length} ${L('Tabellen', 'tables')}`}
-                    </strong>
-                  </div>
-                  <div className={blocked.length ? 'is-error' : 'is-ok'}>
-                    <span><ShieldAlert size={12} /> {L('Löschen blockiert', 'Delete blocked')}</span>
-                    <strong>{isRow ? (counting ? '…' : (blocked.length ? L('ja', 'yes') : L('nein', 'no'))) : '—'}</strong>
-                  </div>
-                </div>
               </div>
 
               <ErrorBanner error={info.error} onRetry={info.reload} />
