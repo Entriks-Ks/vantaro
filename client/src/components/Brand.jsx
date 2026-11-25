@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { L } from '../lib/i18n';
 
 export default function Brand({ href = '#top', to, className = '' }) {
   const classes = className ? `brand ${className}` : 'brand';
@@ -30,7 +31,7 @@ export default function Brand({ href = '#top', to, className = '' }) {
   }
 
   return (
-    <a className={classes} href={href} aria-label="VANTARO Startseite">
+    <a className={classes} href={href} aria-label={L('VANTARO Startseite', 'VANTARO home page')}>
       {inner}
     </a>
   );

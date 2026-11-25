@@ -21,12 +21,14 @@ import {
   Wrench,
 } from 'lucide-react';
 import Brand from '../../components/Brand';
+import LanguageSwitch from '../../components/LanguageSwitch';
 import { useAuth } from '../../hooks/useAuth';
 import { useDashboard } from '../../hooks/useDashboard';
 import { allowedPartnerPages } from '../../lib/partners';
 import { roleLabel } from '../../lib/roles';
 import { displayName, firstName, greeting, initials } from './helpers';
 import ScheduleBell from './ScheduleBell';
+import { L } from '../../lib/i18n';
 
 export function DashSeg({ value, onChange, options }) {
   return (
@@ -51,24 +53,24 @@ export function DashSeg({ value, onChange, options }) {
 function energyLinks(role, allowedPages) {
   const links = [
     { to: '/dashboard', match: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { to: '/dashboard/leads', match: 'leads', label: 'Meine Leads', icon: ListChecks },
-    { to: '/dashboard/kalender', match: 'kalender', label: 'Kalender', icon: Calendar },
+    { to: '/dashboard/leads', match: 'leads', label: L('Meine Leads', 'My leads'), icon: ListChecks },
+    { to: '/dashboard/kalender', match: 'kalender', label: L('Kalender', 'Calendar'), icon: Calendar },
   ];
   if (role === 'main') {
     links.push(
       { divider: true },
-      { to: '/dashboard/paket', match: 'paket', label: 'Meine Pakete', icon: CreditCard },
-      { to: '/dashboard/zahlung', match: 'zahlung', label: 'Zahlungen', icon: Wallet },
+      { to: '/dashboard/paket', match: 'paket', label: L('Meine Pakete', 'My packages'), icon: CreditCard },
+      { to: '/dashboard/zahlung', match: 'zahlung', label: L('Zahlungen', 'Payments'), icon: Wallet },
       { to: '/dashboard/team', match: 'team', label: 'Partner', icon: Handshake },
-      { to: '/dashboard/academy', match: 'academy', label: 'Akademie', icon: GraduationCap },
+      { to: '/dashboard/academy', match: 'academy', label: L('Akademie', 'Academy'), icon: GraduationCap },
       { to: '/dashboard/support', match: 'support', label: 'Support', icon: MessageCircle },
     );
   } else {
     links.push(
       { divider: true },
-      { to: '/dashboard/paket', match: 'paket', label: 'Meine Pakete', icon: CreditCard },
-      { to: '/dashboard/zahlung', match: 'zahlung', label: 'Zahlungen', icon: Wallet },
-      { to: '/dashboard/academy', match: 'academy', label: 'Akademie', icon: GraduationCap },
+      { to: '/dashboard/paket', match: 'paket', label: L('Meine Pakete', 'My packages'), icon: CreditCard },
+      { to: '/dashboard/zahlung', match: 'zahlung', label: L('Zahlungen', 'Payments'), icon: Wallet },
+      { to: '/dashboard/academy', match: 'academy', label: L('Akademie', 'Academy'), icon: GraduationCap },
       { to: '/dashboard/support', match: 'support', label: 'Support', icon: MessageCircle },
     );
   }
@@ -98,13 +100,13 @@ function filterLinksByPages(links, allowedPages) {
 
 const BERATER_LINKS = [
   { to: '/dashboard', match: 'home', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/dashboard/leads', match: 'leads', label: 'Meine Leads', icon: ListChecks },
-  { to: '/dashboard/kalender', match: 'kalender', label: 'Kalender', icon: Calendar },
+  { to: '/dashboard/leads', match: 'leads', label: L('Meine Leads', 'My leads'), icon: ListChecks },
+  { to: '/dashboard/kalender', match: 'kalender', label: L('Kalender', 'Calendar'), icon: Calendar },
   { divider: true },
-  { to: '/dashboard/paket', match: 'paket', label: 'Mein Paket', icon: CreditCard },
-  { to: '/dashboard/zahlung', match: 'zahlung', label: 'Zahlungen', icon: Wallet },
+  { to: '/dashboard/paket', match: 'paket', label: L('Mein Paket', 'My package'), icon: CreditCard },
+  { to: '/dashboard/zahlung', match: 'zahlung', label: L('Zahlungen', 'Payments'), icon: Wallet },
   { to: '/dashboard/partner', match: 'partner', label: 'Partner', icon: Handshake },
-  { to: '/dashboard/academy', match: 'academy', label: 'Akademie', icon: GraduationCap },
+  { to: '/dashboard/academy', match: 'academy', label: L('Akademie', 'Academy'), icon: GraduationCap },
   { to: '/dashboard/support', match: 'support', label: 'Support', icon: MessageCircle },
 ];
 
@@ -142,89 +144,89 @@ function NavProgress({ pathname }) {
 
 const ADMIN_NAV = [
   {
-    label: 'Übersicht',
-    links: [{ to: '/dashboard', end: true, label: 'Übersicht', icon: LayoutDashboard }],
+    label: L('Übersicht', 'Overview'),
+    links: [{ to: '/dashboard', end: true, label: L('Übersicht', 'Overview'), icon: LayoutDashboard }],
   },
   {
     label: 'Workflow',
     links: [
-      { to: '/dashboard/anfordern', label: 'Anforderungen', icon: Inbox },
-      { to: '/dashboard/reklamationen', label: 'Reklamationen', icon: Flag },
-      { to: '/dashboard/leads/ungueltig', label: 'Ungültige Leads', icon: Ban },
+      { to: '/dashboard/anfordern', label: L('Anforderungen', 'Requests'), icon: Inbox },
+      { to: '/dashboard/reklamationen', label: L('Reklamationen', 'Complaints'), icon: Flag },
+      { to: '/dashboard/leads/ungueltig', label: L('Ungültige Leads', 'Invalid leads'), icon: Ban },
     ],
   },
   {
-    label: 'Bestand',
+    label: L('Bestand', 'Inventory'),
     links: [
       { to: '/dashboard/leads', end: true, label: 'Leads', icon: ListChecks },
-      { to: '/dashboard/termine', end: true, label: 'Termine', icon: CalendarClock },
-      { to: '/dashboard/berater', label: 'Berater', icon: UserRound },
-      { to: '/dashboard/nutzer', label: 'Nutzer', icon: Users },
+      { to: '/dashboard/termine', end: true, label: L('Termine', 'Appointments'), icon: CalendarClock },
+      { to: '/dashboard/berater', label: L('Berater', 'Advisors'), icon: UserRound },
+      { to: '/dashboard/nutzer', label: L('Nutzer', 'Users'), icon: Users },
     ],
   },
   {
-    label: 'Konto',
+    label: L('Konto', 'Account'),
     links: [
-      { to: '/dashboard/zahlung', label: 'Zahlung', icon: Landmark },
+      { to: '/dashboard/zahlung', label: L('Zahlung', 'Payment'), icon: Landmark },
     ],
   },
   {
-    label: 'Technik',
+    label: L('Technik', 'Technical'),
     links: [
       // Admins can open the IT Support console to review its activity log.
-      { to: '/it-support', label: 'IT-Support-Konsole', icon: Wrench },
+      { to: '/it-support', label: L('IT-Support-Konsole', 'IT support console'), icon: Wrench },
     ],
   },
 ];
 
 function adminPageCopy(pathname, user) {
   if (pathname.startsWith('/dashboard/zahlung')) {
-    return { kicker: 'Konto', title: 'Zahlung', subtitle: 'Testzahlungen der Berater — Rechnung und Kartendaten.' };
+    return { kicker: L('Konto', 'Account'), title: L('Zahlung', 'Payment'), subtitle: L('Testzahlungen der Berater — Rechnung und Kartendaten.', 'Advisor test payments — invoice and card details.') };
   }
   if (pathname.startsWith('/dashboard/sicherheit')) {
-    return { kicker: 'Konto', title: 'Sicherheit', subtitle: 'Passwort ändern — mit aktuellem Passwort und starken Regeln.' };
+    return { kicker: L('Konto', 'Account'), title: L('Sicherheit', 'Security'), subtitle: L('Passwort ändern — mit aktuellem Passwort und starken Regeln.', 'Change password — with your current password and strong rules.') };
   }
   if (pathname.startsWith('/dashboard/profil')) {
-    return { kicker: 'Konto', title: 'Profil', subtitle: 'Persönliche Angaben für den Admin — unabhängig von Berater-Stammdaten.' };
+    return { kicker: L('Konto', 'Account'), title: L('Profil', 'Profile'), subtitle: L('Persönliche Angaben für den Admin — unabhängig von Berater-Stammdaten.', 'Personal details for the admin — separate from advisor company details.') };
   }
   if (pathname.startsWith('/dashboard/nutzer')) {
-    return { kicker: 'Bestand', title: 'Nutzer', subtitle: 'Konten im Portal.' };
+    return { kicker: L('Bestand', 'Inventory'), title: L('Nutzer', 'Users'), subtitle: L('Konten im Portal.', 'Accounts in the portal.') };
   }
   if (pathname.startsWith('/dashboard/berater')) {
-    return { kicker: 'Bestand', title: 'Berater', subtitle: 'Konten und Stammdaten der Berater.' };
+    return { kicker: L('Bestand', 'Inventory'), title: L('Berater', 'Advisors'), subtitle: L('Konten und Stammdaten der Berater.', 'Advisor accounts and company details.') };
   }
   if (/^\/dashboard\/anfordern\/[^/]+/.test(pathname) || /^\/dashboard\/anfragen\/[^/]+/.test(pathname)) {
-    return { kicker: 'Workflow', title: 'Anforderung', subtitle: 'Fortschritt prüfen, Leads senden und den Auftrag steuern.' };
+    return { kicker: 'Workflow', title: L('Anforderung', 'Request'), subtitle: L('Fortschritt prüfen, Leads senden und den Auftrag steuern.', 'Check progress, send leads and manage the order.') };
   }
   if (pathname.startsWith('/dashboard/anfordern') || pathname.startsWith('/dashboard/anfragen')) {
-    return { kicker: 'Workflow', title: 'Anforderungen', subtitle: 'Anforderungen prüfen, Leads senden und den Versand steuern.' };
+    return { kicker: 'Workflow', title: L('Anforderungen', 'Requests'), subtitle: L('Anforderungen prüfen, Leads senden und den Versand steuern.', 'Review requests, send leads and manage delivery.') };
   }
   if (pathname.startsWith('/dashboard/reklamationen')) {
-    return { kicker: 'Workflow', title: 'Reklamationen', subtitle: 'Eingaben prüfen, Infos anfordern, erstatten oder ablehnen.' };
+    return { kicker: 'Workflow', title: L('Reklamationen', 'Complaints'), subtitle: L('Eingaben prüfen, Infos anfordern, erstatten oder ablehnen.', 'Review submissions, request information, refund or reject.') };
   }
   if (pathname.startsWith('/dashboard/leads/ungueltig') || pathname.startsWith('/dashboard/leads/abgelehnt')) {
     return {
       kicker: 'Workflow',
-      title: 'Ungültige Leads',
-      subtitle: 'Erstattete Leads nach Reklamation — prüfen und bei Bedarf als Wieder verfügbar zurück in den Pool legen.',
+      title: L('Ungültige Leads', 'Invalid leads'),
+      subtitle: L('Erstattete Leads nach Reklamation — prüfen und bei Bedarf als Wieder verfügbar zurück in den Pool legen.', 'Leads refunded after a complaint — review and, if needed, return them to the pool as available again.'),
     };
   }
   if (pathname.startsWith('/dashboard/leads/new')) {
-    return { kicker: 'Bestand', title: 'Neuer Lead', subtitle: 'Qualifizierten Kontakt anlegen.' };
+    return { kicker: L('Bestand', 'Inventory'), title: L('Neuer Lead', 'New lead'), subtitle: L('Qualifizierten Kontakt anlegen.', 'Create a qualified contact.') };
   }
   if (pathname.startsWith('/dashboard/leads/')) {
-    return { kicker: 'Bestand', title: 'Lead', subtitle: 'Kontakt prüfen und Bestand pflegen.' };
+    return { kicker: L('Bestand', 'Inventory'), title: 'Lead', subtitle: L('Kontakt prüfen und Bestand pflegen.', 'Review the contact and maintain the inventory.') };
   }
   if (pathname.startsWith('/dashboard/leads')) {
-    return { kicker: 'Bestand', title: 'Leads', subtitle: 'Bestand filtern, importieren und pflegen.' };
+    return { kicker: L('Bestand', 'Inventory'), title: 'Leads', subtitle: L('Bestand filtern, importieren und pflegen.', 'Filter, import and maintain the inventory.') };
   }
   if (pathname.startsWith('/dashboard/termine')) {
-    return { kicker: 'Bestand', title: 'Termine', subtitle: 'Energie-Termine mit Datum und Uhrzeit filtern und pflegen.' };
+    return { kicker: L('Bestand', 'Inventory'), title: L('Termine', 'Appointments'), subtitle: L('Energie-Termine mit Datum und Uhrzeit filtern und pflegen.', 'Filter and maintain energy appointments with date and time.') };
   }
   return {
     kicker: greeting(),
     title: firstName(user),
-    subtitle: 'Prüfen Sie aktive Anforderungen und Reklamationen, dann den Lead-Bestand.',
+    subtitle: L('Prüfen Sie aktive Anforderungen und Reklamationen, dann den Lead-Bestand.', 'Review active requests and complaints, then the lead inventory.'),
   };
 }
 
@@ -302,7 +304,7 @@ function AdminShell({ user, children }) {
                     <Icon size={16} />
                     <span className="dash-nav-text">{link.label}</span>
                     {badge > 0 ? (
-                      <em className="dash-nav-count" aria-label={`${badge} offen`}>
+                      <em className="dash-nav-count" aria-label={L(`${badge} offen`, `${badge} open`)}>
                         {badge > 99 ? '99+' : badge}
                       </em>
                     ) : null}
@@ -323,8 +325,8 @@ function AdminShell({ user, children }) {
                 return `dash-account-profile${isActive || settingsActive ? ' is-active' : ''}`;
               }}
               to="/dashboard/profil"
-              title="Profil öffnen"
-              aria-label="Profil öffnen"
+              title={L('Profil öffnen', 'Open profile')}
+              aria-label={L('Profil öffnen', 'Open profile')}
             >
               <span className="dash-avatar">
                 {user.avatarUrl ? <img src={user.avatarUrl} alt="" /> : initials(user)}
@@ -340,8 +342,8 @@ function AdminShell({ user, children }) {
               onClick={() => setCollapsed((value) => !value)}
               aria-expanded={!collapsed}
               aria-controls="dash-sidebar-nav"
-              aria-label={collapsed ? 'Seitenleiste öffnen' : 'Seitenleiste schließen'}
-              title={collapsed ? 'Seitenleiste öffnen' : 'Seitenleiste schließen'}
+              aria-label={collapsed ? L('Seitenleiste öffnen', 'Open sidebar') : L('Seitenleiste schließen', 'Close sidebar')}
+              title={collapsed ? L('Seitenleiste öffnen', 'Open sidebar') : L('Seitenleiste schließen', 'Close sidebar')}
             >
               {collapsed ? <PanelLeftOpen size={14} /> : <PanelLeftClose size={14} />}
             </button>
@@ -356,6 +358,7 @@ function AdminShell({ user, children }) {
             <h1>{copy.title}</h1>
             {copy.subtitle ? <p className="dash-top-sub">{copy.subtitle}</p> : null}
           </div>
+          <LanguageSwitch />
         </header>
         <div className="dash-body">{children}</div>
       </div>
@@ -379,7 +382,7 @@ function AccountMenu({ user, compact = false, collapsed = false, onToggleSidebar
       <NavLink
         to="/dashboard/profil"
         className={({ isActive }) => `broker-account-profile${isActive ? ' is-active' : ''}${compact ? ' is-compact' : ''}`}
-        aria-label={compact ? `Profil, ${displayName(user)}` : undefined}
+        aria-label={compact ? L(`Profil, ${displayName(user)}`, `Profile, ${displayName(user)}`) : undefined}
         title={compact ? displayName(user) : undefined}
       >
         <span className="broker-avatar broker-avatar--foot">
@@ -396,8 +399,8 @@ function AccountMenu({ user, compact = false, collapsed = false, onToggleSidebar
         onClick={onToggleSidebar}
         aria-expanded={!collapsed}
         aria-controls="broker-sidebar-nav"
-        aria-label={collapsed ? 'Seitenleiste öffnen' : 'Seitenleiste schließen'}
-        title={collapsed ? 'Seitenleiste öffnen' : 'Seitenleiste schließen'}
+        aria-label={collapsed ? L('Seitenleiste öffnen', 'Open sidebar') : L('Seitenleiste schließen', 'Close sidebar')}
+        title={collapsed ? L('Seitenleiste öffnen', 'Open sidebar') : L('Seitenleiste schließen', 'Close sidebar')}
       >
         {collapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
       </button>
@@ -428,7 +431,7 @@ function BeraterShell({ user, children }) {
         <button
           type="button"
           className="broker-sidebar-backdrop"
-          aria-label="Menü schließen"
+          aria-label={L('Menü schließen', 'Close menu')}
           onClick={() => setSidebarOpen(false)}
         />
       ) : null}
@@ -438,7 +441,7 @@ function BeraterShell({ user, children }) {
         onClick={() => setSidebarOpen((value) => !value)}
         aria-expanded={sidebarOpen}
         aria-controls="broker-sidebar-nav"
-        aria-label={sidebarOpen ? 'Menü schließen' : 'Menü öffnen'}
+        aria-label={sidebarOpen ? L('Menü schließen', 'Close menu') : L('Menü öffnen', 'Open menu')}
       >
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <line x1="3" y1="12" x2="21" y2="12" />
@@ -490,6 +493,7 @@ function BeraterShell({ user, children }) {
 
       <div className="broker-content">
         <div className="broker-topbar">
+          <LanguageSwitch />
           <ScheduleBell />
         </div>
         <NavProgress pathname={location.pathname} />

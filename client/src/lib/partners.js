@@ -1,5 +1,6 @@
 import { apiUrl } from './api';
 import { readStoredSession } from './auth';
+import { L } from './i18n';
 
 function authHeaders(json = false) {
   const session = readStoredSession();
@@ -25,7 +26,7 @@ function withRoleFields(payload) {
 
 async function parse(response) {
   const payload = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(payload.error || 'Etwas ist schiefgelaufen.');
+  if (!response.ok) throw new Error(payload.error || L('Etwas ist schiefgelaufen.', 'Something went wrong.'));
   if (Array.isArray(payload.partners)) payload.partners = payload.partners.map(mapPartner);
   if (payload.partner) payload.partner = mapPartner(payload.partner);
   if (payload.user) payload.user = mapPartner(payload.user);
@@ -36,22 +37,22 @@ const PARTNERS_API = '/api/energy/partners';
 
 const ROLE_OPTIONS = {
   energy: [
-    { id: 'dispatcher', title: 'Dispatcher', hint: 'Zuweisung und Koordination' },
-    { id: 'sub_partner', title: 'Untervertriebspartner', hint: 'Verkauf und Betreuung' },
-    { id: 'field_rep', title: 'Außendienst', hint: 'Termine vor Ort' },
+    { id: 'dispatcher', title: 'Dispatcher', hint: L('Zuweisung und Koordination', 'Assignment and coordination') },
+    { id: 'sub_partner', title: L('Untervertriebspartner', 'Sales sub-partner'), hint: L('Verkauf und Betreuung', 'Sales and customer care') },
+    { id: 'field_rep', title: L('Außendienst', 'Field sales'), hint: L('Termine vor Ort', 'On-site appointments') },
   ],
   insurance: [
-    { id: 'dispatcher', title: 'Dispatcher', hint: 'Sieht alle Leads und weist zu' },
-    { id: 'sub_partner', title: 'Untervermittler', hint: 'Bearbeitet zugewiesene Leads' },
+    { id: 'dispatcher', title: 'Dispatcher', hint: L('Sieht alle Leads und weist zu', 'Sees all leads and assigns them') },
+    { id: 'sub_partner', title: L('Untervermittler', 'Sub-broker'), hint: L('Bearbeitet zugewiesene Leads', 'Works on assigned leads') },
   ],
 };
 
 const PAGE_OPTIONS = [
   { id: 'dashboard', label: 'Dashboard' },
-  { id: 'leads', label: 'Meine Leads' },
-  { id: 'kalender', label: 'Kalender' },
-  { id: 'paket', label: 'Meine Pakete' },
-  { id: 'academy', label: 'Akademie' },
+  { id: 'leads', label: L('Meine Leads', 'My leads') },
+  { id: 'kalender', label: L('Kalender', 'Calendar') },
+  { id: 'paket', label: L('Meine Pakete', 'My packages') },
+  { id: 'academy', label: L('Akademie', 'Academy') },
   { id: 'support', label: 'Support' },
 ];
 
@@ -67,7 +68,7 @@ export function partnerRoleOptions(vertical) {
 }
 
 export function partnerRoleLabel(vertical, role) {
-  if (role === 'main') return 'Hauptfirma';
+  if (role === 'main') return L('Hauptfirma', 'Main company');
   return partnerRoleOptions(vertical).find((option) => option.id === role)?.title || role;
 }
 

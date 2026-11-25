@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Check, ChevronDown } from 'lucide-react';
+import { L } from '../../lib/i18n';
 
 export function useDropdownDismiss(open, setOpen, wrapRef) {
   useEffect(() => {
@@ -40,7 +41,7 @@ export function SelectDropdown({ label, icon: FallbackIcon, options, value, onCh
         {TriggerIcon ? <TriggerIcon size={15} strokeWidth={2.1} aria-hidden="true" /> : null}
         <span className="broker-filter-dd__label">{label}</span>
         <span className="broker-filter-dd__value">{current.label}</span>
-        {hiddenAlert ? <span className="broker-select-dd__dot" aria-label="Handlungsbedarf" /> : null}
+        {hiddenAlert ? <span className="broker-select-dd__dot" aria-label={L('Handlungsbedarf', 'Action required')} /> : null}
         <ChevronDown size={14} className={`broker-filter-dd__chevron${open ? ' is-open' : ''}`} aria-hidden="true" />
       </button>
       {open ? (

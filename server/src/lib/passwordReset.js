@@ -39,7 +39,7 @@ export function secondsUntilPasswordResetResend(user) {
   return remaining > 0 ? Math.ceil(remaining / 1000) : 0;
 }
 
-export async function issuePasswordReset(user, { ignoreCooldown = false } = {}) {
+export async function issuePasswordReset(user, { ignoreCooldown = false, lang = null } = {}) {
   if (!hasCustomMailer()) {
     throw new Error('E-Mail-Versand ist nicht konfiguriert (RESEND_API_KEY / EMAIL_FROM).');
   }
@@ -77,6 +77,7 @@ export async function issuePasswordReset(user, { ignoreCooldown = false } = {}) 
     to: email,
     resetUrl,
     fullName: metadata.full_name || '',
+    lang: lang || metadata.settings?.language || 'de',
   });
 
   return data.user;

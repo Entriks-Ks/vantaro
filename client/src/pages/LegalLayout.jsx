@@ -7,3 +7,13 @@ export default function LegalLayout({ children }) {
     </section>
   );
 }
+
+/** Shown below the lede of each legal page in English mode only. */
+export function EnglishVersionNote() {
+  return (
+    <p className="legal-note">
+      This English version is provided for convenience. In case of any
+      discrepancy, the German version shall prevail.
+    </p>
+  );
+}

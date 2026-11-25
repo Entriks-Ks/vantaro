@@ -1,83 +1,84 @@
 import { apiUrl } from './api';
 import { readStoredSession } from './auth';
+import { L } from './i18n';
 
 export const COMPLAINT_COMMENT_MIN = 20;
 
 export const COMPLAINT_REASON_OPTIONS = [
   {
     id: 'invalid_phone',
-    label: 'Falsche oder ungültige Telefonnummer',
-    hint: 'Die Nummer ist falsch, unvollständig oder dauerhaft nicht erreichbar.',
-    placeholder: 'z. B. Nummer nicht vergeben, Ansage „kein Anschluss unter dieser Nummer“…',
+    label: L('Falsche oder ungültige Telefonnummer', 'Wrong or invalid phone number'),
+    hint: L('Die Nummer ist falsch, unvollständig oder dauerhaft nicht erreichbar.', 'The number is wrong, incomplete or permanently unreachable.'),
+    placeholder: L('z. B. Nummer nicht vergeben, Ansage „kein Anschluss unter dieser Nummer“…', 'e.g. number not assigned, announcement “this number is not in service”…'),
   },
   {
     id: 'wrong_person',
-    label: 'Falsche Person oder falsche Kontaktdaten',
-    hint: 'Name, Adresse oder Kontakt gehören zu einer anderen Person.',
-    placeholder: 'z. B. Person kennt die Anfrage nicht, Name oder Adresse gehören zu jemand anderem…',
+    label: L('Falsche Person oder falsche Kontaktdaten', 'Wrong person or wrong contact details'),
+    hint: L('Name, Adresse oder Kontakt gehören zu einer anderen Person.', 'Name, address or contact details belong to someone else.'),
+    placeholder: L('z. B. Person kennt die Anfrage nicht, Name oder Adresse gehören zu jemand anderem…', 'e.g. person doesn\'t know about the request, name or address belongs to someone else…'),
   },
   {
     id: 'duplicate',
-    label: 'Doppelte Übermittlung desselben Leads',
-    hint: 'Derselbe Lead wurde bereits an Sie oder einen anderen Berater übermittelt.',
-    placeholder: 'z. B. gleicher Kontakt schon am … erhalten, gleiche Telefonnummer im Bestand…',
+    label: L('Doppelte Übermittlung desselben Leads', 'Duplicate delivery of the same lead'),
+    hint: L('Derselbe Lead wurde bereits an Sie oder einen anderen Berater übermittelt.', 'The same lead was already delivered to you or another advisor.'),
+    placeholder: L('z. B. gleicher Kontakt schon am … erhalten, gleiche Telefonnummer im Bestand…', 'e.g. same contact already received on …, same phone number already on file…'),
   },
   {
     id: 'wrong_info',
-    label: 'Wesentlich falsche Angaben zur beruflichen Situation oder zum Versicherungsstatus',
-    hint: 'Beruf oder Versicherungsstatus weichen wesentlich von den übermittelten Daten ab.',
-    placeholder: 'z. B. angeblich angestellt, tatsächlich selbstständig — oder PKV statt GKV…',
+    label: L('Wesentlich falsche Angaben zur beruflichen Situation oder zum Versicherungsstatus', 'Materially incorrect information on employment or insurance status'),
+    hint: L('Beruf oder Versicherungsstatus weichen wesentlich von den übermittelten Daten ab.', 'Occupation or insurance status differ materially from the data provided.'),
+    placeholder: L('z. B. angeblich angestellt, tatsächlich selbstständig — oder PKV statt GKV…', 'e.g. supposedly employed, actually self-employed — or PKV instead of GKV…'),
   },
   {
     id: 'missing_fields',
-    label: 'Fehlende Pflichtangaben',
-    hint: 'Wesentliche Informationen fehlen, sodass eine sinnvolle Beratung nicht möglich ist.',
-    placeholder: 'z. B. keine Erreichbarkeit, fehlende Angaben zu Beruf oder Versicherung…',
+    label: L('Fehlende Pflichtangaben', 'Missing required information'),
+    hint: L('Wesentliche Informationen fehlen, sodass eine sinnvolle Beratung nicht möglich ist.', 'Essential information is missing, so meaningful advice is not possible.'),
+    placeholder: L('z. B. keine Erreichbarkeit, fehlende Angaben zu Beruf oder Versicherung…', 'e.g. unreachable, missing details on occupation or insurance…'),
   },
   {
     id: 'exclusivity',
-    label: 'Verstoß gegen Exklusivität oder Sperrlisten',
-    hint: 'Kontakt verstößt gegen Exklusivitätsregeln oder steht auf einer Sperrliste.',
-    placeholder: 'z. B. Bestandskunde, bereits bei einem anderen Berater in Beratung…',
+    label: L('Verstoß gegen Exklusivität oder Sperrlisten', 'Breach of exclusivity or blocklists'),
+    hint: L('Kontakt verstößt gegen Exklusivitätsregeln oder steht auf einer Sperrliste.', 'Contact breaches exclusivity rules or is on a blocklist.'),
+    placeholder: L('z. B. Bestandskunde, bereits bei einem anderen Berater in Beratung…', 'e.g. existing customer, already being advised by another advisor…'),
   },
   {
     id: 'tech_error',
-    label: 'Technischer Übertragungsfehler',
-    hint: 'Daten wurden durch einen Übertragungs- oder Systemfehler beschädigt.',
-    placeholder: 'z. B. abgeschnittene Nummer, unlesbare Adresse, doppelte/fehlende Felder…',
+    label: L('Technischer Übertragungsfehler', 'Technical transmission error'),
+    hint: L('Daten wurden durch einen Übertragungs- oder Systemfehler beschädigt.', 'Data was corrupted by a transmission or system error.'),
+    placeholder: L('z. B. abgeschnittene Nummer, unlesbare Adresse, doppelte/fehlende Felder…', 'e.g. truncated number, unreadable address, duplicate/missing fields…'),
   },
 ];
 
 export const ENERGY_COMPLAINT_REASONS = [
   {
     id: 'invalid_phone',
-    label: 'Telefon ungültig oder nicht erreichbar',
-    hint: 'Die Nummer ist falsch, unvollständig oder dauerhaft nicht erreichbar.',
-    placeholder: 'z. B. Nummer nicht vergeben, Ansage „kein Anschluss unter dieser Nummer“…',
+    label: L('Telefon ungültig oder nicht erreichbar', 'Phone invalid or unreachable'),
+    hint: L('Die Nummer ist falsch, unvollständig oder dauerhaft nicht erreichbar.', 'The number is wrong, incomplete or permanently unreachable.'),
+    placeholder: L('z. B. Nummer nicht vergeben, Ansage „kein Anschluss unter dieser Nummer“…', 'e.g. number not assigned, announcement “this number is not in service”…'),
   },
   {
     id: 'wrong_territory',
-    label: 'Adresse außerhalb des Gebiets',
-    hint: 'Die Adresse liegt nicht im gebuchten Gebiet.',
-    placeholder: 'z. B. PLZ gehört nicht zum bestellten Gebiet…',
+    label: L('Adresse außerhalb des Gebiets', 'Address outside the area'),
+    hint: L('Die Adresse liegt nicht im gebuchten Gebiet.', 'The address is not in the booked area.'),
+    placeholder: L('z. B. PLZ gehört nicht zum bestellten Gebiet…', 'e.g. postcode is not part of the ordered area…'),
   },
   {
     id: 'customer_unaware',
-    label: 'Kunde weiß von nichts',
-    hint: 'Die Person kennt die Anfrage oder den Termin nicht.',
-    placeholder: 'z. B. Person kennt die Anfrage nicht, kein Einverständnis…',
+    label: L('Kunde weiß von nichts', 'Customer knows nothing about it'),
+    hint: L('Die Person kennt die Anfrage oder den Termin nicht.', 'The person doesn\'t know about the request or the appointment.'),
+    placeholder: L('z. B. Person kennt die Anfrage nicht, kein Einverständnis…', 'e.g. person doesn\'t know about the request, no consent…'),
   },
   {
     id: 'duplicate',
-    label: 'Doppelte Übermittlung desselben Leads',
-    hint: 'Derselbe Kontakt wurde bereits geliefert.',
-    placeholder: 'z. B. gleicher Kontakt schon am … erhalten, gleiche Telefonnummer…',
+    label: L('Doppelte Übermittlung desselben Leads', 'Duplicate delivery of the same lead'),
+    hint: L('Derselbe Kontakt wurde bereits geliefert.', 'The same contact was already delivered.'),
+    placeholder: L('z. B. gleicher Kontakt schon am … erhalten, gleiche Telefonnummer…', 'e.g. same contact already received on …, same phone number…'),
   },
   {
     id: 'appointment_not_attended',
-    label: 'Termin nicht wahrgenommen',
-    hint: 'Der feste Termin wurde nicht eingehalten.',
-    placeholder: 'z. B. Kunde war nicht vor Ort, Termin wurde nicht wahrgenommen…',
+    label: L('Termin nicht wahrgenommen', 'Appointment not attended'),
+    hint: L('Der feste Termin wurde nicht eingehalten.', 'The fixed appointment was not kept.'),
+    placeholder: L('z. B. Kunde war nicht vor Ort, Termin wurde nicht wahrgenommen…', 'e.g. customer was not on site, appointment was not attended…'),
   },
 ];
 
@@ -86,27 +87,27 @@ export function complaintReasonsFor(vertical) {
 }
 
 const LEGACY_REASON_LABELS = {
-  invalid: 'Falscher / ungültiger Lead',
-  contact: 'Falsche Kontaktdaten',
-  requirements: 'Erfüllt nicht die Anforderungen',
-  cancelled: 'Lead hat storniert',
-  other: 'Sonstiges',
+  invalid: L('Falscher / ungültiger Lead', 'Wrong / invalid lead'),
+  contact: L('Falsche Kontaktdaten', 'Wrong contact details'),
+  requirements: L('Erfüllt nicht die Anforderungen', 'Does not meet the requirements'),
+  cancelled: L('Lead hat storniert', 'Lead cancelled'),
+  other: L('Sonstiges', 'Other'),
 };
 
 export const COMPLAINT_STATUS_OPTIONS = [
-  { id: 'pending', label: 'In Prüfung' },
-  { id: 'approved', label: 'Gutschrift vollständig' },
-  { id: 'partial', label: 'Gutschrift teilweise' },
-  { id: 'declined', label: 'Reklamation abgelehnt' },
-  { id: 'info_needed', label: 'Weitere Informationen erforderlich' },
+  { id: 'pending', label: L('In Prüfung', 'Under review') },
+  { id: 'approved', label: L('Gutschrift vollständig', 'Full credit') },
+  { id: 'partial', label: L('Gutschrift teilweise', 'Partial credit') },
+  { id: 'declined', label: L('Reklamation abgelehnt', 'Complaint rejected') },
+  { id: 'info_needed', label: L('Weitere Informationen erforderlich', 'More information required') },
 ];
 
 const CONTACT_STATUS_LABELS = {
-  neu: 'Noch kein Kontakt',
-  kontaktiert: 'Kontaktiert',
-  termin: 'Termin vereinbart',
-  wiedervorlage: 'Wiedervorlage',
-  abgeschlossen: 'Abgeschlossen',
+  neu: L('Noch kein Kontakt', 'No contact yet'),
+  kontaktiert: L('Kontaktiert', 'Contacted'),
+  termin: L('Termin vereinbart', 'Appointment scheduled'),
+  wiedervorlage: L('Wiedervorlage', 'Follow-up'),
+  abgeschlossen: L('Abgeschlossen', 'Closed'),
 };
 
 export function complaintReasonLabel(id, vertical) {
@@ -119,10 +120,10 @@ export function complaintReasonLabel(id, vertical) {
 }
 
 export function complaintStatusLabel(id) {
-  if (id === 'rejected') return 'Reklamation abgelehnt';
-  if (id === 'refunded') return 'Gutschrift vollständig';
-  if (id === 'teilweise') return 'Gutschrift teilweise';
-  if (id === 'infos_noetig') return 'Weitere Informationen erforderlich';
+  if (id === 'rejected') return L('Reklamation abgelehnt', 'Complaint rejected');
+  if (id === 'refunded') return L('Gutschrift vollständig', 'Full credit');
+  if (id === 'teilweise') return L('Gutschrift teilweise', 'Partial credit');
+  if (id === 'infos_noetig') return L('Weitere Informationen erforderlich', 'More information required');
   return COMPLAINT_STATUS_OPTIONS.find((option) => option.id === id)?.label || id || '—';
 }
 
@@ -156,9 +157,9 @@ export function isReplacementPending(complaint) {
 export function creditedComplaintBeraterNote(complaint) {
   if (!isCreditedComplaint(complaint)) return '';
   if (isReplacementPending(complaint)) {
-    return 'Reklamation akzeptiert. Dieser Lead ist gesperrt. Ein Ersatz wird zugestellt.';
+    return L('Reklamation akzeptiert. Dieser Lead ist gesperrt. Ein Ersatz wird zugestellt.', 'Complaint accepted. This lead is locked. A replacement will be delivered.');
   }
-  return 'Reklamation akzeptiert. Dieser Lead ist gesperrt. Ein Ersatz wurde zugestellt.';
+  return L('Reklamation akzeptiert. Dieser Lead ist gesperrt. Ein Ersatz wurde zugestellt.', 'Complaint accepted. This lead is locked. A replacement has been delivered.');
 }
 
 export function complaintReplacementPath(complaint) {
@@ -206,7 +207,7 @@ function authHeaders(json = false) {
 async function parseResponse(response) {
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new Error(payload.error || 'Etwas ist schiefgelaufen. Bitte versuchen Sie es erneut.');
+    throw new Error(payload.error || L('Etwas ist schiefgelaufen. Bitte versuchen Sie es erneut.', 'Something went wrong. Please try again.'));
   }
   return payload;
 }

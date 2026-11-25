@@ -1,11 +1,12 @@
 import { formatDistance } from './leads';
+import { L } from '../../lib/i18n';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 export const MATCH_TIERS = [
-  { id: 'green', label: 'Beste Wahl' },
-  { id: 'orange', label: 'Passend' },
-  { id: 'red', label: 'Nicht ideal' },
+  { id: 'green', label: L('Beste Wahl', 'Best match') },
+  { id: 'orange', label: L('Passend', 'Good match') },
+  { id: 'red', label: L('Nicht ideal', 'Not ideal') },
 ];
 
 export function matchTierLabel(tier) {
@@ -22,16 +23,16 @@ function filled(value) {
 }
 
 function daysLabel(days) {
-  if (days <= 0) return 'heute';
-  return days === 1 ? '1 Tag' : `${days} Tagen`;
+  if (days <= 0) return L('heute', 'today');
+  return days === 1 ? L('1 Tag', '1 day') : L(`${days} Tagen`, `${days} days`);
 }
 
 function scoreDistance(lead) {
   const km = Number(lead?.distanceKm);
   if (lead?.distanceKm == null || lead?.distanceKm === '' || !Number.isFinite(km)) {
-    return { points: 18, reason: 'Entfernung unbekannt' };
+    return { points: 18, reason: L('Entfernung unbekannt', 'Distance unknown') };
   }
-  const reason = `${formatDistance(km)} entfernt`;
+  const reason = L(`${formatDistance(km)} entfernt`, `${formatDistance(km)} away`);
   if (km < 10) return { points: 45, reason };
   if (km < 25) return { points: 32, reason };
   if (km < 50) return { points: 18, reason };
@@ -42,7 +43,9 @@ function scoreFreshness(lead, now) {
   const created = lead?.createdAt ? new Date(lead.createdAt).getTime() : NaN;
   if (!Number.isFinite(created)) return { points: 8, reason: '' };
   const days = Math.max(0, Math.floor((now - created) / DAY_MS));
-  const reason = days === 0 ? 'Heute eingegangen' : `Vor ${daysLabel(days)} eingegangen`;
+  const reason = days === 0
+    ? L('Heute eingegangen', 'Received today')
+    : L(`Vor ${daysLabel(days)} eingegangen`, `Received ${daysLabel(days)} ago`);
   if (days < 3) return { points: 20, reason };
   if (days < 14) return { points: 14, reason };
   if (days < 30) return { points: 8, reason };
@@ -58,23 +61,26 @@ function scoreCompleteness(lead) {
   const count = fields.filter(filled).length;
   const points = Math.round((count / fields.length) * 20);
   const reason = count === fields.length
-    ? 'Daten vollständig'
-    : `${fields.length - count} Angabe${fields.length - count === 1 ? '' : 'n'} fehlt`;
+    ? L('Daten vollständig', 'Data complete')
+    : L(
+      `${fields.length - count} Angabe${fields.length - count === 1 ? '' : 'n'} fehlt`,
+      `${fields.length - count} detail${fields.length - count === 1 ? '' : 's'} missing`,
+    );
   return { points, reason };
 }
 
 function scoreTiming(lead, request, now) {
   if (isAppointmentRequest(request)) {
     const at = lead?.appointmentAt ? new Date(lead.appointmentAt).getTime() : NaN;
-    if (!Number.isFinite(at)) return { points: 4, reason: 'Kein Termin hinterlegt' };
+    if (!Number.isFinite(at)) return { points: 4, reason: L('Kein Termin hinterlegt', 'No appointment set') };
     const diff = at - now;
-    if (diff < 0) return { points: 0, reason: 'Termin liegt in der Vergangenheit', forceRed: true };
-    if (diff < DAY_MS) return { points: 5, reason: 'Termin in weniger als 24 Std.' };
-    return { points: 15, reason: `Termin in ${daysLabel(Math.floor(diff / DAY_MS))}` };
+    if (diff < 0) return { points: 0, reason: L('Termin liegt in der Vergangenheit', 'Appointment is in the past'), forceRed: true };
+    if (diff < DAY_MS) return { points: 5, reason: L('Termin in weniger als 24 Std.', 'Appointment in less than 24 hours') };
+    return { points: 15, reason: L(`Termin in ${daysLabel(Math.floor(diff / DAY_MS))}`, `Appointment in ${daysLabel(Math.floor(diff / DAY_MS))}`) };
   }
-  if (!lead?.status || lead.status === 'neu') return { points: 15, reason: 'Neu' };
-  if (lead.status === 'wiedervorlage') return { points: 8, reason: 'Wiedervorlage' };
-  return { points: 5, reason: 'Bereits bearbeitet' };
+  if (!lead?.status || lead.status === 'neu') return { points: 15, reason: L('Neu', 'New') };
+  if (lead.status === 'wiedervorlage') return { points: 8, reason: L('Wiedervorlage', 'Follow-up') };
+  return { points: 5, reason: L('Bereits bearbeitet', 'Already processed') };
 }
 
 function tierForScore(score) {

@@ -42,40 +42,47 @@ function escapeHtml(value) {
     .replace(/"/g, '&quot;');
 }
 
-function verificationEmail({ code, fullName, confirmUrl }) {
+/** 'de' (default) or 'en' for account e-mails. */
+function accountMailLang(lang) {
+  return lang === 'en' ? 'en' : 'de';
+}
+
+function verificationEmail({ code, fullName, confirmUrl, lang = 'de' }) {
+  const language = accountMailLang(lang);
+  const t = (de, en) => (language === 'en' ? en : de);
   const year = new Date().getFullYear();
   const safeCode = escapeHtml(String(code));
   const safeName = escapeHtml(fullName);
   const safeUrl = escapeHtml(confirmUrl);
-  const greeting = safeName ? `Hallo ${safeName}` : 'Hallo';
+  const greeting = safeName ? `${t('Hallo', 'Hello')} ${safeName}` : t('Hallo', 'Hello');
 
   const text = `${greeting},
 
-bestätigen Sie Ihre E-Mail-Adresse, um Ihr VANTARO-Konto zu aktivieren:
+${t('bestätigen Sie Ihre E-Mail-Adresse, um Ihr VANTARO-Konto zu aktivieren:', 'please confirm your email address to activate your VANTARO account:')}
 
 ${confirmUrl}
 
-Oder geben Sie diesen Code ein: ${code}
+${t('Oder geben Sie diesen Code ein:', 'Or enter this code:')} ${code}
 
-Link und Code sind 15 Minuten gültig.
-Wenn Sie kein Konto erstellt haben, ignorieren Sie diese E-Mail.
+${t('Link und Code sind 15 Minuten gültig.', 'The link and code are valid for 15 minutes.')}
+${t('Wenn Sie kein Konto erstellt haben, ignorieren Sie diese E-Mail.', 'If you did not create an account, please ignore this email.')}
 
-© ${year} VANTARO. Alle Rechte vorbehalten.`;
+© ${year} VANTARO. ${t('Alle Rechte vorbehalten.', 'All rights reserved.')}`;
 
   const html = `<!doctype html>
-<html lang="de">
+<html lang="${language}">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <meta name="color-scheme" content="light" />
-    <title>Ihr Bestätigungscode für VANTARO</title>
+    <title>${t('Ihr Bestätigungscode für VANTARO', 'Your VANTARO confirmation code')}</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
   </head>
   <body style="margin:0;padding:0;background:#ffffff;color:#101827;">
     <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">
-            Geben Sie den Code ein oder klicken Sie auf „E-Mail bestätigen“. 15 Minuten gültig.
+            ${t('Geben Sie den Code ein oder klicken Sie auf „E-Mail bestätigen“. 15 Minuten gültig.', 'Enter the code or click “Confirm email”. Valid for 15 minutes.')}
     </div>
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff;">
       <tr>
@@ -94,24 +101,24 @@ Wenn Sie kein Konto erstellt haben, ignorieren Sie diese E-Mail.
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;">
             <tr>
               <td align="left" style="padding:0 0 12px;font-family:${HEADING_FONT};font-size:28px;font-weight:600;line-height:1.2;letter-spacing:-0.04em;color:#101827;">
-                Bestätigen Sie Ihre E-Mail-Adresse
+                ${t('Bestätigen Sie Ihre E-Mail-Adresse', 'Confirm your email address')}
               </td>
             </tr>
             <tr>
               <td align="left" style="padding:0 0 24px;font-family:${BODY_FONT};font-size:16px;line-height:1.6;color:#3d4b5c;">
-                ${greeting}, bestätigen Sie Ihre E-Mail-Adresse, um Ihr Konto zu aktivieren. Ein Klick reicht — oder geben Sie den Code ein.
+                ${greeting}, ${t('bestätigen Sie Ihre E-Mail-Adresse, um Ihr Konto zu aktivieren. Ein Klick reicht — oder geben Sie den Code ein.', 'please confirm your email address to activate your account. One click is enough — or enter the code.')}
               </td>
             </tr>
             <tr>
               <td align="center" style="padding:4px 0 28px;">
                 <a href="${safeUrl}" style="display:inline-block;background:#101827;color:#ffffff;font-family:${HEADING_FONT};font-size:15px;font-weight:700;letter-spacing:-0.02em;text-decoration:none;border-radius:10px;padding:14px 22px;">
-                  E-Mail bestätigen
+                  ${t('E-Mail bestätigen', 'Confirm email')}
                 </a>
               </td>
             </tr>
             <tr>
               <td align="center" style="padding:0 0 10px;font-family:${BODY_FONT};font-size:12px;line-height:1.6;color:#8b9aaa;">
-                Oder geben Sie diesen Code ein
+                ${t('Oder geben Sie diesen Code ein', 'Or enter this code')}
               </td>
             </tr>
             <tr>
@@ -121,17 +128,17 @@ Wenn Sie kein Konto erstellt haben, ignorieren Sie diese E-Mail.
             </tr>
             <tr>
               <td align="left" style="padding:0 0 8px;font-family:${BODY_FONT};font-size:14px;line-height:1.6;color:#5a6b7c;">
-                Link und Code sind 15 Minuten gültig. Teilen Sie sie mit niemandem.
+                ${t('Link und Code sind 15 Minuten gültig. Teilen Sie sie mit niemandem.', 'The link and code are valid for 15 minutes. Do not share them with anyone.')}
               </td>
             </tr>
             <tr>
               <td align="left" style="padding:0 0 36px;font-family:${BODY_FONT};font-size:14px;line-height:1.6;color:#5a6b7c;">
-                Wenn Sie kein Konto erstellt haben, können Sie diese E-Mail ignorieren.
+                ${t('Wenn Sie kein Konto erstellt haben, können Sie diese E-Mail ignorieren.', 'If you did not create an account, you can ignore this email.')}
               </td>
             </tr>
             <tr>
               <td align="center" style="padding:24px 0 0;border-top:1px solid #e6e8eb;font-family:${BODY_FONT};font-size:12px;line-height:1.7;color:#8b9aaa;">
-                © ${year} VANTARO. Alle Rechte vorbehalten.
+                © ${year} VANTARO. ${t('Alle Rechte vorbehalten.', 'All rights reserved.')}
               </td>
             </tr>
           </table>
@@ -176,9 +183,11 @@ async function sendWithResend({ to, subject, text, html, attachments, from, repl
   }
 }
 
-export async function sendVerificationCodeEmail({ to, code, fullName, confirmUrl }) {
-  const subject = 'Bestätigen Sie Ihre E-Mail-Adresse für VANTARO';
-  const content = verificationEmail({ code, fullName, confirmUrl });
+export async function sendVerificationCodeEmail({ to, code, fullName, confirmUrl, lang = 'de' }) {
+  const subject = accountMailLang(lang) === 'en'
+    ? 'Confirm your email address for VANTARO'
+    : 'Bestätigen Sie Ihre E-Mail-Adresse für VANTARO';
+  const content = verificationEmail({ code, fullName, confirmUrl, lang });
   await sendWithResend({
     to,
     subject,
@@ -188,38 +197,40 @@ export async function sendVerificationCodeEmail({ to, code, fullName, confirmUrl
   return 'resend';
 }
 
-function passwordResetEmail({ fullName, resetUrl }) {
+function passwordResetEmail({ fullName, resetUrl, lang = 'de' }) {
+  const language = accountMailLang(lang);
+  const t = (de, en) => (language === 'en' ? en : de);
   const year = new Date().getFullYear();
   const safeName = escapeHtml(fullName);
   const safeUrl = escapeHtml(resetUrl);
-  const greeting = safeName ? `Hallo ${safeName}` : 'Hallo';
+  const greeting = safeName ? `${t('Hallo', 'Hello')} ${safeName}` : t('Hallo', 'Hello');
 
   const text = `${greeting},
 
-wir haben eine Anfrage erhalten, Ihr VANTARO-Passwort zurückzusetzen.
+${t('wir haben eine Anfrage erhalten, Ihr VANTARO-Passwort zurückzusetzen.', 'we received a request to reset your VANTARO password.')}
 
-Klicken Sie auf diesen Link, um ein neues Passwort festzulegen:
+${t('Klicken Sie auf diesen Link, um ein neues Passwort festzulegen:', 'Click this link to set a new password:')}
 ${resetUrl}
 
-Der Link ist 30 Minuten gültig.
-Wenn Sie kein neues Passwort angefordert haben, ignorieren Sie diese E-Mail.
+${t('Der Link ist 30 Minuten gültig.', 'The link is valid for 30 minutes.')}
+${t('Wenn Sie kein neues Passwort angefordert haben, ignorieren Sie diese E-Mail.', 'If you did not request a new password, please ignore this email.')}
 
-© ${year} VANTARO. Alle Rechte vorbehalten.`;
+© ${year} VANTARO. ${t('Alle Rechte vorbehalten.', 'All rights reserved.')}`;
 
   const html = `<!doctype html>
-<html lang="de">
+<html lang="${language}">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <meta name="color-scheme" content="light" />
-    <title>Passwort zurücksetzen für VANTARO</title>
+    <title>${t('Passwort zurücksetzen für VANTARO', 'Reset your VANTARO password')}</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
   </head>
   <body style="margin:0;padding:0;background:#ffffff;color:#101827;">
     <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">
-            Klicken Sie auf „Passwort zurücksetzen“, um ein neues Passwort festzulegen.
+            ${t('Klicken Sie auf „Passwort zurücksetzen“, um ein neues Passwort festzulegen.', 'Click “Reset password” to set a new password.')}
     </div>
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff;">
       <tr>
@@ -238,34 +249,34 @@ Wenn Sie kein neues Passwort angefordert haben, ignorieren Sie diese E-Mail.
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;">
             <tr>
               <td align="left" style="padding:0 0 12px;font-family:${HEADING_FONT};font-size:28px;font-weight:600;line-height:1.2;letter-spacing:-0.04em;color:#101827;">
-                Passwort zurücksetzen
+                ${t('Passwort zurücksetzen', 'Reset password')}
               </td>
             </tr>
             <tr>
               <td align="left" style="padding:0 0 24px;font-family:${BODY_FONT};font-size:16px;line-height:1.6;color:#3d4b5c;">
-                ${greeting}, wir haben eine Anfrage erhalten, Ihr Passwort zurückzusetzen. Klicken Sie auf den Button, um ein neues Passwort festzulegen.
+                ${greeting}, ${t('wir haben eine Anfrage erhalten, Ihr Passwort zurückzusetzen. Klicken Sie auf den Button, um ein neues Passwort festzulegen.', 'we received a request to reset your password. Click the button to set a new password.')}
               </td>
             </tr>
             <tr>
               <td align="center" style="padding:4px 0 28px;">
                 <a href="${safeUrl}" style="display:inline-block;background:#101827;color:#ffffff;font-family:${HEADING_FONT};font-size:15px;font-weight:700;letter-spacing:-0.02em;text-decoration:none;border-radius:10px;padding:14px 22px;">
-                  Passwort zurücksetzen
+                  ${t('Passwort zurücksetzen', 'Reset password')}
                 </a>
               </td>
             </tr>
             <tr>
               <td align="left" style="padding:0 0 8px;font-family:${BODY_FONT};font-size:14px;line-height:1.6;color:#5a6b7c;">
-                Der Link ist 30 Minuten gültig. Teilen Sie ihn mit niemandem.
+                ${t('Der Link ist 30 Minuten gültig. Teilen Sie ihn mit niemandem.', 'The link is valid for 30 minutes. Do not share it with anyone.')}
               </td>
             </tr>
             <tr>
               <td align="left" style="padding:0 0 36px;font-family:${BODY_FONT};font-size:14px;line-height:1.6;color:#5a6b7c;">
-                Wenn Sie kein neues Passwort angefordert haben, können Sie diese E-Mail ignorieren.
+                ${t('Wenn Sie kein neues Passwort angefordert haben, können Sie diese E-Mail ignorieren.', 'If you did not request a new password, you can ignore this email.')}
               </td>
             </tr>
             <tr>
               <td align="center" style="padding:24px 0 0;border-top:1px solid #e6e8eb;font-family:${BODY_FONT};font-size:12px;line-height:1.7;color:#8b9aaa;">
-                © ${year} VANTARO. Alle Rechte vorbehalten.
+                © ${year} VANTARO. ${t('Alle Rechte vorbehalten.', 'All rights reserved.')}
               </td>
             </tr>
           </table>
@@ -278,9 +289,9 @@ Wenn Sie kein neues Passwort angefordert haben, ignorieren Sie diese E-Mail.
   return { text, html };
 }
 
-export async function sendPasswordResetEmail({ to, fullName, resetUrl }) {
-  const subject = 'Passwort zurücksetzen für VANTARO';
-  const content = passwordResetEmail({ fullName, resetUrl });
+export async function sendPasswordResetEmail({ to, fullName, resetUrl, lang = 'de' }) {
+  const subject = accountMailLang(lang) === 'en' ? 'Reset your VANTARO password' : 'Passwort zurücksetzen für VANTARO';
+  const content = passwordResetEmail({ fullName, resetUrl, lang });
   await sendWithResend({
     to,
     subject,
@@ -1162,25 +1173,37 @@ export async function sendSupportEmail(payload) {
   return 'resend';
 }
 
-function formatEuroMail(cents) {
-  return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format((Number(cents) || 0) / 100);
+function formatEuroMail(cents, lang = 'de') {
+  return new Intl.NumberFormat(lang === 'en' ? 'en-GB' : 'de-DE', { style: 'currency', currency: 'EUR' })
+    .format((Number(cents) || 0) / 100);
+}
+
+/** Customer's language for payment mails ('de' default, 'en' when chosen in the portal). */
+function mailLang(payment) {
+  return payment?.language === 'en' ? 'en' : 'de';
 }
 
 /** Customer receipt after a ProCredit card payment (fields per the bank's invoice template). */
 export function paymentConfirmationEmail({ payment, dashboardUrl }) {
   const year = new Date().getFullYear();
+  const lang = mailLang(payment);
+  const t = (de, en) => (lang === 'en' ? en : de);
+  const eur = (cents) => formatEuroMail(cents, lang);
   const name = payment.billingName || payment.billingCompany || '';
-  const greeting = name ? `Hallo ${name}` : 'Hallo';
+  const greeting = name ? `${t('Hallo', 'Hello')} ${name}` : t('Hallo', 'Hello');
   const payableCents = Number(payment.netCents) || Number(payment.grossCents) || 0;
   const listCents = Number(payment.listCents) || payableCents;
   const discountCents = Number(payment.discountCents) || 0;
-  const product = `${payment.packageLabel} (${payment.leadCount} Leads)`;
+  const packageLabel = lang === 'en'
+    ? String(payment.packageLabel || '').replace(/deutschlandweit/gi, 'nationwide (Germany)').replace(/Lead-Paket/g, 'lead package')
+    : payment.packageLabel;
+  const product = `${packageLabel} (${payment.leadCount} ${t('Leads', 'leads')})`;
   const orderRows = [
-    ['Rechnungs-Nr.', payment.invoiceNumber],
-    ['Bestell-ID (Bank)', payment.pgOrderId],
-    ['Bestelldatum', formatDateTimeDe(payment.paidAt || payment.createdAt)],
+    [t('Rechnungs-Nr.', 'Invoice no.'), payment.invoiceNumber],
+    [t('Bestell-ID (Bank)', 'Order ID (bank)'), payment.pgOrderId],
+    [t('Bestelldatum', 'Order date'), formatDateTimeDe(payment.paidAt || payment.createdAt, lang)],
   ].filter(([, value]) => value);
-  const paymentRows = paymentDetailRows(payment).filter(([label]) => !label.startsWith('Bestell-ID'));
+  const paymentRows = paymentDetailRows(payment, lang).filter((row) => row[2] !== 'bankOrderId');
   const billingRows = [
     payment.billingCompany,
     payment.billingName,
@@ -1188,33 +1211,44 @@ export function paymentConfirmationEmail({ payment, dashboardUrl }) {
     [payment.billingZip, payment.billingCity].filter(Boolean).join(' '),
     payment.billingEmail,
   ].filter(Boolean);
-  const testNote = payment.testMode ? 'TESTMODUS: Es wurde keine echte Zahlung belastet.\n\n' : '';
+  const testNote = payment.testMode
+    ? t('TESTMODUS: Es wurde keine echte Zahlung belastet.\n\n', 'TEST MODE: no real payment was charged.\n\n')
+    : '';
+  const thanks = t('vielen Dank für Ihre Zahlung. Ihre Lead-Anforderung wurde angelegt.', 'thank you for your payment. Your lead request has been created.');
+  const taxNote = t('Nicht im Inland steuerbare Leistung, 0 % USt.', 'Service not taxable domestically, 0 % VAT.');
+  const operator = t(
+    'VANTARO ist ein Angebot der ENTRIKS L.L.C., Lot Vaku L2.1, 10000 Prishtina, Kosovo · Tel. +383 43 889 344',
+    'VANTARO is a service of ENTRIKS L.L.C., Lot Vaku L2.1, 10000 Prishtina, Kosovo · Phone +383 43 889 344',
+  );
+  const rights = t('Alle Rechte vorbehalten.', 'All rights reserved.');
+  const questions = t('Fragen zur Zahlung oder Reklamationen:', 'Questions about your payment or complaints:');
 
   const text = `${greeting},
 
-${testNote}vielen Dank für Ihre Zahlung. Ihre Lead-Anforderung wurde angelegt.
+${testNote}${thanks}
 
-BESTELLUNG
+${t('BESTELLUNG', 'ORDER')}
 ${orderRows.map(([label, value]) => `${label}: ${value}`).join('\n')}
 
-Produkt: ${product}
-Menge: 1
-Preis: ${formatEuroMail(listCents)}
-${discountCents ? `Rabatt: -${formatEuroMail(discountCents)}\n` : ''}Gesamt: ${formatEuroMail(payableCents)} (Nicht im Inland steuerbare Leistung, 0 % USt.)
+${t('Produkt', 'Product')}: ${product}
+${t('Menge', 'Quantity')}: 1
+${t('Preis', 'Price')}: ${eur(listCents)}
+${discountCents ? `${t('Rabatt', 'Discount')}: -${eur(discountCents)}\n` : ''}${t('Gesamt', 'Total')}: ${eur(payableCents)} (${taxNote})
 
-ZAHLUNG
+${t('ZAHLUNG', 'PAYMENT')}
 ${paymentRows.map(([label, value]) => `${label}: ${value}`).join('\n')}
 
-RECHNUNGSADRESSE
+${t('RECHNUNGSADRESSE', 'BILLING ADDRESS')}
 ${billingRows.join('\n')}
 
-Die Rechnung finden Sie als PDF im Anhang und jederzeit unter:
+${t('Die Rechnung finden Sie als PDF im Anhang und jederzeit unter:', 'The invoice is attached as a PDF and is always available at:')}
 ${dashboardUrl}
 
-Fragen zur Zahlung oder Reklamationen: info@vantaro.io
+${questions} info@vantaro.io
 
 VANTARO · www.vantaro.io · info@vantaro.io
-© ${year} VANTARO. Alle Rechte vorbehalten.`;
+${operator}
+© ${year} ENTRIKS L.L.C. ${rights}`;
 
   const rowHtml = ([label, value]) => `<tr>
                 <td style="padding:4px 12px 4px 0;font-family:${BODY_FONT};font-size:14px;color:#5a6b7c;white-space:nowrap;vertical-align:top;">${escapeHtml(label)}</td>
@@ -1231,11 +1265,11 @@ VANTARO · www.vantaro.io · info@vantaro.io
               </tr>`;
 
   const html = `<!doctype html>
-<html lang="de">
+<html lang="${lang}">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>Zahlungsbestätigung</title>
+    <title>${t('Zahlungsbestätigung', 'Payment confirmation')}</title>
   </head>
   <body style="margin:0;padding:0;background:#ffffff;color:#101827;">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff;">
@@ -1249,43 +1283,44 @@ VANTARO · www.vantaro.io · info@vantaro.io
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;">
             <tr>
               <td align="left" style="padding:0 0 12px;font-family:${HEADING_FONT};font-size:28px;font-weight:600;line-height:1.2;letter-spacing:-0.04em;color:#101827;">
-                Zahlung erfolgreich
+                ${t('Zahlung erfolgreich', 'Payment successful')}
               </td>
             </tr>
             ${payment.testMode ? `<tr>
-              <td align="left" style="padding:0 0 12px;"><span style="display:inline-block;background:#fff3cd;color:#8a6d00;border-radius:6px;padding:4px 10px;font-family:${BODY_FONT};font-size:12px;font-weight:600;">TESTMODUS: keine echte Belastung</span></td>
+              <td align="left" style="padding:0 0 12px;"><span style="display:inline-block;background:#fff3cd;color:#8a6d00;border-radius:6px;padding:4px 10px;font-family:${BODY_FONT};font-size:12px;font-weight:600;">${t('TESTMODUS: keine echte Belastung', 'TEST MODE: no real charge')}</span></td>
             </tr>` : ''}
             <tr>
               <td align="left" style="padding:0 0 8px;font-family:${BODY_FONT};font-size:16px;line-height:1.6;color:#3d4b5c;">
-                ${escapeHtml(greeting)}, vielen Dank für Ihre Zahlung. Ihre Lead-Anforderung wurde angelegt.
+                ${escapeHtml(greeting)}, ${escapeHtml(thanks)}
               </td>
             </tr>
-            ${section('Bestellung', table(orderRows))}
+            ${section(t('Bestellung', 'Order'), table(orderRows))}
             <tr>
               <td align="left" style="padding:12px 0 0;">
                 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid #e6e8eb;border-bottom:1px solid #e6e8eb;">
-                  ${sumRow(`1 × ${product}`, formatEuroMail(listCents))}
-                  ${discountCents ? sumRow('Rabatt', `−${formatEuroMail(discountCents)}`) : ''}
-                  ${sumRow('Gesamt', formatEuroMail(payableCents), true)}
+                  ${sumRow(`1 × ${product}`, eur(listCents))}
+                  ${discountCents ? sumRow(t('Rabatt', 'Discount'), `−${eur(discountCents)}`) : ''}
+                  ${sumRow(t('Gesamt', 'Total'), eur(payableCents), true)}
                 </table>
-                <div style="padding:6px 0 0;font-family:${BODY_FONT};font-size:12px;color:#8b9aaa;">Nicht im Inland steuerbare Leistung, 0 % USt.</div>
+                <div style="padding:6px 0 0;font-family:${BODY_FONT};font-size:12px;color:#8b9aaa;">${escapeHtml(taxNote)}</div>
               </td>
             </tr>
-            ${section('Zahlung', table(paymentRows))}
-            ${billingRows.length ? section('Rechnungsadresse', `<div style="font-family:${BODY_FONT};font-size:14px;line-height:1.6;color:#101827;">${billingRows.map(escapeHtml).join('<br />')}</div>`) : ''}
+            ${section(t('Zahlung', 'Payment'), table(paymentRows))}
+            ${billingRows.length ? section(t('Rechnungsadresse', 'Billing address'), `<div style="font-family:${BODY_FONT};font-size:14px;line-height:1.6;color:#101827;">${billingRows.map(escapeHtml).join('<br />')}</div>`) : ''}
             <tr>
               <td align="left" style="padding:28px 0 28px;">
                 <a href="${escapeHtml(dashboardUrl)}" style="display:inline-block;padding:12px 18px;border-radius:10px;background:#ff755a;color:#ffffff;font-family:${BODY_FONT};font-size:14px;font-weight:600;text-decoration:none;">
-                  Rechnungen ansehen
+                  ${t('Rechnungen ansehen', 'View invoices')}
                 </a>
-                <div style="padding:10px 0 0;font-family:${BODY_FONT};font-size:13px;color:#5a6b7c;">Die Rechnung liegt dieser E-Mail als PDF bei.</div>
+                <div style="padding:10px 0 0;font-family:${BODY_FONT};font-size:13px;color:#5a6b7c;">${t('Die Rechnung liegt dieser E-Mail als PDF bei.', 'The invoice is attached to this email as a PDF.')}</div>
               </td>
             </tr>
             <tr>
               <td align="center" style="padding:24px 0 0;border-top:1px solid #e6e8eb;font-family:${BODY_FONT};font-size:12px;line-height:1.7;color:#8b9aaa;">
-                Fragen zur Zahlung oder Reklamationen: <a href="mailto:info@vantaro.io" style="color:#5a6b7c;">info@vantaro.io</a><br />
+                ${questions} <a href="mailto:info@vantaro.io" style="color:#5a6b7c;">info@vantaro.io</a><br />
                 VANTARO · www.vantaro.io<br />
-                © ${year} VANTARO. Alle Rechte vorbehalten.
+                ${escapeHtml(operator)}<br />
+                © ${year} ENTRIKS L.L.C. ${rights}
               </td>
             </tr>
           </table>
@@ -1302,7 +1337,7 @@ export async function sendPaymentConfirmationEmail({ to, payment, pdf, pdfName, 
   const content = paymentConfirmationEmail({ payment, dashboardUrl });
   await sendWithResend({
     to,
-    subject: `${payment.testMode ? '[TEST] ' : ''}Zahlungsbestätigung & Rechnung ${payment.invoiceNumber}`,
+    subject: `${payment.testMode ? '[TEST] ' : ''}${mailLang(payment) === 'en' ? 'Payment confirmation & invoice' : 'Zahlungsbestätigung & Rechnung'} ${payment.invoiceNumber}`,
     replyTo: process.env.SUPPORT_EMAIL?.trim() || 'info@vantaro.io',
     ...content,
     attachments: [

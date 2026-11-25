@@ -1,3 +1,5 @@
+import { L } from '../../lib/i18n';
+
 export const MIN_LEAD_PACK = 10;
 export const LEAD_PACK_STEP = 5;
 
@@ -7,10 +9,12 @@ export const ENERGY_UNIT_CENTS = 11900;
 export const PACKAGES = [
   {
     id: 'pkv-deutschlandweit',
-    label: 'PKV / deutschlandweit',
-    title: 'Exklusive PKV-Chancen',
-    description:
+    label: L('PKV / deutschlandweit', 'PKV / nationwide'),
+    title: L('Exklusive PKV-Chancen', 'Exclusive PKV opportunities'),
+    description: L(
       'Mindestabnahme 10 Leads — in 5er-Schritten erweiterbar (10, 15, 20, …). Bundesweite PKV-Chancen.',
+      'Minimum order 10 leads — expandable in steps of 5 (10, 15, 20, …). Nationwide PKV opportunities.',
+    ),
     singleCents: 12900,
     packCents: 11900,
     minLeads: MIN_LEAD_PACK,
@@ -19,10 +23,12 @@ export const PACKAGES = [
   },
   {
     id: 'pkv-regional',
-    label: 'PKV / regional',
-    title: 'Regionale PKV-Chancen',
-    description:
+    label: L('PKV / regional', 'PKV / regional'),
+    title: L('Regionale PKV-Chancen', 'Regional PKV opportunities'),
+    description: L(
       'Mindestabnahme 10 Leads — in 5er-Schritten erweiterbar (10, 15, 20, …). Regionaler Fokus mit Nähe vor Ort.',
+      'Minimum order 10 leads — expandable in steps of 5 (10, 15, 20, …). Regional focus, close to you.',
+    ),
     singleCents: 15900,
     packCents: 14900,
     minLeads: MIN_LEAD_PACK,

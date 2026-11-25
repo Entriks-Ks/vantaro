@@ -6,6 +6,7 @@ import { useBroker } from '../../hooks/useBroker';
 import { useAuth } from '../../hooks/useAuth';
 import { eventAlertsEnabled, readBrokerSettings, subscribeBrokerSettings, writeBrokerSettings } from '../../lib/brokerSettings';
 import { formatDateTime } from './helpers';
+import { L } from '../../lib/i18n';
 
 export const SCHEDULE_HOUR_MS = 60 * 60 * 1000;
 export const SCHEDULE_SOON_MS = 15 * 60 * 1000;
@@ -53,14 +54,14 @@ function alertLevelOf(at, now) {
 
 function formatWhen(value) {
   const text = formatDateTime(value).replace(',', ' · ');
-  return /uhr/i.test(text) ? text : `${text} Uhr`;
+  return /uhr/i.test(text) ? text : L(`${text} Uhr`, text);
 }
 
 function alertCopy(item, level) {
-  const noun = item.kind === 'termin' ? 'Termin' : 'Wiedervorlage';
-  if (level === 'overdue') return `${noun} ist fällig · ${item.name}`;
-  if (level === 'soon') return `${noun} in 15 Minuten · ${item.name}`;
-  return `${noun} in 1 Stunde · ${item.name}`;
+  const noun = item.kind === 'termin' ? L('Termin', 'Appointment') : L('Wiedervorlage', 'Follow-up');
+  if (level === 'overdue') return L(`${noun} ist fällig · ${item.name}`, `${noun} is due · ${item.name}`);
+  if (level === 'soon') return L(`${noun} in 15 Minuten · ${item.name}`, `${noun} in 15 minutes · ${item.name}`);
+  return L(`${noun} in 1 Stunde · ${item.name}`, `${noun} in 1 hour · ${item.name}`);
 }
 
 function notifyBrowser(item, level) {
@@ -237,7 +238,7 @@ export default function ScheduleBell() {
       <button
         type="button"
         className={`broker-bell-btn${open ? ' is-open' : ''}${badge ? (hasSoon ? ' has-alert' : ' has-hour') : ''}`}
-        aria-label={badge ? `${badge} Termine oder Wiedervorlagen in Kürze` : 'Termine und Wiedervorlagen'}
+        aria-label={badge ? L(`${badge} Termine oder Wiedervorlagen in Kürze`, `${badge} appointments or follow-ups coming up`) : L('Termine und Wiedervorlagen', 'Appointments and follow-ups')}
         aria-expanded={open}
         aria-haspopup="dialog"
         onClick={toggleOpen}
@@ -246,10 +247,10 @@ export default function ScheduleBell() {
         {badge ? <span className="broker-bell-badge">{badge > 9 ? '9+' : badge}</span> : null}
       </button>
       {open ? (
-        <div className="broker-bell-panel" role="dialog" aria-label="Termine und Wiedervorlagen">
+        <div className="broker-bell-panel" role="dialog" aria-label={L('Termine und Wiedervorlagen', 'Appointments and follow-ups')}>
           <div className="broker-bell-panel-head">
-            <strong>Termine</strong>
-            <span>{items.length ? `${items.length}` : 'Keine'}</span>
+            <strong>{L('Termine', 'Appointments')}</strong>
+            <span>{items.length ? `${items.length}` : L('Keine', 'None')}</span>
           </div>
           {items.length ? (
             <ul className="broker-bell-list">
@@ -272,7 +273,7 @@ export default function ScheduleBell() {
                         <small>{formatWhen(item.at)}</small>
                       </span>
                       <span className="broker-bell-item-kind">
-                        {item.kind === 'termin' ? 'Termin' : 'Wiedervorlage'}
+                        {item.kind === 'termin' ? L('Termin', 'Appointment') : L('Wiedervorlage', 'Follow-up')}
                       </span>
                     </Link>
                   </li>
@@ -280,7 +281,7 @@ export default function ScheduleBell() {
               })}
             </ul>
           ) : (
-            <p className="broker-bell-empty">Keine Termine oder Wiedervorlagen.</p>
+            <p className="broker-bell-empty">{L('Keine Termine oder Wiedervorlagen.', 'No appointments or follow-ups.')}</p>
           )}
         </div>
       ) : null}

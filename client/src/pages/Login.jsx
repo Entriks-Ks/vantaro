@@ -6,6 +6,7 @@ import { normalizeVertical } from '../lib/vertical';
 import { useAuth } from '../hooks/useAuth';
 import useBackForwardCacheRestore from '../hooks/useBackForwardCacheRestore';
 import useNavigate from '../hooks/useNavigate';
+import { L } from '../lib/i18n';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -19,7 +20,7 @@ export default function Login() {
   const nextPath = location.state?.from || '/dashboard';
   const searchParams = new URLSearchParams(location.search);
   const info = searchParams.get('verified') === '1'
-    ? 'Ihre E-Mail-Adresse ist bestätigt. Bitte melden Sie sich an.'
+    ? L('Ihre E-Mail-Adresse ist bestätigt. Bitte melden Sie sich an.', 'Your email address has been confirmed. Please log in.')
     : '';
   const category = normalizeVertical(searchParams.get('category'));
   const registerHref = category
@@ -40,7 +41,7 @@ export default function Login() {
     setError('');
 
     if (!email || !password) {
-      setError('Bitte alle Felder ausfüllen');
+      setError(L('Bitte alle Felder ausfüllen', 'Please fill in all fields'));
       return;
     }
 
@@ -66,7 +67,7 @@ export default function Login() {
       rememberOAuthVertical('');
       await loginWithGoogle(nextPath);
     } catch (err) {
-      setError(err.message || 'Google-Anmeldung ist fehlgeschlagen.');
+      setError(err.message || L('Google-Anmeldung ist fehlgeschlagen.', 'Google login failed.'));
       setSubmitting(false);
     }
   };
@@ -78,7 +79,7 @@ export default function Login() {
       rememberOAuthVertical('');
       await loginWithApple(nextPath);
     } catch (err) {
-      setError(err.message || 'Apple-Anmeldung ist fehlgeschlagen.');
+      setError(err.message || L('Apple-Anmeldung ist fehlgeschlagen.', 'Apple login failed.'));
       setSubmitting(false);
     }
   };
@@ -116,29 +117,29 @@ export default function Login() {
             />
           </div>
 
-          <h1 className="auth-title">Anmelden bei VANTARO</h1>
-          <p className="auth-subtitle">Willkommen zurück.</p>
+          <h1 className="auth-title">{L('Anmelden bei VANTARO', 'Log in to VANTARO')}</h1>
+          <p className="auth-subtitle">{L('Willkommen zurück.', 'Welcome back.')}</p>
 
           {error && <div className="auth-error">{error}</div>}
           {info && <div className="auth-success">{info}</div>}
           
           <form className="auth-form" onSubmit={handleSubmit}>
             <div className="form-group">
-              <label htmlFor="email">E-Mail-Adresse <span className="auth-required">*</span></label>
+              <label htmlFor="email">{L('E-Mail-Adresse', 'Email address')} <span className="auth-required">*</span></label>
               <input
                 type="email"
                 id="email"
                 autoComplete="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="E-Mail-Adresse"
+                placeholder={L('E-Mail-Adresse', 'Email address')}
                 required
                 disabled={submitting}
               />
             </div>
             
             <div className="form-group">
-              <label htmlFor="password">Passwort <span className="auth-required">*</span></label>
+              <label htmlFor="password">{L('Passwort', 'Password')} <span className="auth-required">*</span></label>
               <div className="password-input-wrapper">
                 <input
                   type={showPassword ? 'text' : 'password'}
@@ -146,7 +147,7 @@ export default function Login() {
                   autoComplete="current-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Passwort eingeben"
+                  placeholder={L('Passwort eingeben', 'Enter password')}
                   required
                   disabled={submitting}
                 />
@@ -168,11 +169,11 @@ export default function Login() {
                   )}
                 </button>
               </div>
-              <Link to="/forgot-password" className="forgot-password">Passwort vergessen?</Link>
+              <Link to="/forgot-password" className="forgot-password">{L('Passwort vergessen?', 'Forgot password?')}</Link>
             </div>
             
             <button type="submit" className="auth-submit" disabled={submitting}>
-              {submitting ? 'Wird angemeldet…' : 'Anmelden'}
+              {submitting ? L('Wird angemeldet…', 'Logging in…') : L('Anmelden', 'Log in')}
             </button>
           </form>
 
@@ -183,31 +184,31 @@ export default function Login() {
           />
 
           <div className="auth-footer">
-            <span>Noch kein Konto?</span>
-            <Link to={registerHref}>Registrieren</Link>
+            <span>{L('Noch kein Konto?', 'No account yet?')}</span>
+            <Link to={registerHref}>{L('Registrieren', 'Sign up')}</Link>
           </div>
         </div>
 
         <div className="auth-visual-panel">
           <div className="auth-visual-wrapper">
             <div className="auth-cutout-panel">
-              <div className="eyebrow light">Ihr Zugang zu qualifizierten Chancen</div>
+              <div className="eyebrow light">{L('Ihr Zugang zu qualifizierten Chancen', 'Your access to qualified opportunities')}</div>
               <h2>
-                Melden Sie sich an, um{' '}
-                <span>Ihr erfolgreiches Matching zu starten.</span>
+                {L('Melden Sie sich an, um', 'Log in to')}{' '}
+                <span>{L('Ihr erfolgreiches Matching zu starten.', 'start your successful matching.')}</span>
               </h2>
               <p>
-                Greifen Sie auf Ihr Partnerportal zu, verwalten Sie Chancen in Versicherung oder Energie und nutzen Sie Matching sowie Follow-up in einer Strecke.
+                {L('Greifen Sie auf Ihr Partnerportal zu, verwalten Sie Chancen in Versicherung oder Energie und nutzen Sie Matching sowie Follow-up in einer Strecke.', 'Access your partner portal, manage opportunities in insurance or energy, and use matching and follow-up in one flow.')}
               </p>
               <div className="auth-cutout-actions">
                 <Link className="btn btn-primary" to="/">
-                  Zurück zur Startseite <span className="arrow">←</span>
+                  {L('Zurück zur Startseite', 'Back to home page')} <span className="arrow">←</span>
                 </Link>
                 <a
                   className="btn btn-outline-light"
                   href="mailto:info@vantaro.io?subject=VANTARO%20Support"
                 >
-                  Support kontaktieren <span className="arrow">↗</span>
+                  {L('Support kontaktieren', 'Contact support')} <span className="arrow">↗</span>
                 </a>
               </div>
             </div>

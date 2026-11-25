@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ArrowDownRight, ArrowUpRight } from 'lucide-react';
 import { formatEuroExact } from './helpers';
+import { L, locale } from '../../lib/i18n';
 
 function useMounted() {
   const [ready, setReady] = useState(false);
@@ -29,12 +30,12 @@ export function CountUp({ value, format, duration = 800 }) {
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
   }, [value, duration]);
-  return <>{format ? format(display) : Math.round(display).toLocaleString('de-DE')}</>;
+  return <>{format ? format(display) : Math.round(display).toLocaleString(locale())}</>;
 }
 
 export function Trend({ current, previous }) {
   if (!previous && !current) return null;
-  if (!previous) return <span className="dash-pay-trend is-up">Neu</span>;
+  if (!previous) return <span className="dash-pay-trend is-up">{L('Neu', 'New')}</span>;
   const pct = Math.round(((current - previous) / previous) * 100);
   const up = pct >= 0;
   const Icon = up ? ArrowUpRight : ArrowDownRight;

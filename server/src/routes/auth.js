@@ -43,7 +43,14 @@ function verificationResponse(email) {
 
 router.use(requireSupabase);
 
+/** Language the visitor uses on the site (sent by the client), for account e-mails. */
+function requestLang(req) {
+  const value = req.body?.lang;
+  return value === 'en' || value === 'de' ? value : null;
+}
+
 router.post('/register', async (req, res) => {
+  const lang = requestLang(req);
   const firstName = String(req.body?.firstName ?? '').trim();
   const lastName = String(req.body?.lastName ?? '').trim();
   const legacyFullName = String(req.body?.fullName ?? '').trim();
@@ -110,7 +117,7 @@ router.post('/register', async (req, res) => {
         return res.status(201).json(verificationResponse(email));
       }
       try {
-        await issueVerificationCode(existing);
+        await issueVerificationCode(existing, { lang });
       } catch (error) {
         if (error.code === 'cooldown') {
           return res.status(201).json(verificationResponse(email));
@@ -133,6 +140,7 @@ router.post('/register', async (req, res) => {
         onboarding_complete: false,
         vertical,
         vertical_required: false,
+        ...(lang ? { settings: { language: lang } } : {}),
       },
       app_metadata: { role: DEFAULT_ROLE },
     });
@@ -148,7 +156,7 @@ router.post('/register', async (req, res) => {
     }
 
     try {
-      await issueVerificationCode(data.user, { ignoreCooldown: true });
+      await issueVerificationCode(data.user, { ignoreCooldown: true, lang });
     } catch (sendError) {
       console.error('Verification email failed:', sendError.message);
       return res.status(400).json({ error: mapAuthError(sendError) });
@@ -233,7 +241,7 @@ router.post('/resend-verification', async (req, res) => {
   }
 
   try {
-    await issueVerificationCode(user);
+    await issueVerificationCode(user, { lang: requestLang(req) });
   } catch (error) {
     if (error.code === 'cooldown') {
       return res.status(429).json({
@@ -600,7 +608,7 @@ router.post('/forgot-password', async (req, res) => {
     }
 
     try {
-      await issuePasswordReset(user);
+      await issuePasswordReset(user, { lang: requestLang(req) });
     } catch (error) {
       if (error.code === 'cooldown') {
         return res.json({
@@ -717,7 +725,7 @@ router.post('/resend-password-reset', async (req, res) => {
     }
 
     try {
-      await issuePasswordReset(user);
+      await issuePasswordReset(user, { lang: requestLang(req) });
     } catch (error) {
       if (error.code === 'cooldown') {
         return res.status(429).json({

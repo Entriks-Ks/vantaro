@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Check, Clock, TicketPercent } from 'lucide-react';
 import { remainingTimeLabel } from '../../lib/discounts';
 import { formatDateTime, formatEuroExact } from './helpers';
+import { L } from '../../lib/i18n';
 
 export function visibleOneTimeOffers(offers, pick, packageKey) {
   const list = offers || [];
@@ -22,9 +23,11 @@ function valueHeadline(offer) {
 }
 
 function scopeLine(offer, unitLabel) {
-    if (offer.appliesTo === 'appointments') return 'Nur Termine';
-    if (offer.appliesTo === 'leads') return 'Nur Leads';
-    return unitLabel === 'Termin' ? 'Für Termine' : 'Für Leads';
+    if (offer.appliesTo === 'appointments') return L('Nur Termine', 'Appointments only');
+    if (offer.appliesTo === 'leads') return L('Nur Leads', 'Leads only');
+    return ['termin', 'appointment'].includes(String(unitLabel || '').toLowerCase())
+      ? L('Für Termine', 'For appointments')
+      : L('Für Leads', 'For leads');
 }
 
 export function OneTimeDiscountOffer({
@@ -59,19 +62,21 @@ export function OneTimeDiscountOffer({
                 {offer.code ? <span className="broker-voucher__code">{offer.code}</span> : null}
               </div>
               <p className="broker-voucher__title">
-                {selected ? 'Wird für dieses Paket eingelöst' : 'Einmal-Rabatt'}
+                {selected
+                  ? L('Wird für dieses Paket eingelöst', 'Applied to this package')
+                  : L('Einmal-Rabatt', 'One-time discount')}
                 <span> · {scopeLine(offer, unitLabel)}</span>
               </p>
               {offer.expiresAt ? (
                 <p className="broker-voucher__timer">
                   <Clock size={13} strokeWidth={2.2} aria-hidden="true" />
                   <span>
-                    Bis {formatDateTime(offer.expiresAt)}
+                    {L('Bis', 'Until')} {formatDateTime(offer.expiresAt)}
                     {remaining ? ` · ${remaining}` : ''}
                   </span>
                 </p>
               ) : (
-                <p className="broker-voucher__timer broker-voucher__timer--muted">Ohne Ablaufdatum</p>
+                <p className="broker-voucher__timer broker-voucher__timer--muted">{L('Ohne Ablaufdatum', 'No expiry date')}</p>
               )}
             </div>
             <button
@@ -79,7 +84,7 @@ export function OneTimeDiscountOffer({
               className={`broker-voucher__btn${selected ? ' is-on' : ''}`}
               onClick={() => onChange(selected ? '' : offer.id)}
             >
-              {selected ? 'Nicht nutzen' : 'Einlösen'}
+              {selected ? L('Nicht nutzen', "Don't use") : L('Einlösen', 'Redeem')}
             </button>
           </article>
         );

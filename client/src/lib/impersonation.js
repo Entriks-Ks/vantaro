@@ -1,5 +1,6 @@
 import { apiUrl } from './api';
 import { readStoredSession, restoreSession, writeStoredSession } from './auth';
+import { L } from './i18n';
 
 /**
  * IT Support "sign in as user". The browser keeps one session (vantaro-auth), so the support
@@ -20,7 +21,7 @@ export function readImpersonation() {
 export function startImpersonation({ session, target }) {
   const supportSession = readStoredSession();
   if (!supportSession?.access_token || !session?.access_token) {
-    throw new Error('Keine gültige Sitzung.');
+    throw new Error(L('Keine gültige Sitzung.', 'No valid session.'));
   }
   localStorage.setItem(KEY, JSON.stringify({
     supportSession,

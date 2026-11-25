@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { VERTICALS } from '../lib/vertical';
 import { useAuth } from '../hooks/useAuth';
+import { L } from '../lib/i18n';
 
 export default function VerticalChoice() {
   const { setVertical } = useAuth();
@@ -11,7 +12,7 @@ export default function VerticalChoice() {
   const handleSubmit = async (event) => {
     event.preventDefault();
     if (selected !== 'insurance' && selected !== 'energy') {
-      setError('Bitte wählen Sie Versicherung oder Energie.');
+      setError(L('Bitte wählen Sie Versicherung oder Energie.', 'Please choose insurance or energy.'));
       return;
     }
     setError('');
@@ -19,7 +20,7 @@ export default function VerticalChoice() {
     try {
       await setVertical(selected);
     } catch (err) {
-      setError(err.message || 'Der Bereich konnte nicht gespeichert werden.');
+      setError(err.message || L('Der Bereich konnte nicht gespeichert werden.', 'The line of business could not be saved.'));
       setSubmitting(false);
     }
   };
@@ -31,15 +32,15 @@ export default function VerticalChoice() {
           <div className="auth-logo">
             <img className="brand-mark" src="/favicon.svg" alt="" width={48} height={48} />
           </div>
-          <h1 className="auth-title">Bereich wählen</h1>
+          <h1 className="auth-title">{L('Bereich wählen', 'Choose your line of business')}</h1>
           <p className="auth-subtitle">
-            Dieses Konto hat noch keinen Bereich. Die Auswahl gilt für das Portal und kann danach nicht gewechselt werden.
+            {L('Dieses Konto hat noch keinen Bereich. Die Auswahl gilt für das Portal und kann danach nicht gewechselt werden.', 'This account does not have a line of business yet. Your choice applies to the portal and cannot be changed afterwards.')}
           </p>
           {error ? <div className="auth-error">{error}</div> : null}
           <form className="auth-form" onSubmit={handleSubmit}>
             <fieldset className="vertical-choice">
               <legend>
-                Bereich <span className="auth-required">*</span>
+                {L('Bereich', 'Line of business')} <span className="auth-required">*</span>
               </legend>
               {VERTICALS.map((option) => {
                 const active = selected === option.id;
@@ -60,7 +61,7 @@ export default function VerticalChoice() {
               })}
             </fieldset>
             <button type="submit" className="auth-submit" disabled={submitting}>
-              {submitting ? 'Wird gespeichert…' : 'Weiter zum Portal'}
+              {submitting ? L('Wird gespeichert…', 'Saving…') : L('Weiter zum Portal', 'Continue to portal')}
             </button>
           </form>
         </div>

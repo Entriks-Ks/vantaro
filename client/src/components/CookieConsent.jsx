@@ -6,6 +6,7 @@ import {
   readPublicTheme,
   writePublicTheme,
 } from '../lib/theme';
+import { L } from '../lib/i18n';
 
 function readConsent() {
   try {
@@ -48,7 +49,7 @@ function PublicThemeToggle() {
       type="button"
       className={`theme-launcher${isLight ? ' is-light' : ''}`}
       aria-pressed={isLight}
-      aria-label={isLight ? 'Hellmodus aktiv. Auf Dunkel umschalten.' : 'Dunkelmodus aktiv. Auf Hell umschalten.'}
+      aria-label={isLight ? L('Hellmodus aktiv. Auf Dunkel umschalten.', 'Light mode active. Switch to dark.') : L('Dunkelmodus aktiv. Auf Hell umschalten.', 'Dark mode active. Switch to light.')}
       onClick={() => {
         const next = isLight ? 'dark' : 'light';
         writePublicTheme(next);
@@ -56,7 +57,7 @@ function PublicThemeToggle() {
       }}
     >
       <Icon size={16} strokeWidth={2.2} />
-      <span>{isLight ? 'Hell' : 'Dunkel'}</span>
+      <span>{isLight ? L('Hell', 'Light') : L('Dunkel', 'Dark')}</span>
     </button>
   );
 }
@@ -185,15 +186,15 @@ export default function CookieConsent() {
                 <Cookie size={20} strokeWidth={2.2} />
               </div>
               <div>
-                <p className="cookie-modal-kicker">Datenschutz</p>
-                <strong id="cookie-consent-title">Cookie-Einstellungen</strong>
+                <p className="cookie-modal-kicker">{L('Datenschutz', 'Privacy')}</p>
+                <strong id="cookie-consent-title">{L('Cookie-Einstellungen', 'Cookie settings')}</strong>
               </div>
               {hasChoice && (
                 <button
                   type="button"
                   className="cookie-modal-close"
                   onClick={dismiss}
-                  aria-label="Schließen"
+                  aria-label={L('Schließen', 'Close')}
                 >
                   <X size={18} strokeWidth={2.2} />
                 </button>
@@ -201,23 +202,22 @@ export default function CookieConsent() {
             </div>
 
             <p id="cookie-consent-text" className="cookie-modal-text">
-              Notwendige Cookies halten die Seite funktionsfähig. Statistik und Marketing
-              setzen wir nur mit Ihrer Einwilligung.{' '}
-              <a href="#datenschutz">Datenschutzhinweise</a>
+              {L('Notwendige Cookies halten die Seite funktionsfähig. Statistik und Marketing setzen wir nur mit Ihrer Einwilligung.', 'Necessary cookies keep the site working. We only use statistics and marketing cookies with your consent.')}{' '}
+              <a href="#datenschutz">{L('Datenschutzhinweise', 'Privacy policy')}</a>
             </p>
 
             <div className="cookie-prefs">
               <div className="cookie-pref is-locked">
                 <span>
-                  <b>Notwendig</b>
-                  <small>Technisch erforderlich, z.&nbsp;B. für Ihre Auswahl.</small>
+                  <b>{L('Notwendig', 'Necessary')}</b>
+                  <small>{L('Technisch erforderlich, z. B. für Ihre Auswahl.', 'Technically required, e.g. for your choice.')}</small>
                 </span>
-                <span className="cookie-pref-state">Immer aktiv</span>
+                <span className="cookie-pref-state">{L('Immer aktiv', 'Always active')}</span>
               </div>
               <label className="cookie-pref">
                 <span>
-                  <b>Statistik</b>
-                  <small>Google Analytics — nur mit Einwilligung, Messung der Seitennutzung.</small>
+                  <b>{L('Statistik', 'Statistics')}</b>
+                  <small>{L('Google Analytics — nur mit Einwilligung, Messung der Seitennutzung.', 'Google Analytics — only with consent, measures site usage.')}</small>
                 </span>
                 <span className="cookie-switch">
                   <input
@@ -231,7 +231,7 @@ export default function CookieConsent() {
               <label className="cookie-pref">
                 <span>
                   <b>Marketing</b>
-                  <small>Für relevantere Inhalte und Angebote.</small>
+                  <small>{L('Für relevantere Inhalte und Angebote.', 'For more relevant content and offers.')}</small>
                 </span>
                 <span className="cookie-switch">
                   <input
@@ -250,13 +250,13 @@ export default function CookieConsent() {
                 className="btn btn-primary"
                 onClick={() => close({ ...DEFAULT_PREFS, analytics: true, marketing: true })}
               >
-                Alle akzeptieren
+                {L('Alle akzeptieren', 'Accept all')}
               </button>
               <button type="button" className="btn btn-outline-light" onClick={() => close(DEFAULT_PREFS)}>
-                Nur notwendige
+                {L('Nur notwendige', 'Necessary only')}
               </button>
               <button type="button" className="cookie-save" onClick={() => close(prefs)}>
-                Auswahl speichern
+                {L('Auswahl speichern', 'Save selection')}
               </button>
             </div>
           </div>

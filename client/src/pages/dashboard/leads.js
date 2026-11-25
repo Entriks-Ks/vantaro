@@ -1,30 +1,31 @@
 import { leadPurchaseCents } from './packages';
+import { L } from '../../lib/i18n';
 
 export const PRODUCT_FILTERS = [
-  { id: 'all', label: 'Alle' },
+  { id: 'all', label: L('Alle', 'All') },
   { id: 'PKV', label: 'PKV' },
   { id: 'bAV', label: 'bAV' },
   { id: 'BU', label: 'BU' },
 ];
 
 export const LEAD_STATUSES = [
-  { id: 'neu', label: 'Neu', hint: 'Noch nicht kontaktiert' },
-  { id: 'kontaktiert', label: 'Kontaktiert', hint: 'Erster Kontakt erfolgt' },
-  { id: 'termin', label: 'Termin', hint: 'Gespräch geplant' },
-  { id: 'wiedervorlage', label: 'Wiedervorlage', hint: 'Später erneut kontaktieren' },
-  { id: 'abgeschlossen', label: 'Abgeschlossen', hint: 'Kunde gewonnen oder nicht' },
+  { id: 'neu', label: L('Neu', 'New'), hint: L('Noch nicht kontaktiert', 'Not contacted yet') },
+  { id: 'kontaktiert', label: L('Kontaktiert', 'Contacted'), hint: L('Erster Kontakt erfolgt', 'First contact made') },
+  { id: 'termin', label: L('Termin', 'Appointment'), hint: L('Gespräch geplant', 'Meeting scheduled') },
+  { id: 'wiedervorlage', label: L('Wiedervorlage', 'Follow-up'), hint: L('Später erneut kontaktieren', 'Contact again later') },
+  { id: 'abgeschlossen', label: L('Abgeschlossen', 'Closed'), hint: L('Kunde gewonnen oder nicht', 'Customer won or not') },
 ];
 
 export const CLOSE_OUTCOMES = [
-  { id: 'erfolgreich', label: 'Erfolgreich', hint: 'Aus dem Gespräch wurde ein Kunde' },
-  { id: 'fehlgeschlagen', label: 'Nicht erfolgreich', hint: 'Kein Abschluss nach dem Gespräch' },
+  { id: 'erfolgreich', label: L('Erfolgreich', 'Successful'), hint: L('Aus dem Gespräch wurde ein Kunde', 'The meeting turned into a customer') },
+  { id: 'fehlgeschlagen', label: L('Nicht erfolgreich', 'Not successful'), hint: L('Kein Abschluss nach dem Gespräch', 'No deal after the meeting') },
 ];
 
 const CLOSE_OUTCOME_IDS = new Set(CLOSE_OUTCOMES.map((item) => item.id));
 
 export const VIEW_MODES = [
   { id: 'kanban', label: 'Kanban' },
-  { id: 'list', label: 'Liste' },
+  { id: 'list', label: L('Liste', 'List') },
 ];
 
 const STATUS_IDS = new Set(LEAD_STATUSES.map((status) => status.id));
@@ -34,11 +35,11 @@ export function formatDistance(km) {
   const value = Number(km);
   if (!Number.isFinite(value)) return '';
   const rounded = value < 10 ? value.toFixed(1) : String(Math.round(value));
-  return `${rounded.replace('.', ',')} km`;
+  return `${L(rounded.replace('.', ','), rounded)} km`;
 }
 
 export function statusLabel(statusId) {
-  return LEAD_STATUSES.find((status) => status.id === statusId)?.label || 'Neu';
+  return LEAD_STATUSES.find((status) => status.id === statusId)?.label || L('Neu', 'New');
 }
 
 export function defaultPipelineStatus(apiStatus) {

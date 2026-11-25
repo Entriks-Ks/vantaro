@@ -10,6 +10,7 @@ import {
 import { useAuth } from '../hooks/useAuth';
 import useNavigate from '../hooks/useNavigate';
 import { accountSetupCta, isAddressComplete, isFirmComplete, isPersonalComplete } from '../pages/dashboard/helpers';
+import { L } from '../lib/i18n';
 
 function skipKey(userId) {
   return `vantaro-stammdaten-skip:${userId}`;
@@ -33,22 +34,22 @@ export default function StammdatenModal() {
     !personalDone && {
       id: 'profile',
       icon: User,
-      title: 'Name & Telefon',
-      text: 'Vorname, Nachname und Mobilnummer für Ihr Konto.',
+      title: L('Name & Telefon', 'Name & phone'),
+      text: L('Vorname, Nachname und Mobilnummer für Ihr Konto.', 'First name, last name and mobile number for your account.'),
       to: '/dashboard/profil#kontakt',
     },
     !firmDone && {
       id: 'company',
       icon: Building2,
-      title: 'Unternehmen',
-      text: 'Firmenname und Rechtsform für Portal und Dokumente.',
+      title: L('Unternehmen', 'Company'),
+      text: L('Firmenname und Rechtsform für Portal und Dokumente.', 'Company name and legal form for the portal and documents.'),
       to: '/dashboard/unternehmen#firma',
     },
     !addressDone && {
       id: 'address',
       icon: MapPin,
-      title: 'Geschäftsadresse',
-      text: 'Adresse für Vertrag, Rechnungen und Verifizierung.',
+      title: L('Geschäftsadresse', 'Business address'),
+      text: L('Adresse für Vertrag, Rechnungen und Verifizierung.', 'Address for the contract, invoices and verification.'),
       to: '/dashboard/unternehmen#adresse',
     },
   ].filter(Boolean);
@@ -85,11 +86,14 @@ export default function StammdatenModal() {
     setSkipped(true);
   };
 
-  const title = personalDone ? 'Unternehmen einrichten' : 'Profil einrichten';
+  const title = personalDone ? L('Unternehmen einrichten', 'Set up your company') : L('Profil einrichten', 'Set up your profile');
   const intro = personalDone
-    ? 'Ihre Kontaktdaten sind gespeichert. Als Nächstes Firma und Adresse ergänzen.'
-    : `Willkommen${user?.firstName ? `, ${user.firstName}` : ''}. Zuerst Name und Telefon — danach das Unternehmen.`;
-  const primaryLabel = personalDone ? 'Unternehmen jetzt einrichten' : 'Profil jetzt vervollständigen';
+    ? L('Ihre Kontaktdaten sind gespeichert. Als Nächstes Firma und Adresse ergänzen.', 'Your contact details are saved. Next, add your company and address.')
+    : L(
+      `Willkommen${user?.firstName ? `, ${user.firstName}` : ''}. Zuerst Name und Telefon — danach das Unternehmen.`,
+      `Welcome${user?.firstName ? `, ${user.firstName}` : ''}. First your name and phone — then your company.`,
+    );
+  const primaryLabel = personalDone ? L('Unternehmen jetzt einrichten', 'Set up company now') : L('Profil jetzt vervollständigen', 'Complete profile now');
 
   return (
     <div className="stammdaten-modal" role="dialog" aria-modal="true" aria-labelledby="stammdaten-title">
@@ -103,7 +107,7 @@ export default function StammdatenModal() {
             type="button"
             className="stammdaten-modal__close"
             onClick={dismissForNow}
-            aria-label="Schließen"
+            aria-label={L('Schließen', 'Close')}
           >
             <X size={18} />
           </button>
@@ -138,7 +142,7 @@ export default function StammdatenModal() {
           <ArrowRight size={18} />
         </button>
         <button type="button" className="stammdaten-modal__later" onClick={dismissForNow}>
-          Später erledigen
+          {L('Später erledigen', 'Do this later')}
         </button>
       </div>
     </div>

@@ -8,6 +8,7 @@ import {
   isInGermany,
   loadGoogleMaps,
 } from '../lib/googleMaps';
+import { L } from '../lib/i18n';
 
 const PIN_ZOOM = 15;
 const MIN_ZOOM = 5;
@@ -37,7 +38,7 @@ export default function AddressMap({
   useEffect(() => {
     if (!hasGoogleMapsKey()) {
       setStatus('error');
-      setError('Kein Google-Maps-API-Schlüssel (VITE_GOOGLE_MAPS_API_KEY).');
+      setError(L('Kein Google-Maps-API-Schlüssel (VITE_GOOGLE_MAPS_API_KEY).', 'No Google Maps API key (VITE_GOOGLE_MAPS_API_KEY).'));
       return undefined;
     }
 
@@ -99,13 +100,13 @@ export default function AddressMap({
         if (!markerRef.current) {
           const { AdvancedMarkerElement, PinElement } = maps.marker || {};
           if (!AdvancedMarkerElement) {
-            throw new Error('AdvancedMarkerElement nicht verfügbar.');
+            throw new Error(L('AdvancedMarkerElement nicht verfügbar.', 'AdvancedMarkerElement not available.'));
           }
           markerRef.current = new AdvancedMarkerElement({
             map: mapRef.current,
             position,
             gmpDraggable: true,
-            title: 'Geschäftsadresse',
+            title: L('Geschäftsadresse', 'Business address'),
           });
           if (PinElement) {
             try {
@@ -141,11 +142,11 @@ export default function AddressMap({
         if (cancelled) return;
         setStatus('error');
         const msg = String(err?.message || '');
-        if (/abgelehnt|ungültig|nicht aktiviert|Auth/i.test(msg)) {
-          setError('Kartensuche vorübergehend nicht verfügbar — Adresse bitte manuell eintragen.');
+        if (/abgelehnt|ungültig|nicht aktiviert|rejected|invalid|not enabled|Auth/i.test(msg)) {
+          setError(L('Kartensuche vorübergehend nicht verfügbar — Adresse bitte manuell eintragen.', 'Map search temporarily unavailable — please enter the address manually.'));
           return;
         }
-        setError(msg || 'Karte konnte nicht geladen werden.');
+        setError(msg || L('Karte konnte nicht geladen werden.', 'The map could not be loaded.'));
       });
 
     return () => {
@@ -157,7 +158,7 @@ export default function AddressMap({
     return (
       <div className={`broker-address-map is-error ${className}`.trim()}>
         <p className="broker-address-map__hint">
-          Maps-Schlüssel fehlt in <code>client/.env</code> (
+          {L('Maps-Schlüssel fehlt in', 'Maps key missing in')} <code>client/.env</code> (
           <code>VITE_GOOGLE_MAPS_API_KEY</code>).
         </p>
       </div>
@@ -172,16 +173,16 @@ export default function AddressMap({
         role="img"
         aria-label={
           Number.isFinite(lat) && Number.isFinite(lng)
-            ? 'Karte der Geschäftsadresse in Deutschland'
-            : 'Deutschlandkarte — Stadt oder Straße suchen'
+            ? L('Karte der Geschäftsadresse in Deutschland', 'Map of the business address in Germany')
+            : L('Deutschlandkarte — Stadt oder Straße suchen', 'Map of Germany — search for a city or street')
         }
       />
       {status === 'loading' ? (
-        <p className="broker-address-map__hint">Karte wird geladen…</p>
+        <p className="broker-address-map__hint">{L('Karte wird geladen…', 'Loading map…')}</p>
       ) : null}
       {status === 'ready' && !(Number.isFinite(lat) && Number.isFinite(lng)) ? (
         <p className="broker-address-map__hint">
-          z. B. „Augsburg“ oder „Maximilianstraße Augsburg“ tippen — oder auf die Karte klicken.
+          {L('z. B. „Augsburg“ oder „Maximilianstraße Augsburg“ tippen — oder auf die Karte klicken.', 'e.g. type “Augsburg” or “Maximilianstraße Augsburg” — or click on the map.')}
         </p>
       ) : null}
       {status === 'error' ? (

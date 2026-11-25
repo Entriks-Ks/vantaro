@@ -1,5 +1,6 @@
 import { energyLeadTypeOf, isAppointmentExpired } from '../../lib/vertical';
 import { scoreLeadForRequest } from './leadMatching';
+import { L } from '../../lib/i18n';
 
 export function leadScopeOrDefault(scope) {
   return scope === 'regional' ? 'regional' : 'deutschlandweit';
@@ -95,7 +96,7 @@ export function leadsForRequest(requestLeads, requestId) {
 }
 
 export function beraterName(request) {
-  return request?.berater?.fullName || request?.berater?.email || 'Unbekannt';
+  return request?.berater?.fullName || request?.berater?.email || L('Unbekannt', 'Unknown');
 }
 
 export function requestCode(request) {
@@ -103,11 +104,11 @@ export function requestCode(request) {
 }
 
 export function packageKindLabel(scope) {
-  return scope === 'regional' ? 'Regional' : 'Exklusiv';
+  return scope === 'regional' ? L('Regional', 'Regional') : L('Exklusiv', 'Exclusive');
 }
 
 export function requestAreaLabel(request) {
-  if (request?.vertical === 'energy') return request.territory || 'Gebiet';
+  if (request?.vertical === 'energy') return request.territory || L('Gebiet', 'Area');
   return packageKindLabel(request?.scope);
 }
 
@@ -117,13 +118,16 @@ export function progressPercent(request) {
 }
 
 export function progressCopy(request) {
-  if (request?.status === 'completed') return 'Alle Leads zugestellt';
-  if (request?.status === 'cancelled') return 'Belieferung pausiert';
+  if (request?.status === 'completed') return L('Alle Leads zugestellt', 'All leads delivered');
+  if (request?.status === 'cancelled') return L('Belieferung pausiert', 'Delivery paused');
   if (request?.refundedCount > 0 && request?.remaining > 0) {
-    return `${request.refundedCount} erstattet · Ersatz offen`;
+    return L(
+      `${request.refundedCount} erstattet · Ersatz offen`,
+      `${request.refundedCount} refunded · replacement pending`,
+    );
   }
-  if (request?.validCount > 0) return 'Leads werden zugestellt';
-  return 'Wartet auf Zustellung';
+  if (request?.validCount > 0) return L('Leads werden zugestellt', 'Leads are being delivered');
+  return L('Wartet auf Zustellung', 'Awaiting delivery');
 }
 
 export function isUnseenRequest(request) {

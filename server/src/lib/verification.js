@@ -61,7 +61,7 @@ export function secondsUntilResend(userOrEmail) {
   return remaining > 0 ? Math.ceil(remaining / 1000) : 0;
 }
 
-export async function issueVerificationCode(user, { ignoreCooldown = false } = {}) {
+export async function issueVerificationCode(user, { ignoreCooldown = false, lang = null } = {}) {
   const email = user.email.toLowerCase();
   const wait = secondsUntilResend(user);
   if (!ignoreCooldown && wait > 0) {
@@ -100,6 +100,7 @@ export async function issueVerificationCode(user, { ignoreCooldown = false } = {
     code,
     confirmUrl,
     fullName: metadata.full_name || '',
+    lang: lang || metadata.settings?.language || 'de',
   });
 
   return data.user;

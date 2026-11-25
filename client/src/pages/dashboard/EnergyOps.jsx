@@ -27,6 +27,7 @@ import {
   updatePartner,
 } from '../../lib/partners';
 import { formatDateTime, initials } from './helpers';
+import { L } from '../../lib/i18n';
 
 export function partnersPath(vertical) {
   return vertical === 'energy' ? '/dashboard/team' : '/dashboard/partner';
@@ -66,8 +67,8 @@ function PartnerMoreMenu({ partner, pagesLabel, disabled, onAccess, onSendLink }
         disabled={disabled}
         aria-haspopup="menu"
         aria-expanded={open}
-        aria-label={`Weitere Aktionen für ${partner.fullName}`}
-        title="Weitere Aktionen"
+        aria-label={L(`Weitere Aktionen für ${partner.fullName}`, `More actions for ${partner.fullName}`)}
+        title={L('Weitere Aktionen', 'More actions')}
         onClick={() => setOpen((value) => !value)}
       >
         <MoreVertical size={15} />
@@ -76,15 +77,15 @@ function PartnerMoreMenu({ partner, pagesLabel, disabled, onAccess, onSendLink }
         <div className="energy-partner-more-menu" role="menu">
           <button type="button" role="menuitem" onClick={() => pick(onAccess)}>
             <KeyRound size={15} aria-hidden="true" />
-            <span>Seitenzugriff</span>
+            <span>{L('Seitenzugriff', 'Page access')}</span>
             <em>{pagesLabel}</em>
           </button>
           <div className="energy-partner-more-divider" role="separator" />
           <button type="button" role="menuitem" onClick={() => pick(onSendLink)}>
             <Mail size={15} aria-hidden="true" />
             <span>
-              {pending ? 'Einladung erneut senden' : 'Passwort-Link senden'}
-              <small>Per E-Mail an {partner.email}</small>
+              {pending ? L('Einladung erneut senden', 'Resend invitation') : L('Passwort-Link senden', 'Send password link')}
+              <small>{L(`Per E-Mail an ${partner.email}`, `By email to ${partner.email}`)}</small>
             </span>
           </button>
         </div>
@@ -114,7 +115,7 @@ export function PartnerLeadActions({ lead, onChange }) {
         setPartnersState('ready');
       })
       .catch((err) => {
-        setPartnersError(err.message || 'Partner konnten nicht geladen werden.');
+        setPartnersError(err.message || L('Partner konnten nicht geladen werden.', 'Partners could not be loaded.'));
         setPartnersState('error');
       });
   };
@@ -154,8 +155,10 @@ export function PartnerLeadActions({ lead, onChange }) {
       <div className="broker-detail-section-head">
         <span className="broker-detail-section-icon" aria-hidden="true"><Users size={18} /></span>
         <div>
-          <h2>Bearbeitung durch</h2>
-          <p>{isAssigned ? `Aktuell bei ${holder?.fullName || 'einem Partner'}` : 'Noch bei Ihrer Firma'}</p>
+          <h2>{L('Bearbeitung durch', 'Handled by')}</h2>
+          <p>{isAssigned
+            ? L(`Aktuell bei ${holder?.fullName || 'einem Partner'}`, `Currently with ${holder?.fullName || 'a partner'}`)
+            : L('Noch bei Ihrer Firma', 'Still with your company')}</p>
         </div>
       </div>
       {error ? <div className="broker-alert">{error}</div> : null}
@@ -166,21 +169,24 @@ export function PartnerLeadActions({ lead, onChange }) {
         if (!holderId || holderId === lead.energyHolderId) return;
         run(
           () => assignLeadHolder(lead.id, holderId),
-          `${isAssigned ? 'Neu zugewiesen' : 'Zugewiesen'} an ${selected?.fullName || 'Partner'}.`,
+          L(
+            `${isAssigned ? 'Neu zugewiesen' : 'Zugewiesen'} an ${selected?.fullName || 'Partner'}.`,
+            `${isAssigned ? 'Reassigned' : 'Assigned'} to ${selected?.fullName || 'partner'}.`,
+          ),
         );
       }}>
         <label className="energy-actions__label" htmlFor={`energy-holder-${lead.id}`}>
-          {isAssigned ? 'Zuweisung ändern' : 'Zuweisen an'}
+          {isAssigned ? L('Zuweisung ändern', 'Change assignment') : L('Zuweisen an', 'Assign to')}
         </label>
         {partnersState === 'error' ? (
           <div className="energy-actions__empty is-error">
             <span>{partnersError}</span>
-            <button type="button" className="broker-text-btn" onClick={loadPartners}>Erneut laden</button>
+            <button type="button" className="broker-text-btn" onClick={loadPartners}>{L('Erneut laden', 'Reload')}</button>
           </div>
         ) : partnersState === 'ready' && assignable.length === 0 ? (
           <div className="energy-actions__empty">
-            <span>Noch keine aktiven Partner-Zugänge.</span>
-            {role === 'main' ? <Link className="broker-text-btn" to={partnersPath(user?.vertical)}>Partner einladen</Link> : null}
+            <span>{L('Noch keine aktiven Partner-Zugänge.', 'No active partner accounts yet.')}</span>
+            {role === 'main' ? <Link className="broker-text-btn" to={partnersPath(user?.vertical)}>{L('Partner einladen', 'Invite partner')}</Link> : null}
           </div>
         ) : (
           <div className="energy-actions__row energy-actions__row--inline">
@@ -196,13 +202,13 @@ export function PartnerLeadActions({ lead, onChange }) {
               required
             >
               <option value="">
-                {partnersState === 'loading' ? 'Wird geladen…' : 'Partner wählen'}
+                {partnersState === 'loading' ? L('Wird geladen…', 'Loading…') : L('Partner wählen', 'Choose partner')}
               </option>
               {assignable.map((partner) => (
                 <option key={partner.id} value={partner.id}>
                   {partner.fullName} · {partnerRoleLabel(user?.vertical, partner.partnerRole)}
-                  {partner.id === lead.energyHolderId ? ' (aktuell)' : ''}
-                  {partner.active === false ? ' – inaktiv' : ''}
+                  {partner.id === lead.energyHolderId ? L(' (aktuell)', ' (current)') : ''}
+                  {partner.active === false ? L(' – inaktiv', ' – inactive') : ''}
                 </option>
               ))}
             </select>
@@ -210,10 +216,10 @@ export function PartnerLeadActions({ lead, onChange }) {
               className="btn btn-primary energy-actions__submit"
               type="submit"
               disabled={busy || !holderId || holderId === lead.energyHolderId}
-              title={isAssigned ? 'Neu zuweisen' : 'Zuweisen'}
+              title={isAssigned ? L('Neu zuweisen', 'Reassign') : L('Zuweisen', 'Assign')}
             >
               <UserPlus size={16} aria-hidden="true" />
-              {busy ? '…' : 'Zuweisen'}
+              {busy ? '…' : L('Zuweisen', 'Assign')}
             </button>
           </div>
         )}
@@ -233,8 +239,8 @@ function emptyPartnerForm() {
 
 function PartnerRolePicker({ vertical, value, disabled, onChange }) {
   return (
-    <div className="energy-partner-create-roles" role="radiogroup" aria-label="Rolle">
-      <span className="energy-partner-create-label">Rolle</span>
+    <div className="energy-partner-create-roles" role="radiogroup" aria-label={L('Rolle', 'Role')}>
+      <span className="energy-partner-create-label">{L('Rolle', 'Role')}</span>
       {partnerRoleOptions(vertical).map((role) => (
         <button
           key={role.id}
@@ -255,7 +261,7 @@ function PartnerRolePicker({ vertical, value, disabled, onChange }) {
 
 function PartnerPageAccess({ vertical, pages, disabled, onChange }) {
   return (
-    <div className="energy-partner-pages" role="group" aria-label="Seitenzugriff">
+    <div className="energy-partner-pages" role="group" aria-label={L('Seitenzugriff', 'Page access')}>
       {partnerPageOptions(vertical).map((option) => {
         const checked = pages.includes(option.id);
         return (
@@ -405,10 +411,12 @@ export function PartnersPage() {
     try {
       await sendPartnerPasswordLink(partner.id);
       setNotice(pending
-        ? `Invitation sent to ${partner.email}`
-        : `Link zum Zurücksetzen des Passworts wurde an ${partner.email} gesendet.`);
+        ? L(`Einladung wurde an ${partner.email} gesendet.`, `Invitation sent to ${partner.email}.`)
+        : L(`Link zum Zurücksetzen des Passworts wurde an ${partner.email} gesendet.`, `A password reset link has been sent to ${partner.email}.`));
     } catch (err) {
-      setError(err.message || (pending ? 'Einladung konnte nicht gesendet werden.' : 'Passwort-Link konnte nicht gesendet werden.'));
+      setError(err.message || (pending
+        ? L('Einladung konnte nicht gesendet werden.', 'The invitation could not be sent.')
+        : L('Passwort-Link konnte nicht gesendet werden.', 'The password link could not be sent.')));
     } finally {
       setBusyId('');
     }
@@ -438,10 +446,13 @@ export function PartnersPage() {
       if (created?.user?.id === partner.id) setCreated(null);
       setRemovePartner(null);
       setNotice(payload.unassignedLeads
-        ? `${partner.fullName} wurde gelöscht. ${payload.unassignedLeads} Lead(s) liegen wieder bei Ihrer Firma.`
-        : `${partner.fullName} wurde gelöscht.`);
+        ? L(
+          `${partner.fullName} wurde gelöscht. ${payload.unassignedLeads} Lead(s) liegen wieder bei Ihrer Firma.`,
+          `${partner.fullName} has been deleted. ${payload.unassignedLeads} lead(s) are back with your company.`,
+        )
+        : L(`${partner.fullName} wurde gelöscht.`, `${partner.fullName} has been deleted.`));
     } catch (err) {
-      setRemoveError(err.message || 'Zugang konnte nicht gelöscht werden.');
+      setRemoveError(err.message || L('Zugang konnte nicht gelöscht werden.', 'The account could not be deleted.'));
     } finally {
       setRemoving(false);
       setBusyId('');
@@ -466,7 +477,7 @@ export function PartnersPage() {
 
   const createModal = showCreate ? (
     <div className="broker-modal" role="dialog" aria-modal="true" aria-labelledby="energy-partner-create-title">
-      <button type="button" className="broker-modal__backdrop" aria-label="Schließen" onClick={closeCreate} />
+      <button type="button" className="broker-modal__backdrop" aria-label={L('Schließen', 'Close')} onClick={closeCreate} />
       <div className="broker-modal__panel energy-partner-create-modal">
         <div className="energy-partner-create-head">
           <div className="energy-partner-create-title">
@@ -474,11 +485,11 @@ export function PartnersPage() {
               <UserPlus size={20} />
             </span>
             <div>
-              <h2 id="energy-partner-create-title">Partner einladen</h2>
-              <p>Der Partner erhält eine E-Mail und legt selbst ein Passwort fest.</p>
+              <h2 id="energy-partner-create-title">{L('Partner einladen', 'Invite partner')}</h2>
+              <p>{L('Der Partner erhält eine E-Mail und legt selbst ein Passwort fest.', 'The partner receives an email and sets their own password.')}</p>
             </div>
           </div>
-          <button type="button" className="energy-partner-create-close" aria-label="Schließen" disabled={creating} onClick={closeCreate}>
+          <button type="button" className="energy-partner-create-close" aria-label={L('Schließen', 'Close')} disabled={creating} onClick={closeCreate}>
             <X size={18} />
           </button>
         </div>
@@ -510,26 +521,26 @@ export function PartnersPage() {
 
           <div className="energy-partner-create-grid">
             <label className="energy-partner-create-field">
-              <span>Vorname</span>
+              <span>{L('Vorname', 'First name')}</span>
               <input
                 value={form.firstName}
                 onChange={(event) => setForm({ ...form, firstName: event.target.value })}
-                placeholder="Max"
+                placeholder={L('Max', 'John')}
                 required
                 autoFocus
               />
             </label>
             <label className="energy-partner-create-field">
-              <span>Nachname</span>
+              <span>{L('Nachname', 'Last name')}</span>
               <input
                 value={form.lastName}
                 onChange={(event) => setForm({ ...form, lastName: event.target.value })}
-                placeholder="Mustermann"
+                placeholder={L('Mustermann', 'Smith')}
                 required
               />
             </label>
             <label className="energy-partner-create-field is-full">
-              <span>E-Mail</span>
+              <span>{L('E-Mail', 'Email')}</span>
               <input
                 type="email"
                 value={form.email}
@@ -548,16 +559,16 @@ export function PartnersPage() {
           />
 
           <div className="energy-partner-create-note">
-            Standardzugriff: Dashboard, Leads, Kalender, Akademie, Support.
-            {vertical === 'energy' ? <em>Meine Pakete</em> : null}
-            {vertical === 'energy' ? ' kann später freigegeben werden.' : null}
+            {L('Standardzugriff: Dashboard, Leads, Kalender, Akademie, Support.', 'Default access: Dashboard, Leads, Calendar, Academy, Support.')}
+            {vertical === 'energy' ? <em>{L('Meine Pakete', 'My packages')}</em> : null}
+            {vertical === 'energy' ? L(' kann später freigegeben werden.', ' can be enabled later.') : null}
           </div>
 
           <div className="energy-partner-create-footer">
-            <button type="button" className="dash-btn dash-btn--ghost" disabled={creating} onClick={closeCreate}>Abbrechen</button>
+            <button type="button" className="dash-btn dash-btn--ghost" disabled={creating} onClick={closeCreate}>{L('Abbrechen', 'Cancel')}</button>
             <button className="dash-btn" type="submit" disabled={creating}>
               <UserPlus size={16} />
-              {creating ? 'Wird gesendet…' : 'Einladung senden'}
+              {creating ? L('Wird gesendet…', 'Sending…') : L('Einladung senden', 'Send invitation')}
             </button>
           </div>
         </form>
@@ -567,16 +578,16 @@ export function PartnersPage() {
 
   const accessModal = accessPartner ? (
     <div className="broker-modal" role="dialog" aria-modal="true" aria-labelledby="energy-partner-access-title">
-      <button type="button" className="broker-modal__backdrop" aria-label="Schließen" onClick={closeAccess} />
+      <button type="button" className="broker-modal__backdrop" aria-label={L('Schließen', 'Close')} onClick={closeAccess} />
       <div className="broker-modal__panel energy-partner-access-modal">
         <div className="broker-modal__top">
-          <h2 id="energy-partner-access-title">Seitenzugriff</h2>
-          <button type="button" className="broker-modal__close" aria-label="Schließen" disabled={savingAccess} onClick={closeAccess}>
+          <h2 id="energy-partner-access-title">{L('Seitenzugriff', 'Page access')}</h2>
+          <button type="button" className="broker-modal__close" aria-label={L('Schließen', 'Close')} disabled={savingAccess} onClick={closeAccess}>
             <X size={18} />
           </button>
         </div>
         <p className="energy-partner-create-lede">
-          Für <strong>{accessPartner.fullName}</strong> festlegen, welche Seiten sichtbar sind.
+          {L('Für ', 'Choose which pages are visible for ')}<strong>{accessPartner.fullName}</strong>{L(' festlegen, welche Seiten sichtbar sind.', '.')}
         </p>
         {accessError ? <div className="broker-alert">{accessError}</div> : null}
         <PartnerPageAccess
@@ -586,7 +597,7 @@ export function PartnersPage() {
           onChange={setAccessPages}
         />
         <div className="energy-partner-create-actions">
-          <button type="button" className="dash-btn dash-btn--ghost" disabled={savingAccess} onClick={closeAccess}>Abbrechen</button>
+          <button type="button" className="dash-btn dash-btn--ghost" disabled={savingAccess} onClick={closeAccess}>{L('Abbrechen', 'Cancel')}</button>
           <button
             type="button"
             className="dash-btn"
@@ -598,13 +609,13 @@ export function PartnersPage() {
                 await patchPartner(accessPartner.id, { pages: accessPages.length ? accessPages : ['dashboard'] });
                 setAccessPartner(null);
               } catch (err) {
-                setAccessError(err.message || 'Seitenzugriff konnte nicht gespeichert werden.');
+                setAccessError(err.message || L('Seitenzugriff konnte nicht gespeichert werden.', 'Page access could not be saved.'));
               } finally {
                 setSavingAccess(false);
               }
             }}
           >
-            {savingAccess ? 'Wird gespeichert…' : 'Speichern'}
+            {savingAccess ? L('Wird gespeichert…', 'Saving…') : L('Speichern', 'Save')}
           </button>
         </div>
       </div>
@@ -613,7 +624,7 @@ export function PartnersPage() {
 
   const editModal = editPartner ? (
     <div className="broker-modal" role="dialog" aria-modal="true" aria-labelledby="energy-partner-edit-title">
-      <button type="button" className="broker-modal__backdrop" aria-label="Schließen" onClick={closeEdit} />
+      <button type="button" className="broker-modal__backdrop" aria-label={L('Schließen', 'Close')} onClick={closeEdit} />
       <div className="broker-modal__panel energy-partner-create-modal">
         <div className="energy-partner-create-head">
           <div className="energy-partner-create-title">
@@ -621,11 +632,11 @@ export function PartnersPage() {
               <Pencil size={20} />
             </span>
             <div>
-              <h2 id="energy-partner-edit-title">Zugang bearbeiten</h2>
-              <p>Name, E-Mail und Rolle von {editPartner.fullName} ändern.</p>
+              <h2 id="energy-partner-edit-title">{L('Zugang bearbeiten', 'Edit account')}</h2>
+              <p>{L(`Name, E-Mail und Rolle von ${editPartner.fullName} ändern.`, `Change the name, email and role of ${editPartner.fullName}.`)}</p>
             </div>
           </div>
-          <button type="button" className="energy-partner-create-close" aria-label="Schließen" disabled={savingEdit} onClick={closeEdit}>
+          <button type="button" className="energy-partner-create-close" aria-label={L('Schließen', 'Close')} disabled={savingEdit} onClick={closeEdit}>
             <X size={18} />
           </button>
         </div>
@@ -640,10 +651,10 @@ export function PartnersPage() {
             try {
               const partner = await patchPartner(editPartner.id, editForm);
               setEditPartner(null);
-              setNotice(`${partner?.fullName || 'Zugang'} wurde aktualisiert.`);
+              setNotice(L(`${partner?.fullName || 'Zugang'} wurde aktualisiert.`, `${partner?.fullName || 'Account'} has been updated.`));
             } catch (err) {
               setError('');
-              setEditError(err.message || 'Zugang konnte nicht gespeichert werden.');
+              setEditError(err.message || L('Zugang konnte nicht gespeichert werden.', 'The account could not be saved.'));
             } finally {
               setSavingEdit(false);
             }
@@ -653,7 +664,7 @@ export function PartnersPage() {
 
           <div className="energy-partner-create-grid">
             <label className="energy-partner-create-field">
-              <span>Vorname</span>
+              <span>{L('Vorname', 'First name')}</span>
               <input
                 value={editForm.firstName}
                 onChange={(event) => setEditForm({ ...editForm, firstName: event.target.value })}
@@ -663,7 +674,7 @@ export function PartnersPage() {
               />
             </label>
             <label className="energy-partner-create-field">
-              <span>Nachname</span>
+              <span>{L('Nachname', 'Last name')}</span>
               <input
                 value={editForm.lastName}
                 onChange={(event) => setEditForm({ ...editForm, lastName: event.target.value })}
@@ -672,7 +683,7 @@ export function PartnersPage() {
               />
             </label>
             <label className="energy-partner-create-field is-full">
-              <span>E-Mail</span>
+              <span>{L('E-Mail', 'Email')}</span>
               <input
                 type="email"
                 value={editForm.email}
@@ -691,9 +702,9 @@ export function PartnersPage() {
           />
 
           <div className="energy-partner-create-footer">
-            <button type="button" className="dash-btn dash-btn--ghost" disabled={savingEdit} onClick={closeEdit}>Abbrechen</button>
+            <button type="button" className="dash-btn dash-btn--ghost" disabled={savingEdit} onClick={closeEdit}>{L('Abbrechen', 'Cancel')}</button>
             <button className="dash-btn" type="submit" disabled={savingEdit}>
-              {savingEdit ? 'Wird gespeichert…' : 'Speichern'}
+              {savingEdit ? L('Wird gespeichert…', 'Saving…') : L('Speichern', 'Save')}
             </button>
           </div>
         </form>
@@ -703,24 +714,24 @@ export function PartnersPage() {
 
   const removeModal = removePartner ? (
     <div className="broker-modal" role="dialog" aria-modal="true" aria-labelledby="energy-partner-remove-title">
-      <button type="button" className="broker-modal__backdrop" aria-label="Schließen" onClick={closeRemove} />
+      <button type="button" className="broker-modal__backdrop" aria-label={L('Schließen', 'Close')} onClick={closeRemove} />
       <div className="broker-modal__panel energy-partner-access-modal">
         <div className="broker-modal__top">
-          <h2 id="energy-partner-remove-title">Zugang löschen</h2>
-          <button type="button" className="broker-modal__close" aria-label="Schließen" disabled={removing} onClick={closeRemove}>
+          <h2 id="energy-partner-remove-title">{L('Zugang löschen', 'Delete account')}</h2>
+          <button type="button" className="broker-modal__close" aria-label={L('Schließen', 'Close')} disabled={removing} onClick={closeRemove}>
             <X size={18} />
           </button>
         </div>
         <p className="energy-partner-create-lede">
-          Soll der Zugang von <strong>{removePartner.fullName}</strong> ({removePartner.email}) endgültig gelöscht werden?
-          Zugewiesene Leads gehen an Ihre Firma zurück. Dies kann nicht rückgängig gemacht werden.
+          {L('Soll der Zugang von ', 'Permanently delete the account of ')}<strong>{removePartner.fullName}</strong> ({removePartner.email}){L(' endgültig gelöscht werden?', '?')}
+          {' '}{L('Zugewiesene Leads gehen an Ihre Firma zurück. Dies kann nicht rückgängig gemacht werden.', 'Assigned leads go back to your company. This cannot be undone.')}
         </p>
         {removeError ? <div className="broker-alert">{removeError}</div> : null}
         <div className="energy-partner-create-actions">
-          <button type="button" className="dash-btn dash-btn--ghost" disabled={removing} onClick={closeRemove}>Abbrechen</button>
+          <button type="button" className="dash-btn dash-btn--ghost" disabled={removing} onClick={closeRemove}>{L('Abbrechen', 'Cancel')}</button>
           <button type="button" className="dash-btn dash-btn--danger" disabled={removing} onClick={confirmRemove}>
             <Trash2 size={16} />
-            {removing ? 'Wird gelöscht…' : 'Endgültig löschen'}
+            {removing ? L('Wird gelöscht…', 'Deleting…') : L('Endgültig löschen', 'Delete permanently')}
           </button>
         </div>
       </div>
@@ -735,7 +746,7 @@ export function PartnersPage() {
     : null;
   const viewModal = viewPartner ? (
     <div className="broker-modal" role="dialog" aria-modal="true" aria-labelledby="energy-partner-view-title">
-      <button type="button" className="broker-modal__backdrop" aria-label="Schließen" onClick={() => setViewPartnerId('')} />
+      <button type="button" className="broker-modal__backdrop" aria-label={L('Schließen', 'Close')} onClick={() => setViewPartnerId('')} />
       <div className="broker-modal__panel energy-partner-create-modal">
         <div className="energy-partner-create-head">
           <div className="energy-partner-create-title">
@@ -751,12 +762,12 @@ export function PartnersPage() {
               <div className="energy-partner-meta-row">
                 <span className="broker-lead-type">{partnerRoleLabel(vertical, viewPartner.partnerRole)}</span>
                 <span className={`broker-status${viewPartner.inviteStatus === 'accepted' ? '' : ' is-reported'}`}>
-                  {viewPartner.inviteStatus === 'accepted' ? 'Angenommen' : 'Ausstehend'}
+                  {viewPartner.inviteStatus === 'accepted' ? L('Angenommen', 'Accepted') : L('Ausstehend', 'Pending')}
                 </span>
               </div>
             </div>
           </div>
-          <button type="button" className="energy-partner-create-close" aria-label="Schließen" onClick={() => setViewPartnerId('')}>
+          <button type="button" className="energy-partner-create-close" aria-label={L('Schließen', 'Close')} onClick={() => setViewPartnerId('')}>
             <X size={18} />
           </button>
         </div>
@@ -764,19 +775,19 @@ export function PartnersPage() {
         <div className="energy-partner-create-body">
           <dl className="energy-partner-view-grid">
             <div>
-              <dt>Vorname</dt>
+              <dt>{L('Vorname', 'First name')}</dt>
               <dd>{viewPartner.firstName || '—'}</dd>
             </div>
             <div>
-              <dt>Nachname</dt>
+              <dt>{L('Nachname', 'Last name')}</dt>
               <dd>{viewPartner.lastName || '—'}</dd>
             </div>
             <div className="is-full">
-              <dt>E-Mail</dt>
+              <dt>{L('E-Mail', 'Email')}</dt>
               <dd><a href={`mailto:${viewPartner.email}`}>{viewPartner.email}</a></dd>
             </div>
             <div>
-              <dt>Rolle</dt>
+              <dt>{L('Rolle', 'Role')}</dt>
               <dd>
                 {partnerRoleLabel(vertical, viewPartner.partnerRole)}
                 {viewRole?.hint ? <small>{viewRole.hint}</small> : null}
@@ -785,22 +796,22 @@ export function PartnersPage() {
             <div>
               <dt>Status</dt>
               <dd className={viewPartner.active !== false ? 'is-ok' : 'is-muted'}>
-                {viewPartner.active !== false ? 'Aktiv' : 'Inaktiv'}
+                {viewPartner.active !== false ? L('Aktiv', 'Active') : L('Inaktiv', 'Inactive')}
               </dd>
             </div>
             <div>
-              <dt>Angelegt am</dt>
+              <dt>{L('Angelegt am', 'Created on')}</dt>
               <dd>{formatDateTime(viewPartner.createdAt)}</dd>
             </div>
             <div>
-              <dt>Letzte Anmeldung</dt>
-              <dd>{viewPartner.lastSignInAt ? formatDateTime(viewPartner.lastSignInAt) : 'Noch nie'}</dd>
+              <dt>{L('Letzte Anmeldung', 'Last sign-in')}</dt>
+              <dd>{viewPartner.lastSignInAt ? formatDateTime(viewPartner.lastSignInAt) : L('Noch nie', 'Never')}</dd>
             </div>
           </dl>
 
           <div className="energy-partner-view-pages">
             <span className="energy-partner-view-label">
-              Seitenzugriff · {viewPages.filter((id) => pageOptions.some((option) => option.id === id)).length}/{pageOptions.length}
+              {L('Seitenzugriff', 'Page access')} · {viewPages.filter((id) => pageOptions.some((option) => option.id === id)).length}/{pageOptions.length}
             </span>
             <div>
               {pageOptions.map((option) => {
@@ -816,7 +827,7 @@ export function PartnersPage() {
           </div>
 
           <div className="energy-partner-create-footer">
-            <button type="button" className="dash-btn dash-btn--ghost" onClick={() => setViewPartnerId('')}>Schließen</button>
+            <button type="button" className="dash-btn dash-btn--ghost" onClick={() => setViewPartnerId('')}>{L('Schließen', 'Close')}</button>
             <button
               type="button"
               className="dash-btn"
@@ -827,7 +838,7 @@ export function PartnersPage() {
               }}
             >
               <Pencil size={16} />
-              Bearbeiten
+              {L('Bearbeiten', 'Edit')}
             </button>
           </div>
         </div>
@@ -839,26 +850,26 @@ export function PartnersPage() {
     <div className="broker-page">
       <div className="broker-heading">
         <div>
-          <div className="eyebrow">Netzwerk</div>
-          <h1>Partner</h1>
+          <div className="eyebrow">{L('Netzwerk', 'Network')}</div>
+          <h1>{L('Partner', 'Partners')}</h1>
           <p className="lede">
-          Zugänge einladen, bearbeiten und löschen, Einladungsstatus prüfen, Seitenzugriff freigeben und Partner aktivieren oder sperren.
+          {L('Zugänge einladen, bearbeiten und löschen, Einladungsstatus prüfen, Seitenzugriff freigeben und Partner aktivieren oder sperren.', 'Invite, edit and delete accounts, check invitation status, grant page access and activate or block partners.')}
           </p>
         </div>
       </div>
 
       <div className="broker-home-metrics broker-home-metrics--leads">
         <article className="broker-home-metric">
-          <div className="broker-home-metric-body"><span>Gesamt</span><strong>{partners.length}</strong></div>
+          <div className="broker-home-metric-body"><span>{L('Gesamt', 'Total')}</span><strong>{partners.length}</strong></div>
         </article>
         <article className="broker-home-metric">
-          <div className="broker-home-metric-body"><span>Aktiv</span><strong>{activeCount}</strong></div>
+          <div className="broker-home-metric-body"><span>{L('Aktiv', 'Active')}</span><strong>{activeCount}</strong></div>
         </article>
         <article className="broker-home-metric">
-          <div className="broker-home-metric-body"><span>Angenommen</span><strong>{accepted.length}</strong></div>
+          <div className="broker-home-metric-body"><span>{L('Angenommen', 'Accepted')}</span><strong>{accepted.length}</strong></div>
         </article>
         <article className="broker-home-metric">
-          <div className="broker-home-metric-body"><span>Ausstehend</span><strong>{pending.length}</strong></div>
+          <div className="broker-home-metric-body"><span>{L('Ausstehend', 'Pending')}</span><strong>{pending.length}</strong></div>
         </article>
       </div>
 
@@ -866,30 +877,30 @@ export function PartnersPage() {
       {notice ? <div className="broker-alert broker-alert--ok">{notice}</div> : null}
       {created ? (
         <div className="broker-alert broker-alert--ok">
-          Invitation sent to {created.user.email}
+          {L(`Einladung wurde an ${created.user.email} gesendet.`, `Invitation sent to ${created.user.email}.`)}
         </div>
       ) : null}
 
       <section className="broker-panel energy-partner-board">
         <div className="broker-panel-header energy-partner-board-header">
           <div>
-            <h2>Alle Partner</h2>
-            <p>{partners.length} Zugänge in Ihrem Netzwerk</p>
+            <h2>{L('Alle Partner', 'All partners')}</h2>
+            <p>{L(`${partners.length} Zugänge in Ihrem Netzwerk`, `${partners.length} accounts in your network`)}</p>
           </div>
           <button type="button" className="dash-btn" onClick={() => { setFormError(''); setShowCreate(true); }}>
             <UserPlus size={16} />
-            Partner einladen
+            {L('Partner einladen', 'Invite partner')}
           </button>
         </div>
 
         <div className="energy-partner-toolbar">
           <div className="dash-seg" role="tablist" aria-label="Filter">
             {[
-              { id: 'all', label: 'Alle', count: partners.length },
-              { id: 'accepted', label: 'Angenommen', count: accepted.length },
-              { id: 'pending', label: 'Ausstehend', count: pending.length },
-              { id: 'active', label: 'Aktiv', count: activeCount },
-              { id: 'inactive', label: 'Inaktiv', count: partners.length - activeCount },
+              { id: 'all', label: L('Alle', 'All'), count: partners.length },
+              { id: 'accepted', label: L('Angenommen', 'Accepted'), count: accepted.length },
+              { id: 'pending', label: L('Ausstehend', 'Pending'), count: pending.length },
+              { id: 'active', label: L('Aktiv', 'Active'), count: activeCount },
+              { id: 'inactive', label: L('Inaktiv', 'Inactive'), count: partners.length - activeCount },
             ].map((option) => (
               <button
                 key={option.id}
@@ -906,20 +917,20 @@ export function PartnersPage() {
 
         <div className="energy-partner-list">
           {loadState === 'loading' ? (
-            <div className="energy-partner-empty">Partner werden geladen…</div>
+            <div className="energy-partner-empty">{L('Partner werden geladen…', 'Loading partners…')}</div>
           ) : loadState === 'error' ? (
             <div className="energy-partner-empty">
-              Partner konnten nicht geladen werden.{' '}
+              {L('Partner konnten nicht geladen werden.', 'Partners could not be loaded.')}{' '}
               <button
                 type="button"
                 className="broker-text-btn"
                 onClick={() => { setError(''); setLoadState('loading'); load(); }}
               >
-                Erneut laden
+                {L('Erneut laden', 'Reload')}
               </button>
             </div>
           ) : visible.length === 0 ? (
-            <div className="energy-partner-empty">Keine Partner in diesem Filter.</div>
+            <div className="energy-partner-empty">{L('Keine Partner in diesem Filter.', 'No partners in this filter.')}</div>
           ) : visible.map((partner) => {
             const busy = busyId === partner.id;
             const pages = Array.isArray(partner.pages) && partner.pages.length
@@ -951,19 +962,19 @@ export function PartnersPage() {
                   className={`energy-partner-toggle${isActive ? ' is-on' : ''}`}
                   disabled={busy}
                   aria-pressed={isActive}
-                  aria-label={isActive ? 'Zugang deaktivieren' : 'Zugang aktivieren'}
+                  aria-label={isActive ? L('Zugang deaktivieren', 'Deactivate account') : L('Zugang aktivieren', 'Activate account')}
                   onClick={() => patchPartner(partner.id, { active: !isActive })}
                 >
                   <span className="energy-partner-toggle-track" aria-hidden />
-                  <span>{isActive ? 'Aktiv' : 'Inaktiv'}</span>
+                  <span>{isActive ? L('Aktiv', 'Active') : L('Inaktiv', 'Inactive')}</span>
                 </button>
 
                 <div className="energy-partner-card-actions">
                   <button
                     type="button"
                     className="energy-partner-icon-btn"
-                    aria-label={`${partner.fullName} ansehen`}
-                    title="Ansehen"
+                    aria-label={L(`${partner.fullName} ansehen`, `View ${partner.fullName}`)}
+                    title={L('Ansehen', 'View')}
                     onClick={() => setViewPartnerId(partner.id)}
                   >
                     <Eye size={15} />
@@ -972,8 +983,8 @@ export function PartnersPage() {
                     type="button"
                     className="energy-partner-icon-btn"
                     disabled={busy}
-                    aria-label={`${partner.fullName} bearbeiten`}
-                    title="Bearbeiten"
+                    aria-label={L(`${partner.fullName} bearbeiten`, `Edit ${partner.fullName}`)}
+                    title={L('Bearbeiten', 'Edit')}
                     onClick={() => openEdit(partner)}
                   >
                     <Pencil size={15} />
@@ -982,8 +993,8 @@ export function PartnersPage() {
                     type="button"
                     className="energy-partner-icon-btn is-danger"
                     disabled={busy}
-                    aria-label={`${partner.fullName} löschen`}
-                    title="Löschen"
+                    aria-label={L(`${partner.fullName} löschen`, `Delete ${partner.fullName}`)}
+                    title={L('Löschen', 'Delete')}
                     onClick={() => openRemove(partner)}
                   >
                     <Trash2 size={15} />

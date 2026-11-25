@@ -23,6 +23,7 @@ import {
   isAppointmentExpired,
 } from '../../lib/vertical';
 import { formatDate } from './helpers';
+import { L } from '../../lib/i18n';
 import { leadScopeOrDefault } from './requestHelpers';
 
 export function statusTone(status) {
@@ -34,7 +35,7 @@ export function statusTone(status) {
 
 const SOURCE_LABELS = {
   csv: 'CSV',
-  manual: 'Manuell',
+  manual: L('Manuell', 'Manual'),
   api: 'API',
 };
 
@@ -62,14 +63,14 @@ export function returnTo(location, fallback = '/dashboard/leads') {
 }
 
 export function returnLabel(path) {
-  if (path.startsWith('/dashboard/berater')) return 'Zurück zu Berater';
-  if (path.startsWith('/dashboard/reklamationen')) return 'Zurück zu Reklamationen';
+  if (path.startsWith('/dashboard/berater')) return L('Zurück zu Berater', 'Back to advisors');
+  if (path.startsWith('/dashboard/reklamationen')) return L('Zurück zu Reklamationen', 'Back to complaints');
   if (path.startsWith('/dashboard/leads/ungueltig') || path.startsWith('/dashboard/leads/abgelehnt')) {
-    return 'Zurück zu Ungültige Leads';
+    return L('Zurück zu Ungültige Leads', 'Back to invalid leads');
   }
-  if (path.startsWith('/dashboard/anfordern') || path.startsWith('/dashboard/anfragen')) return 'Zurück zu Anforderungen';
-  if (path === '/dashboard' || path.startsWith('/dashboard?')) return 'Zurück zur Übersicht';
-  return 'Zurück zur Liste';
+  if (path.startsWith('/dashboard/anfordern') || path.startsWith('/dashboard/anfragen')) return L('Zurück zu Anforderungen', 'Back to requests');
+  if (path === '/dashboard' || path.startsWith('/dashboard?')) return L('Zurück zur Übersicht', 'Back to overview');
+  return L('Zurück zur Liste', 'Back to list');
 }
 
 export function isBlank(value) {
@@ -81,7 +82,7 @@ export function LeadTile({ label, children, wide = false, empty }) {
   return (
     <div className={`dash-lead-tile${wide ? ' is-wide' : ''}${isEmpty ? ' is-empty' : ''}`}>
       <span className="dash-lead-tile__label">{label}</span>
-      <div className="dash-lead-tile__value">{isEmpty ? 'Nicht hinterlegt' : children}</div>
+      <div className="dash-lead-tile__value">{isEmpty ? L('Nicht hinterlegt', 'Not provided') : children}</div>
     </div>
   );
 }
@@ -101,7 +102,7 @@ export function LeadSection({ icon: Icon, title, subtitle, children }) {
   );
 }
 
-export function LeadText({ value, empty = 'Nicht hinterlegt.' }) {
+export function LeadText({ value, empty = L('Nicht hinterlegt.', 'Not provided.') }) {
   return value
     ? <p className="dash-lead-notes">{value}</p>
     : <p className="dash-muted dash-lead-notes--empty">{empty}</p>;
@@ -127,12 +128,12 @@ export function CopyableValue({ value, label }) {
         type="button"
         className="dash-copyable__value"
         onClick={onCopy}
-        title={copied ? 'Kopiert' : `${label} kopieren`}
+        title={copied ? L('Kopiert', 'Copied') : L(`${label} kopieren`, `Copy ${label}`)}
       >
         {value}
       </button>
       <Copy size={13} className="dash-copyable__icon" aria-hidden="true" />
-      {copied ? <span className="dash-copyable__hint">Kopiert</span> : null}
+      {copied ? <span className="dash-copyable__hint">{L('Kopiert', 'Copied')}</span> : null}
     </span>
   );
 }
@@ -166,7 +167,7 @@ function LeadActionsMenu({ onEdit, onDelete, disabled, locked }) {
         className="dash-lead-menu__trigger"
         aria-haspopup="menu"
         aria-expanded={open}
-        aria-label="Aktionen"
+        aria-label={L('Aktionen', 'Actions')}
         onClick={() => setOpen((value) => !value)}
       >
         <MoreHorizontal size={18} aria-hidden="true" />
@@ -183,7 +184,7 @@ function LeadActionsMenu({ onEdit, onDelete, disabled, locked }) {
             }}
           >
             <Pencil size={15} aria-hidden="true" />
-            Bearbeiten
+            {L('Bearbeiten', 'Edit')}
           </button>
           <button
             type="button"
@@ -196,7 +197,7 @@ function LeadActionsMenu({ onEdit, onDelete, disabled, locked }) {
             }}
           >
             <Trash2 size={15} aria-hidden="true" />
-            Löschen
+            {L('Löschen', 'Delete')}
           </button>
         </div>
       ) : null}
@@ -230,10 +231,10 @@ export function LeadHero({ lead, kicker, facts = [], badges = null, onEdit, onDe
               {badges}
               <span className={`dash-lead-assign-pill${assigneeName ? ' is-assigned' : ''}`}>
                 <UserRound size={13} aria-hidden="true" />
-                {assigneeName || 'Nicht zugewiesen'}
+                {assigneeName || L('Nicht zugewiesen', 'Not assigned')}
               </span>
               {locked ? (
-                <span className="dash-badge dash-badge--muted">Nur Ansicht</span>
+                <span className="dash-badge dash-badge--muted">{L('Nur Ansicht', 'View only')}</span>
               ) : null}
             </div>
           </div>
@@ -245,13 +246,13 @@ export function LeadHero({ lead, kicker, facts = [], badges = null, onEdit, onDe
               {lead.phone ? (
                 <a className="dash-btn dash-lead-reach__btn dash-lead-reach__btn--call" href={`tel:${lead.phone}`}>
                   <Phone size={15} aria-hidden="true" />
-                  Anrufen
+                  {L('Anrufen', 'Call')}
                 </a>
               ) : null}
               {lead.email ? (
                 <a className="dash-btn dash-lead-reach__btn dash-lead-reach__btn--mail" href={`mailto:${lead.email}`}>
                   <Mail size={15} aria-hidden="true" />
-                  E-Mail
+                  {L('E-Mail', 'Email')}
                 </a>
               ) : null}
             </div>
@@ -262,8 +263,10 @@ export function LeadHero({ lead, kicker, facts = [], badges = null, onEdit, onDe
 
       {locked ? (
         <div className="dash-alert dash-alert--ok dash-lead-lock-note">
-          Dieser Lead ist zugestellt und gesperrt. Details können angesehen werden — bearbeiten ist erst nach einer
-          Reklamation wieder möglich.
+          {L(
+            'Dieser Lead ist zugestellt und gesperrt. Details können angesehen werden — bearbeiten ist erst nach einer Reklamation wieder möglich.',
+            'This lead has been delivered and is locked. Details can be viewed — editing is only possible again after a complaint.',
+          )}
         </div>
       ) : null}
     </>
@@ -280,7 +283,7 @@ export function LeadCompletenessPanel({ checks, onSelect, className = '' }) {
   return (
     <section className={`dash-panel dash-lead-complete ${className}`.trim()}>
       <div className="dash-panel-head">
-        <strong>Vollständigkeit</strong>
+        <strong>{L('Vollständigkeit', 'Completeness')}</strong>
         <span className={`dash-lead-complete__count is-${tone}`}>{filled}/{total}</span>
       </div>
       <div
@@ -289,16 +292,16 @@ export function LeadCompletenessPanel({ checks, onSelect, className = '' }) {
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={percent}
-        aria-label="Vollständigkeit der Lead-Daten"
+        aria-label={L('Vollständigkeit der Lead-Daten', 'Completeness of lead data')}
       >
         <span style={{ width: `${percent}%` }} />
       </div>
       {missing.length ? (
         <div className="dash-lead-complete__missing">
-          <span>Fehlt:</span>
+          <span>{L('Fehlt:', 'Missing:')}</span>
           <div>
             {missing.map(({ label, section }) => (onSelect && section ? (
-              <button key={label} type="button" onClick={() => onSelect(section)} title={`Zu „${label}“ springen`}>
+              <button key={label} type="button" onClick={() => onSelect(section)} title={L(`Zu „${label}“ springen`, `Jump to “${label}”`)}>
                 {label}
               </button>
             ) : (
@@ -309,7 +312,7 @@ export function LeadCompletenessPanel({ checks, onSelect, className = '' }) {
       ) : (
         <p className="dash-lead-complete__ok">
           <CheckCircle2 size={14} aria-hidden="true" />
-          Alle Angaben vorhanden.
+          {L('Alle Angaben vorhanden.', 'All details provided.')}
         </p>
       )}
     </section>
@@ -327,7 +330,7 @@ export function Field({ label, required = false, optional = false, full = false,
       <span className="dash-field-label">
         {label}
         {required ? <em className="dash-req" aria-hidden="true">*</em> : null}
-        {optional ? <small className="dash-optional">optional</small> : null}
+        {optional ? <small className="dash-optional">{L('optional', 'optional')}</small> : null}
       </span>
       {children}
     </label>
@@ -361,7 +364,7 @@ export function SteppedLeadForm({
     const missing = required.filter(([, ok]) => !ok);
     if (missing.length) {
       setStep(missing[0][2]);
-      setHint(`Bitte noch ausfüllen: ${missing.map(([label]) => label).join(', ')}.`);
+      setHint(L(`Bitte noch ausfüllen: ${missing.map(([label]) => label).join(', ')}.`, `Please still fill in: ${missing.map(([label]) => label).join(', ')}.`));
       return;
     }
     setHint('');
@@ -377,17 +380,17 @@ export function SteppedLeadForm({
         </div>
         <div className="dash-lead-edit__buttons">
           <button type="button" className="dash-btn dash-btn--ghost" onClick={onCancel} disabled={saving}>
-            Abbrechen
+            {L('Abbrechen', 'Cancel')}
           </button>
           <button type="submit" className="dash-btn" disabled={saving}>
-            {saving ? 'Wird gespeichert…' : submitLabel}
+            {saving ? L('Wird gespeichert…', 'Saving…') : submitLabel}
           </button>
         </div>
       </section>
 
       <LeadCompletenessPanel checks={checks} onSelect={goTo} className="dash-lead-complete--inline" />
 
-      <nav className="dash-lead-steps" aria-label="Bereiche">
+      <nav className="dash-lead-steps" aria-label={L('Bereiche', 'Sections')}>
         {steps.map((item, index) => {
           const Icon = item.icon;
           const open = checks.filter(([, ok, section]) => section === item.id && !ok).length;
@@ -405,7 +408,7 @@ export function SteppedLeadForm({
               </span>
               <span className="dash-lead-step__text">
                 <strong>{index + 1}. {item.label}</strong>
-                <small>{open ? `${open} offen` : 'Vollständig'}</small>
+                <small>{open ? L(`${open} offen`, `${open} open`) : L('Vollständig', 'Complete')}</small>
               </span>
             </button>
           );
@@ -416,7 +419,7 @@ export function SteppedLeadForm({
         {hint ? <div className="dash-alert dash-lead-edit__hint">{hint}</div> : null}
         {renderStep(current.id)}
         <div className="dash-lead-edit__nav">
-          <span>Schritt {stepIndex + 1} von {steps.length}</span>
+          <span>{L(`Schritt ${stepIndex + 1} von ${steps.length}`, `Step ${stepIndex + 1} of ${steps.length}`)}</span>
           <div>
             <button
               type="button"
@@ -424,15 +427,15 @@ export function SteppedLeadForm({
               onClick={() => goTo(steps[stepIndex - 1].id)}
               disabled={stepIndex === 0}
             >
-              Zurück
+              {L('Zurück', 'Back')}
             </button>
             {stepIndex < steps.length - 1 ? (
               <button type="button" className="dash-btn dash-btn--ghost" onClick={() => goTo(steps[stepIndex + 1].id)}>
-                Weiter
+                {L('Weiter', 'Next')}
               </button>
             ) : (
               <button type="submit" className="dash-btn" disabled={saving}>
-                {saving ? 'Wird gespeichert…' : submitLabel}
+                {saving ? L('Wird gespeichert…', 'Saving…') : submitLabel}
               </button>
             )}
           </div>
@@ -445,20 +448,20 @@ export function SteppedLeadForm({
 export function LeadOriginPanel({ lead, packageLabel, children }) {
   return (
     <section className="dash-panel dash-lead-meta">
-      <div className="dash-panel-head"><strong>Herkunft &amp; Verlauf</strong></div>
+      <div className="dash-panel-head"><strong>{L('Herkunft & Verlauf', 'Origin & history')}</strong></div>
       <dl className="dash-lead-meta-list">
         <div>
-          <dt>Paket</dt>
+          <dt>{L('Paket', 'Package')}</dt>
           <dd>{packageLabel}</dd>
         </div>
         {lead.requestCode || lead.requestId ? (
           <div>
-            <dt>Anforderung</dt>
+            <dt>{L('Anforderung', 'Request')}</dt>
             <dd>{lead.requestCode || String(lead.requestId).slice(0, 8).toUpperCase()}</dd>
           </div>
         ) : null}
         <div>
-          <dt>Quelle</dt>
+          <dt>{L('Quelle', 'Source')}</dt>
           <dd>{sourceLabel(lead)}</dd>
         </div>
         {lead.externalId ? (
@@ -469,18 +472,18 @@ export function LeadOriginPanel({ lead, packageLabel, children }) {
         ) : null}
         {children}
         <div>
-          <dt>Angelegt</dt>
+          <dt>{L('Angelegt', 'Created')}</dt>
           <dd>{formatDate(lead.createdAt)}</dd>
         </div>
         {lead.assignedAt ? (
           <div>
-            <dt>Zugestellt</dt>
+            <dt>{L('Zugestellt', 'Delivered')}</dt>
             <dd>{formatDate(lead.assignedAt)}</dd>
           </div>
         ) : null}
         {lead.updatedAt ? (
           <div>
-            <dt>Aktualisiert</dt>
+            <dt>{L('Aktualisiert', 'Updated')}</dt>
             <dd>{formatDate(lead.updatedAt)}</dd>
           </div>
         ) : null}
@@ -490,7 +493,7 @@ export function LeadOriginPanel({ lead, packageLabel, children }) {
 }
 
 function beraterLabel(user) {
-  return user?.fullName || user?.email || 'Berater';
+  return user?.fullName || user?.email || L('Berater', 'Advisor');
 }
 
 function openRequestsForLead(berater, lead) {
@@ -534,9 +537,12 @@ function requestAssignLabel(request, lead) {
     code,
     product: [
       energy ? energyTypeLabel(request?.leadType) : leadTypeLabel(request?.leadType),
-      energy ? (request?.territory || 'Kein Gebiet') : leadScopeLabel(request?.scope),
+      energy ? (request?.territory || L('Kein Gebiet', 'No area')) : leadScopeLabel(request?.scope),
     ].filter(Boolean).join(' · '),
-    progress: `${request?.validCount || 0}/${requested} geliefert · noch ${remaining} offen`,
+    progress: L(
+      `${request?.validCount || 0}/${requested} geliefert · noch ${remaining} offen`,
+      `${request?.validCount || 0}/${requested} delivered · ${remaining} still open`,
+    ),
   };
 }
 
@@ -584,20 +590,23 @@ function LeadAssignModal({ lead, options, saving, error, onSend, onClose }) {
       <button
         type="button"
         className="dash-confirm-overlay"
-        aria-label="Schließen"
+        aria-label={L('Schließen', 'Close')}
         onClick={saving ? undefined : onClose}
       />
       <form className="dash-assign-modal" onSubmit={onSubmit}>
         <header className="dash-assign-modal__head">
           <div>
-            <div className="dash-lead-kicker">Lead zuweisen</div>
+            <div className="dash-lead-kicker">{L('Lead zuweisen', 'Assign lead')}</div>
             <h3 id="lead-assign-modal-title">{lead.fullName || 'Lead'}</h3>
-            <p>{options.length} passende Anforderung{options.length === 1 ? '' : 'en'}</p>
+            <p>{L(
+              `${options.length} passende Anforderung${options.length === 1 ? '' : 'en'}`,
+              `${options.length} matching request${options.length === 1 ? '' : 's'}`,
+            )}</p>
           </div>
           <button
             type="button"
             className="dash-assign-modal__close"
-            aria-label="Schließen"
+            aria-label={L('Schließen', 'Close')}
             onClick={onClose}
             disabled={saving}
           >
@@ -611,8 +620,8 @@ function LeadAssignModal({ lead, options, saving, error, onSend, onClose }) {
             type="search"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="Berater, Firma oder Anforderungs-Code suchen"
-            aria-label="Anforderungen durchsuchen"
+            placeholder={L('Berater, Firma oder Anforderungs-Code suchen', 'Search advisor, company or request code')}
+            aria-label={L('Anforderungen durchsuchen', 'Search requests')}
             autoFocus
           />
         </label>
@@ -652,7 +661,7 @@ function LeadAssignModal({ lead, options, saving, error, onSend, onClose }) {
               })}
             </div>
           ) : (
-            <p className="dash-assign-modal__empty">Keine Anforderung passt zu „{search.trim()}“.</p>
+            <p className="dash-assign-modal__empty">{L(`Keine Anforderung passt zu „${search.trim()}“.`, `No request matches “${search.trim()}”.`)}</p>
           )}
         </div>
 
@@ -660,20 +669,20 @@ function LeadAssignModal({ lead, options, saving, error, onSend, onClose }) {
           {error ? <div className="dash-alert">{error}</div> : null}
           {selected ? (
             <div className="dash-lead-assign-summary">
-              <span>Wird gesendet an</span>
+              <span>{L('Wird gesendet an', 'Will be sent to')}</span>
               <strong>{selected.beraterName}</strong>
-              <small>Anforderung {selectedLabel.code} · {selectedLabel.product}</small>
+              <small>{L('Anforderung', 'Request')} {selectedLabel.code} · {selectedLabel.product}</small>
             </div>
           ) : (
-            <p className="dash-lead-assign-hint">Anforderung wählen, an die der Lead gesendet wird.</p>
+            <p className="dash-lead-assign-hint">{L('Anforderung wählen, an die der Lead gesendet wird.', 'Choose the request the lead will be sent to.')}</p>
           )}
           <div className="dash-confirm-actions">
             <button type="button" className="dash-btn dash-btn--ghost" onClick={onClose} disabled={saving}>
-              Abbrechen
+              {L('Abbrechen', 'Cancel')}
             </button>
             <button type="submit" className="dash-btn dash-btn--ok" disabled={!selected || saving}>
               <UserPlus size={15} aria-hidden="true" />
-              {saving ? 'Wird gesendet…' : selected ? `An ${selected.beraterName} senden` : 'Lead senden'}
+              {saving ? L('Wird gesendet…', 'Sending…') : selected ? L(`An ${selected.beraterName} senden`, `Send to ${selected.beraterName}`) : L('Lead senden', 'Send lead')}
             </button>
           </div>
         </footer>
@@ -735,23 +744,28 @@ export function LeadAssignPanel({ lead, disabled, onAssigned }) {
 
   return (
     <section className="dash-panel dash-lead-assign">
-      <div className="dash-panel-head"><strong>Zuweisung</strong></div>
+      <div className="dash-panel-head"><strong>{L('Zuweisung', 'Assignment')}</strong></div>
       <div className="dash-lead-assign-body">
         <div className="dash-lead-assign-current">
-          <span>Aktuell</span>
-          <strong>Nicht zugewiesen</strong>
+          <span>{L('Aktuell', 'Current')}</span>
+          <strong>{L('Nicht zugewiesen', 'Not assigned')}</strong>
         </div>
         {expired ? (
           <div className="dash-alert">
-            Der Termin ist verstrichen und kann nicht mehr gesendet werden. Bitte über „Bearbeiten“ ein neues
-            Datum eintragen, um ihn wieder zuzuweisen.
+            {L(
+              'Der Termin ist verstrichen und kann nicht mehr gesendet werden. Bitte über „Bearbeiten“ ein neues Datum eintragen, um ihn wieder zuzuweisen.',
+              'The appointment has passed and can no longer be sent. Please enter a new date via “Edit” to assign it again.',
+            )}
           </div>
         ) : loading ? (
-          <p className="dash-muted">Anforderungen werden geladen…</p>
+          <p className="dash-muted">{L('Anforderungen werden geladen…', 'Loading requests…')}</p>
         ) : options.length ? (
           <>
             <p className="dash-lead-assign-hint">
-              {options.length} passende Anforderung{options.length === 1 ? '' : 'en'} für diesen Lead.
+              {L(
+                `${options.length} passende Anforderung${options.length === 1 ? '' : 'en'} für diesen Lead.`,
+                `${options.length} matching request${options.length === 1 ? '' : 's'} for this lead.`,
+              )}
             </p>
             <button
               type="button"
@@ -760,14 +774,14 @@ export function LeadAssignPanel({ lead, disabled, onAssigned }) {
               disabled={disabled}
             >
               <UserPlus size={15} aria-hidden="true" />
-              Lead zuweisen
+              {L('Lead zuweisen', 'Assign lead')}
             </button>
           </>
         ) : error ? null : (
           <p className="dash-muted">
             {lead?.vertical === 'energy'
-              ? 'Keine offene Energie-Anforderung passt zu Produkt und Gebiet dieses Leads.'
-              : 'Keine offene Versicherungs-Anforderung passt zum Paket dieses Leads.'}
+              ? L('Keine offene Energie-Anforderung passt zu Produkt und Gebiet dieses Leads.', 'No open energy request matches the product and area of this lead.')
+              : L('Keine offene Versicherungs-Anforderung passt zum Paket dieses Leads.', 'No open insurance request matches the package of this lead.')}
           </p>
         )}
         {error && !open ? <div className="dash-alert">{error}</div> : null}

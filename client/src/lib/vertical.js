@@ -1,17 +1,18 @@
 import { leadState, territoryState } from './germanRegions';
+import { L } from './i18n';
 
 export { territoryState } from './germanRegions';
 
 export const VERTICALS = [
   {
     id: 'insurance',
-    label: 'Versicherung',
-    description: 'PKV, bAV und BU',
+    label: L('Versicherung', 'Insurance'),
+    description: L('PKV, bAV und BU', 'Private health (PKV), occupational pension (bAV) and disability (BU)'),
   },
   {
     id: 'energy',
-    label: 'Energie',
-    description: 'Photovoltaik und Wärmepumpe',
+    label: L('Energie', 'Energy'),
+    description: L('Photovoltaik und Wärmepumpe', 'Solar PV and heat pump'),
   },
 ];
 
@@ -38,12 +39,12 @@ export const ENERGY_DELIVERY_TYPES = [
   {
     id: 'lead',
     label: 'Lead',
-    description: 'Qualifizierter Kontakt. Termin vereinbaren Sie selbst.',
+    description: L('Qualifizierter Kontakt. Termin vereinbaren Sie selbst.', 'Qualified contact. You arrange the appointment yourself.'),
   },
   {
     id: 'appointment',
-    label: 'Termin',
-    description: 'Fester Termin mit Datum und Uhrzeit.',
+    label: L('Termin', 'Appointment'),
+    description: L('Fester Termin mit Datum und Uhrzeit.', 'Fixed appointment with date and time.'),
   },
 ];
 
@@ -51,16 +52,16 @@ export const ENERGY_DELIVERY_TYPES = [
 export const ENERGY_PRODUCTS = [
   {
     id: 'photovoltaic',
-    label: 'Photovoltaik',
-    title: 'Photovoltaik-Paket',
-    description: 'Ab 10 Stück, in 5er-Schritten. Lead oder Termin für Ihr Gebiet.',
+    label: L('Photovoltaik', 'Solar PV'),
+    title: L('Photovoltaik-Paket', 'Solar PV package'),
+    description: L('Ab 10 Stück, in 5er-Schritten. Lead oder Termin für Ihr Gebiet.', 'From 10 units, in steps of 5. Lead or appointment for your area.'),
     featured: true,
   },
   {
     id: 'heat_pump',
-    label: 'Wärmepumpe',
-    title: 'Wärmepumpen-Paket',
-    description: 'Ab 10 Stück, in 5er-Schritten. Lead oder Termin für Ihr Gebiet.',
+    label: L('Wärmepumpe', 'Heat pump'),
+    title: L('Wärmepumpen-Paket', 'Heat pump package'),
+    description: L('Ab 10 Stück, in 5er-Schritten. Lead oder Termin für Ihr Gebiet.', 'From 10 units, in steps of 5. Lead or appointment for your area.'),
     featured: false,
   },
 ];
@@ -70,36 +71,36 @@ export const ENERGY_PACKAGES = [
     id: 'PV_LEAD',
     product: 'photovoltaic',
     deliveryType: 'lead',
-    label: 'Photovoltaik-Lead',
-    description: 'Qualifizierter Kontakt. Die Firma vereinbart den nächsten Termin selbst.',
+    label: L('Photovoltaik-Lead', 'Solar PV lead'),
+    description: L('Qualifizierter Kontakt. Die Firma vereinbart den nächsten Termin selbst.', 'Qualified contact. The company arranges the next appointment itself.'),
   },
   {
     id: 'PV_APPOINTMENT',
     product: 'photovoltaic',
     deliveryType: 'appointment',
-    label: 'Photovoltaik-Termin',
-    description: 'Fester Termin. Datum und Uhrzeit sind bereits vereinbart.',
+    label: L('Photovoltaik-Termin', 'Solar PV appointment'),
+    description: L('Fester Termin. Datum und Uhrzeit sind bereits vereinbart.', 'Fixed appointment. Date and time are already arranged.'),
   },
   {
     id: 'HP_LEAD',
     product: 'heat_pump',
     deliveryType: 'lead',
-    label: 'Wärmepumpen-Lead',
-    description: 'Qualifizierter Kontakt zu einer Wärmepumpe.',
+    label: L('Wärmepumpen-Lead', 'Heat pump lead'),
+    description: L('Qualifizierter Kontakt zu einer Wärmepumpe.', 'Qualified contact interested in a heat pump.'),
   },
   {
     id: 'HP_APPOINTMENT',
     product: 'heat_pump',
     deliveryType: 'appointment',
-    label: 'Wärmepumpen-Termin',
-    description: 'Termin für Beratung oder Vor-Ort-Besuch.',
+    label: L('Wärmepumpen-Termin', 'Heat pump appointment'),
+    description: L('Termin für Beratung oder Vor-Ort-Besuch.', 'Appointment for a consultation or on-site visit.'),
   },
 ];
 
 export const EXISTING_PV_OPTIONS = [
-  { id: 'yes', label: 'Ja' },
-  { id: 'no', label: 'Nein' },
-  { id: 'unknown', label: 'Unbekannt' },
+  { id: 'yes', label: L('Ja', 'Yes') },
+  { id: 'no', label: L('Nein', 'No') },
+  { id: 'unknown', label: L('Unbekannt', 'Unknown') },
 ];
 
 const VERTICAL_ALIASES = {
@@ -125,7 +126,7 @@ export function verticalOrInsurance(value) {
 
 export function verticalLabel(value) {
   const id = verticalOrInsurance(value);
-  return VERTICALS.find((item) => item.id === id)?.label || 'Versicherung';
+  return VERTICALS.find((item) => item.id === id)?.label || L('Versicherung', 'Insurance');
 }
 
 export function energyProductById(id) {
@@ -173,10 +174,10 @@ export function energyTypeLabel(id) {
 
 export function deliveryBadge(lead) {
   const delivery = lead?.deliveryType || lead?.delivery_type;
-  if (delivery === 'appointment') return 'TERMIN';
+  if (delivery === 'appointment') return L('TERMIN', 'APPOINTMENT');
   if (delivery === 'lead') return 'LEAD';
   const type = energyLeadTypeOf(lead);
-  if (type.endsWith('_APPOINTMENT')) return 'TERMIN';
+  if (type.endsWith('_APPOINTMENT')) return L('TERMIN', 'APPOINTMENT');
   if (type.endsWith('_LEAD')) return 'LEAD';
   return '';
 }
@@ -210,11 +211,11 @@ export function territoryMatches(territory, lead) {
 }
 
 export function energyOrderStatus(request) {
-  if (request?.status === 'cancelled') return 'Storniert';
-  if (request?.status === 'rejected') return 'Abgelehnt';
-  if (request?.status === 'completed') return 'Vollständig geliefert';
+  if (request?.status === 'cancelled') return L('Storniert', 'Cancelled');
+  if (request?.status === 'rejected') return L('Abgelehnt', 'Rejected');
+  if (request?.status === 'completed') return L('Vollständig geliefert', 'Fully delivered');
   const delivered = Number(request?.validCount) || 0;
   const requested = Number(request?.requestedCount) || 0;
-  if (delivered > 0 && delivered < requested) return 'Teilweise geliefert';
-  return 'Offen';
+  if (delivered > 0 && delivered < requested) return L('Teilweise geliefert', 'Partially delivered');
+  return L('Offen', 'Open');
 }

@@ -2,6 +2,7 @@ import { apiUrl } from './api';
 import { clearSignupCategory } from './signupCategory';
 import { supabase } from './supabase';
 import { isVertical } from './vertical';
+import { getLang, L } from './i18n';
 
 const STORAGE_KEY = 'vantaro-auth';
 const OAUTH_NEXT_KEY = 'vantaro-oauth-next';
@@ -27,7 +28,7 @@ function writeStoredSession(session) {
 async function parseAuthResponse(response) {
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
-    const error = new Error(payload.error || 'Etwas ist schiefgelaufen. Bitte versuchen Sie es erneut.');
+    const error = new Error(payload.error || L('Etwas ist schiefgelaufen. Bitte versuchen Sie es erneut.', 'Something went wrong. Please try again.'));
     error.requiresVerification = Boolean(payload.requiresVerification);
     error.email = payload.email;
     error.retryAfter = payload.retryAfter;
@@ -90,12 +91,12 @@ function oauthLabel(provider) {
 export async function startOAuthLogin(provider, nextPath) {
   const label = oauthLabel(provider);
   if (!OAUTH_PROVIDERS[provider]) {
-    const error = new Error(`${label}-Anmeldung ist nicht verfügbar.`);
+    const error = new Error(L(`${label}-Anmeldung ist nicht verfügbar.`, `${label} login is not available.`));
     error.status = 400;
     throw error;
   }
   if (!supabase) {
-    const error = new Error(`${label}-Anmeldung ist nicht konfiguriert.`);
+    const error = new Error(L(`${label}-Anmeldung ist nicht konfiguriert.`, `${label} login is not configured.`));
     error.status = 503;
     throw error;
   }
@@ -158,7 +159,7 @@ function forgetOAuthClientSession() {
 
 export async function exchangeOAuthCallback() {
   if (!supabase) {
-    const error = new Error('Social-Anmeldung ist nicht konfiguriert.');
+    const error = new Error(L('Social-Anmeldung ist nicht konfiguriert.', 'Social login is not configured.'));
     error.status = 503;
     throw error;
   }
@@ -173,7 +174,7 @@ export async function exchangeOAuthCallback() {
 
   const code = params.get('code');
   if (!code) {
-    const error = new Error('Die Anmeldung wurde abgebrochen.');
+    const error = new Error(L('Die Anmeldung wurde abgebrochen.', 'The login was cancelled.'));
     error.status = 400;
     throw error;
   }
@@ -185,7 +186,7 @@ export async function exchangeOAuthCallback() {
     const { data, error } = await supabase.auth.exchangeCodeForSession(code);
     if (error || !data.session?.access_token) {
       console.error('OAuth callback exchange failed:', error?.message || error);
-      const next = new Error(mapOAuthError(error?.message || 'Anmeldung ist fehlgeschlagen.'));
+      const next = new Error(mapOAuthError(error?.message || L('Anmeldung ist fehlgeschlagen.', 'Login failed.')));
       next.status = 400;
       throw next;
     }
@@ -222,18 +223,18 @@ function mapOAuthError(message, provider) {
   const label = oauthLabel(provider);
   const text = String(message || '');
   if (/already registered|already exists|identity/i.test(text)) {
-    return 'Diese E-Mail-Adresse ist bereits registriert. Bitte melden Sie sich mit Passwort an.';
+    return L('Diese E-Mail-Adresse ist bereits registriert. Bitte melden Sie sich mit Passwort an.', 'This email address is already registered. Please log in with your password.');
   }
   if (/access denied|cancelled|canceled/i.test(text)) {
-    return `Die ${label}-Anmeldung wurde abgebrochen.`;
+    return L(`Die ${label}-Anmeldung wurde abgebrochen.`, `The ${label} login was cancelled.`);
   }
   if (/provider is not enabled/i.test(text)) {
-    return `${label}-Anmeldung ist in Supabase noch nicht aktiviert.`;
+    return L(`${label}-Anmeldung ist in Supabase noch nicht aktiviert.`, `${label} login is not yet enabled in Supabase.`);
   }
   if (/code verifier|pkce/i.test(text)) {
-    return `Die ${label}-Anmeldung konnte nicht abgeschlossen werden. Bitte starten Sie die Anmeldung erneut.`;
+    return L(`Die ${label}-Anmeldung konnte nicht abgeschlossen werden. Bitte starten Sie die Anmeldung erneut.`, `The ${label} login could not be completed. Please start the login again.`);
   }
-  return `${label}-Anmeldung ist fehlgeschlagen. Bitte versuchen Sie es erneut.`;
+  return L(`${label}-Anmeldung ist fehlgeschlagen. Bitte versuchen Sie es erneut.`, `${label} login failed. Please try again.`);
 }
 
 export async function setVerticalRequest(vertical) {
@@ -255,7 +256,7 @@ export async function registerRequest(payload) {
   const response = await fetch(apiUrl('/api/auth/register'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
+    body: JSON.stringify({ ...payload, lang: getLang() }),
   });
   return parseAuthResponse(response);
 }
@@ -286,7 +287,7 @@ export async function resendVerificationRequest(email) {
   const response = await fetch(apiUrl('/api/auth/resend-verification'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email }),
+    body: JSON.stringify({ email, lang: getLang() }),
   });
   return parseAuthResponse(response);
 }
@@ -309,7 +310,7 @@ export async function forgotPasswordRequest(email) {
   const response = await fetch(apiUrl('/api/auth/forgot-password'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email }),
+    body: JSON.stringify({ email, lang: getLang() }),
   });
   return parseAuthResponse(response);
 }
@@ -336,7 +337,7 @@ export async function resendPasswordResetRequest(email) {
   const response = await fetch(apiUrl('/api/auth/resend-password-reset'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email }),
+    body: JSON.stringify({ email, lang: getLang() }),
   });
   return parseAuthResponse(response);
 }

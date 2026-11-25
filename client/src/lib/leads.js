@@ -3,39 +3,40 @@ import { apiUrl } from './api';
 import { readStoredSession } from './auth';
 import { normalizeState, stateForCity, stateForZip } from './germanRegions';
 import { ENERGY_STATES } from './vertical';
+import { L, locale } from './i18n';
 
 export const EMPLOYMENT_OPTIONS = [
-  { id: 'selbststaendig', label: 'hauptberuflich selbstständig' },
-  { id: 'zusaetzlich_angestellt', label: 'zusätzlich angestellt' },
-  { id: 'sonstiges', label: 'sonstiges' },
+  { id: 'selbststaendig', label: L('hauptberuflich selbstständig', 'self-employed (main occupation)') },
+  { id: 'zusaetzlich_angestellt', label: L('zusätzlich angestellt', 'additionally employed') },
+  { id: 'sonstiges', label: L('sonstiges', 'other') },
 ];
 
 export const INSURANCE_OPTIONS = [
-  { id: 'gkv', label: 'GKV' },
-  { id: 'pkv_voll', label: 'PKV-Vollversicherung' },
-  { id: 'zusatz', label: 'Zusatzversicherung' },
-  { id: 'unbekannt', label: 'unbekannt' },
+  { id: 'gkv', label: L('GKV', 'Statutory health insurance (GKV)') },
+  { id: 'pkv_voll', label: L('PKV-Vollversicherung', 'Full private health insurance (PKV)') },
+  { id: 'zusatz', label: L('Zusatzversicherung', 'Supplementary insurance') },
+  { id: 'unbekannt', label: L('unbekannt', 'unknown') },
 ];
 
 export const COVERAGE_OPTIONS = [
-  { id: 'allein', label: 'allein versichert' },
-  { id: 'partner', label: 'Partner' },
-  { id: 'kinder', label: 'Kinder' },
-  { id: 'familie', label: 'Familie' },
+  { id: 'allein', label: L('allein versichert', 'insured alone') },
+  { id: 'partner', label: L('Partner', 'Partner') },
+  { id: 'kinder', label: L('Kinder', 'Children') },
+  { id: 'familie', label: L('Familie', 'Family') },
 ];
 
 export const CONCERN_OPTIONS = [
-  { id: 'beitrag', label: 'Beitrag' },
-  { id: 'leistungen', label: 'Leistungen' },
-  { id: 'krankentagegeld', label: 'Krankentagegeld' },
-  { id: 'check', label: 'allgemeiner Check' },
+  { id: 'beitrag', label: L('Beitrag', 'Premium') },
+  { id: 'leistungen', label: L('Leistungen', 'Benefits') },
+  { id: 'krankentagegeld', label: L('Krankentagegeld', 'Daily sickness allowance') },
+  { id: 'check', label: L('allgemeiner Check', 'General check') },
 ];
 
 export const STATUS_OPTIONS = [
-  { id: 'neu', label: 'Neu' },
-  { id: 'in_bearbeitung', label: 'Wieder verfügbar' },
-  { id: 'zugewiesen', label: 'Zugewiesen' },
-  { id: 'erledigt', label: 'Erledigt' },
+  { id: 'neu', label: L('Neu', 'New') },
+  { id: 'in_bearbeitung', label: L('Wieder verfügbar', 'Available again') },
+  { id: 'zugewiesen', label: L('Zugewiesen', 'Assigned') },
+  { id: 'erledigt', label: L('Erledigt', 'Done') },
 ];
 
 /** Assigned to a berater and not returned via Reklamation — view-only for admins. */
@@ -94,7 +95,7 @@ export function formatLeadDate(value) {
   if (!value) return '—';
   const iso = String(value).slice(0, 10);
   const [year, month, day] = iso.split('-');
-  if (year && month && day) return `${day}.${month}.${year}`;
+  if (year && month && day) return L(`${day}.${month}.${year}`, `${day}/${month}/${year}`);
   return '—';
 }
 
@@ -108,7 +109,7 @@ export function formatLeadAddress(lead) {
 
 export function formatPremium(value) {
   if (value == null || value === '') return '—';
-  return new Intl.NumberFormat('de-DE', {
+  return new Intl.NumberFormat(locale(), {
     style: 'currency',
     currency: 'EUR',
     minimumFractionDigits: 0,
@@ -131,7 +132,7 @@ export function leadAgeLabel(value) {
     || (now.getMonth() + 1 === month && now.getDate() < day);
   if (beforeBirthday) age -= 1;
   if (age < 16 || age > 99) return '';
-  return `${age} Jahre`;
+  return L(`${age} Jahre`, `${age} years`);
 }
 
 export function leadBriefing(lead) {
@@ -231,7 +232,7 @@ function authHeaders(json = false) {
 async function parseResponse(response) {
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new Error(payload.error || 'Etwas ist schiefgelaufen. Bitte versuchen Sie es erneut.');
+    throw new Error(payload.error || L('Etwas ist schiefgelaufen. Bitte versuchen Sie es erneut.', 'Something went wrong. Please try again.'));
   }
   return payload;
 }
@@ -383,7 +384,7 @@ function cleanCsvRow(row) {
 function readFileText(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onerror = () => reject(reader.error || new Error('CSV konnte nicht gelesen werden.'));
+    reader.onerror = () => reject(reader.error || new Error(L('CSV konnte nicht gelesen werden.', 'Could not read the CSV file.')));
     reader.onload = () => resolve(String(reader.result || '').replace(/^\uFEFF/, ''));
     reader.readAsText(file);
   });
@@ -398,7 +399,7 @@ function parseCsvText(text, headerLookup) {
       transformHeader: (header) => headerLookup[normalizeHeader(header)] || header.trim(),
       complete(result) {
         if (result.errors?.length && !result.data?.length) {
-          reject(new Error(result.errors[0].message || 'CSV konnte nicht gelesen werden.'));
+          reject(new Error(result.errors[0].message || L('CSV konnte nicht gelesen werden.', 'Could not read the CSV file.')));
           return;
         }
         resolve(result.data || []);

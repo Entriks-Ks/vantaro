@@ -4,6 +4,7 @@ import CardLogos from './CardLogos';
 import CheckoutTermsConsent from './CheckoutTermsConsent';
 import { discountLineLabel } from '../lib/discounts';
 import { formatEuroExact } from '../pages/dashboard/helpers';
+import { L } from '../lib/i18n';
 
 /**
  * "Zahlung bestätigen" — last step before the redirect to the ProCredit payment page.
@@ -78,15 +79,15 @@ export default function CheckoutConfirmModal({
             <Lock size={19} strokeWidth={2.2} />
           </span>
           <div className="checkout-modal__heading">
-            <h2 id={titleId}>Zahlung bestätigen</h2>
-            <p>Prüfen Sie Ihre Bestellung. Danach geht es zur sicheren Zahlungsseite der Bank.</p>
+            <h2 id={titleId}>{L('Zahlung bestätigen', 'Confirm payment')}</h2>
+            <p>{L('Prüfen Sie Ihre Bestellung. Danach geht es zur sicheren Zahlungsseite der Bank.', "Check your order. You'll then be taken to the bank's secure payment page.")}</p>
           </div>
           <button
             type="button"
             className="checkout-modal__close"
             disabled={paying}
             onClick={onCancel}
-            aria-label="Schließen"
+            aria-label={L('Schließen', 'Close')}
           >
             <X size={18} />
           </button>
@@ -95,13 +96,13 @@ export default function CheckoutConfirmModal({
         <div className="checkout-modal__body">
           {details ? (
             <section>
-              <h3 className="checkout-modal__section-label">Lieferung</h3>
+              <h3 className="checkout-modal__section-label">{L('Lieferung', 'Delivery')}</h3>
               {details}
             </section>
           ) : null}
 
           <section>
-            <h3 className="checkout-modal__section-label">Ihre Bestellung</h3>
+            <h3 className="checkout-modal__section-label">{L('Ihre Bestellung', 'Your order')}</h3>
             <div className="checkout-modal__summary">
               <div className="checkout-modal__product">
                 <div>
@@ -124,13 +125,13 @@ export default function CheckoutConfirmModal({
 
               <div className="checkout-modal__total">
                 <span>
-                  Gesamtbetrag
-                  <small>Einmalzahlung per Kreditkarte</small>
+                  {L('Gesamtbetrag', 'Total')}
+                  <small>{L('Einmalzahlung per Kreditkarte', 'One-off payment by credit card')}</small>
                 </span>
                 <strong>{formatEuroExact(net)}</strong>
               </div>
               {savings > 0 ? (
-                <span className="checkout-modal__savings">Sie sparen {formatEuroExact(savings)}</span>
+                <span className="checkout-modal__savings">{L('Sie sparen', 'You save')} {formatEuroExact(savings)}</span>
               ) : null}
             </div>
           </section>
@@ -160,7 +161,7 @@ export default function CheckoutConfirmModal({
             disabled={paying}
             onClick={onCancel}
           >
-            Abbrechen
+            {L('Abbrechen', 'Cancel')}
           </button>
           <button
             type="button"
@@ -172,19 +173,19 @@ export default function CheckoutConfirmModal({
             {paying ? (
               <>
                 <LoaderCircle className="checkout-modal__spin" size={17} aria-hidden="true" />
-                Weiterleitung zur Bank…
+                {L('Weiterleitung zur Bank…', 'Redirecting to the bank…')}
               </>
             ) : (
               <>
                 <Lock size={15} strokeWidth={2.4} aria-hidden="true" />
-                {formatEuroExact(net)} bezahlen
+                {L(`${formatEuroExact(net)} bezahlen`, `Pay ${formatEuroExact(net)}`)}
                 <ArrowRight size={16} strokeWidth={2.4} aria-hidden="true" />
               </>
             )}
           </button>
           {!acceptedTerms && !paying ? (
             <p id={hintId} className="checkout-modal__hint">
-              Bitte bestätigen Sie zuerst die AGB und die Erstattungsrichtlinie.
+              {L('Bitte bestätigen Sie zuerst die AGB und die Erstattungsrichtlinie.', 'Please first accept the Terms & conditions and the Refund policy.')}
             </p>
           ) : null}
         </div>

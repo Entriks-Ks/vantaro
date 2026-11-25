@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { LogOut, ShieldAlert } from 'lucide-react';
 import { endImpersonation, readImpersonation } from '../lib/impersonation';
+import { L } from '../lib/i18n';
 
 /** Always-visible strip while IT Support is signed in as a customer. */
 export default function ImpersonationBanner() {
@@ -21,11 +22,11 @@ export default function ImpersonationBanner() {
     <div className="impersonation-banner" role="status">
       <ShieldAlert size={17} strokeWidth={2.2} aria-hidden="true" />
       <span>
-        Support-Sitzung: Sie sind als <strong>{who}</strong> angemeldet. Alles, was Sie tun, geschieht im Konto des Kunden.
+        {L('Support-Sitzung: Sie sind als', 'Support session: you are signed in as')} <strong>{who}</strong>{L(' angemeldet. Alles, was Sie tun, geschieht im Konto des Kunden.', ". Everything you do happens in the customer's account.")}
       </span>
       <button type="button" onClick={leave} disabled={leaving}>
         <LogOut size={15} aria-hidden="true" />
-        {leaving ? 'Wird beendet…' : 'Zurück zur IT-Support-Konsole'}
+        {leaving ? L('Wird beendet…', 'Ending…') : L('Zurück zur IT-Support-Konsole', 'Back to the IT Support console')}
       </button>
     </div>
   );

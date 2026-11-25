@@ -163,9 +163,34 @@ function wrapText(value, font, size, maxWidth) {
   return lines.length ? lines : [''];
 }
 
+// Invoice language ('de' | 'en'). Set only for the duration of one synchronous build (withLang).
+let invoiceLang = 'de';
+const MONTHS_EN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+export function normalizeInvoiceLang(value) {
+  return value === 'en' ? 'en' : 'de';
+}
+
+function t(de, en) {
+  return invoiceLang === 'en' ? en : de;
+}
+
+function withLang(lang, fn) {
+  const previous = invoiceLang;
+  invoiceLang = normalizeInvoiceLang(lang);
+  try {
+    return fn();
+  } finally {
+    invoiceLang = previous;
+  }
+}
+
 function formatEuroDe(cents) {
   const amount = (Number(cents) || 0) / 100;
   const [int, frac] = amount.toFixed(2).split('.');
+  if (invoiceLang === 'en') {
+    return `${int.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}.${frac} EUR`;
+  }
   const grouped = int.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
   return `${grouped},${frac} EUR`;
 }
@@ -176,16 +201,18 @@ function formatDateDe(value) {
   if (Number.isNaN(date.getTime())) return '—';
   const day = String(date.getDate()).padStart(2, '0');
   const month = String(date.getMonth() + 1).padStart(2, '0');
+  if (invoiceLang === 'en') return `${day} ${MONTHS_EN[date.getMonth()]} ${date.getFullYear()}`;
   return `${day}.${month}.${date.getFullYear()}`;
 }
 
 function scopeLabel(scope) {
-  return String(scope || '').toLowerCase() === 'regional' ? 'regional' : 'deutschlandweit';
+  return String(scope || '').toLowerCase() === 'regional' ? 'regional' : t('deutschlandweit', 'nationwide (Germany)');
 }
 
 function invoiceFilename(payment) {
-  const raw = String(payment?.invoiceNumber || 'Rechnung').replace(/[^\w.-]+/g, '_');
-  return `${raw || 'Rechnung'}.pdf`;
+  const fallback = normalizeInvoiceLang(payment?.language) === 'en' ? 'Invoice' : 'Rechnung';
+  const raw = String(payment?.invoiceNumber || fallback).replace(/[^\w.-]+/g, '_');
+  return `${raw || fallback}.pdf`;
 }
 
 function linePricing(payment) {
@@ -202,25 +229,26 @@ function linePricing(payment) {
 }
 
 function discountLineLabel(slice) {
-  if (!slice) return 'Rabatt';
+  const word = t('Rabatt', 'Discount');
+  if (!slice) return word;
   const code = slice.code ? ` ${slice.code}` : '';
-  if (slice.valueType === 'percent') return `Rabatt${code} (-${slice.value} %)`;
-  if (slice.valueType === 'fixed_cents') return `Rabatt${code} (-${formatEuroDe(slice.value)} / Einheit)`;
-  return `Rabatt${code}`.trim();
+  if (slice.valueType === 'percent') return `${word}${code} (-${slice.value} %)`;
+  if (slice.valueType === 'fixed_cents') return `${word}${code} (-${formatEuroDe(slice.value)} / ${t('Einheit', 'unit')})`;
+  return `${word}${code}`.trim();
 }
 
 function itemDescription(payment, pricing) {
   const leadType = payment.leadType || 'PKV';
   const scope = scopeLabel(payment.scope);
-  const base = `VANTARO Lead-Paket ${leadType} / ${scope}`;
+  const base = `VANTARO ${t('Lead-Paket', 'lead package')} ${leadType} / ${scope}`;
   if (pricing.qty === 1 && pricing.leadCount > 1) {
-    return `${base} (${pricing.leadCount} Leads)`;
+    return `${base} (${pricing.leadCount} ${t('Leads', 'leads')})`;
   }
   return base;
 }
 
 function recipientTitle(payment) {
-  return payment.billingCompany || payment.billingName || payment.billingEmail || 'Beraterkonto';
+  return payment.billingCompany || payment.billingName || payment.billingEmail || t('Beraterkonto', 'Advisor account');
 }
 
 function recipientLines(payment) {
@@ -256,31 +284,40 @@ function wordmark(ops, x, y, size = 20) {
 }
 
 /** Card receipt fields ProCredit requires on the customer confirmation. */
-export function paymentDetailRows(payment) {
+export function paymentDetailRows(payment, lang = payment?.language) {
+  return withLang(lang, () => paymentDetailRowsInner(payment));
+}
+
+function paymentDetailRowsInner(payment) {
   if (payment.status && payment.status !== 'paid' && payment.status !== 'refunded') return [];
   const rows = [];
   const card = [payment.cardBrand, payment.cardLast4 ? `XXXX XXXX XXXX ${payment.cardLast4}` : '']
     .filter(Boolean)
     .join(', ');
-  rows.push(['Zahlungsart', card ? `Kreditkarte (${card})` : 'Kreditkarte']);
-  if (payment.cardHolder) rows.push(['Karteninhaber', payment.cardHolder]);
-  if (payment.approvalCode) rows.push(['Genehmigungscode', payment.approvalCode]);
+  rows.push([t('Zahlungsart', 'Payment method'), card ? `${t('Kreditkarte', 'Credit card')} (${card})` : t('Kreditkarte', 'Credit card')]);
+  if (payment.cardHolder) rows.push([t('Karteninhaber', 'Cardholder'), payment.cardHolder]);
+  if (payment.approvalCode) rows.push([t('Genehmigungscode', 'Approval code'), payment.approvalCode]);
   const tranAt = payment.transactionAt || payment.paidAt;
-  if (tranAt) rows.push(['Transaktionsdatum', formatDateTimeDe(tranAt)]);
-  if (payment.pgOrderId) rows.push(['Bestell-ID (Bank)', String(payment.pgOrderId)]);
+  if (tranAt) rows.push([t('Transaktionsdatum', 'Transaction date'), formatDateTimeInner(tranAt)]);
+  if (payment.pgOrderId) rows.push([t('Bestell-ID (Bank)', 'Order ID (bank)'), String(payment.pgOrderId), 'bankOrderId']);
   return rows;
 }
 
-export function formatDateTimeDe(value) {
+export function formatDateTimeDe(value, lang = invoiceLang) {
+  return withLang(lang, () => formatDateTimeInner(value));
+}
+
+function formatDateTimeInner(value) {
   // Bank sends "YYYY-MM-DD HH:mm:ss" without zone; show it as-is in German order.
   const match = String(value).match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}:\d{2}(?::\d{2})?)/);
   if (match && !/[zZ]|[+-]\d{2}:?\d{2}$/.test(String(value))) {
+    if (invoiceLang === 'en') return `${match[3]} ${MONTHS_EN[Number(match[2]) - 1]} ${match[1]} ${match[4]}`;
     return `${match[3]}.${match[2]}.${match[1]} ${match[4]}`;
   }
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return String(value);
-  return new Intl.DateTimeFormat('de-DE', {
-    day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Berlin',
+  return new Intl.DateTimeFormat(invoiceLang === 'en' ? 'en-GB' : 'de-DE', {
+    day: '2-digit', month: invoiceLang === 'en' ? 'short' : '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Berlin',
   }).format(date);
 }
 
@@ -299,10 +336,10 @@ function buildContent(payment) {
   wordmark(ops, MARGIN, PAGE_H - 52, 20);
 
   const meta = [
-    ['Rechnungs-Nr.', payment.invoiceNumber || '—'],
-    ['Rechnungsdatum', invoiceDate],
-    ['Ihre Kundennummer', payment.customerNumber || '—'],
-    ['Ihr Ansprechpartner', 'René Schirner'],
+    [t('Rechnungs-Nr.', 'Invoice no.'), payment.invoiceNumber || '—'],
+    [t('Rechnungsdatum', 'Invoice date'), invoiceDate],
+    [t('Ihre Kundennummer', 'Your customer no.'), payment.customerNumber || '—'],
+    [t('Ihr Ansprechpartner', 'Your contact'), 'René Schirner'],
   ];
   const metaValueX = 448;
   meta.forEach((row, index) => {
@@ -312,6 +349,9 @@ function buildContent(payment) {
     ops.push(rgb(...INK));
     ops.push(text(metaValueX, rowY, row[1], { font: 'F2', size: 8 }));
   });
+
+  ops.push(rgb(...MUTED));
+  ops.push(text(MARGIN, PAGE_H - 100, 'ENTRIKS L.L.C. · Lot Vaku L2.1 · 10000 Prishtina · Kosovo', { size: 7 }));
 
   let y = PAGE_H - 118;
   const people = recipientLines(payment);
@@ -328,11 +368,11 @@ function buildContent(payment) {
 
   y -= 28;
   ops.push(rgb(...INK));
-  ops.push(text(MARGIN, y, 'Sehr geehrte Damen und Herren,', { size: 10 }));
+  ops.push(text(MARGIN, y, t('Sehr geehrte Damen und Herren,', 'Dear Sir or Madam,'), { size: 10 }));
   y -= 18;
-  ops.push(text(MARGIN, y, 'vielen Dank für Ihren Auftrag und das damit verbundene Vertrauen!', { size: 10 }));
+  ops.push(text(MARGIN, y, t('vielen Dank für Ihren Auftrag und das damit verbundene Vertrauen!', 'Thank you for your order and the trust you have placed in us.'), { size: 10 }));
   y -= 18;
-  ops.push(text(MARGIN, y, 'Hiermit stellen wir Ihnen die folgenden Leistungen in Rechnung:', { size: 10 }));
+  ops.push(text(MARGIN, y, t('Hiermit stellen wir Ihnen die folgenden Leistungen in Rechnung:', 'We hereby invoice you for the following services:'), { size: 10 }));
 
   y -= 28;
   const headerH = 22;
@@ -340,10 +380,10 @@ function buildContent(payment) {
   ops.push(rect(MARGIN, y - 6, tableWidth, headerH, true));
   ops.push(rgb(...INK));
   const headerY = y;
-  ops.push(text(MARGIN + 10, headerY, 'Beschreibung', { font: 'F2', size: 8 }));
-  ops.push(textRight(colQty, headerY, 'Menge', { font: 'F2', size: 8 }));
-  ops.push(textRight(colUnit, headerY, 'Einzelpreis', { font: 'F2', size: 8 }));
-  ops.push(textRight(colTotal - 10, headerY, 'Gesamtpreis', { font: 'F2', size: 8 }));
+  ops.push(text(MARGIN + 10, headerY, t('Beschreibung', 'Description'), { font: 'F2', size: 8 }));
+  ops.push(textRight(colQty, headerY, t('Menge', 'Qty'), { font: 'F2', size: 8 }));
+  ops.push(textRight(colUnit, headerY, t('Einzelpreis', 'Unit price'), { font: 'F2', size: 8 }));
+  ops.push(textRight(colTotal - 10, headerY, t('Gesamtpreis', 'Total price'), { font: 'F2', size: 8 }));
 
   y -= 28;
   ops.push(rgb(...INK));
@@ -376,10 +416,10 @@ function buildContent(payment) {
 
   y -= 22;
   ops.push(rgb(...INK));
-  ops.push(text(MARGIN + 10, y, 'Gesamtbetrag netto', { size: 9 }));
+  ops.push(text(MARGIN + 10, y, t('Gesamtbetrag netto', 'Net total'), { size: 9 }));
   ops.push(textRight(colTotal - 10, y, net, { size: 9 }));
   y -= 16;
-  ops.push(text(MARGIN + 10, y, 'Nicht im Inland steuerbare Leistung', { size: 9 }));
+  ops.push(text(MARGIN + 10, y, t('Nicht im Inland steuerbare Leistung', 'Service not taxable domestically'), { size: 9 }));
   ops.push(textRight(colTotal - 10, y, formatEuroDe(0), { size: 9 }));
 
   y -= 20;
@@ -387,14 +427,14 @@ function buildContent(payment) {
   ops.push(rgb(...BRAND));
   ops.push(rect(MARGIN, y - 6, tableWidth, barH, true));
   ops.push(rgb(...WHITE));
-  ops.push(text(MARGIN + 10, y, 'Gesamtbetrag', { font: 'F2', size: 10 }));
+  ops.push(text(MARGIN + 10, y, t('Gesamtbetrag', 'Total'), { font: 'F2', size: 10 }));
   ops.push(textRight(colTotal - 10, y, gross, { font: 'F2', size: 10 }));
 
-  const paymentRows = paymentDetailRows(payment);
+  const paymentRows = paymentDetailRowsInner(payment);
   if (paymentRows.length) {
     y -= 34;
     ops.push(rgb(...INK));
-    ops.push(text(MARGIN, y, 'Zahlungsdetails', { font: 'F2', size: 9 }));
+    ops.push(text(MARGIN, y, t('Zahlungsdetails', 'Payment details'), { font: 'F2', size: 9 }));
     paymentRows.forEach(([label, value]) => {
       y -= 13;
       ops.push(rgb(...MUTED));
@@ -407,12 +447,12 @@ function buildContent(payment) {
   y -= 36;
   ops.push(rgb(...MUTED));
   const notes = [
-    'Nicht im Inland steuerbare Leistung: Es fällt keine Umsatzsteuer an. Der Gesamtbetrag ist der Paketpreis, ohne MwSt.-Aufschlag.',
-    'Diese Rechnung zeigt den Betrag für das gebuchte Lead-Paket. Eine Übersicht der zugewiesenen Leads finden Sie in der VANTARO-Plattform.',
-    'VANTARO ist keine Versicherung und kein Versicherungsvermittler. Elektronisch erstellt und ohne Unterschrift gültig.',
+    t('Nicht im Inland steuerbare Leistung: Es fällt keine Umsatzsteuer an. Der Gesamtbetrag ist der Paketpreis, ohne MwSt.-Aufschlag.', 'Service not taxable domestically: no VAT is charged. The total is the package price, without VAT.'),
+    t('Diese Rechnung zeigt den Betrag für das gebuchte Lead-Paket. Eine Übersicht der zugewiesenen Leads finden Sie in der VANTARO-Plattform.', 'This invoice shows the amount for the booked lead package. An overview of the assigned leads is available on the VANTARO platform.'),
+    t('VANTARO ist ein Angebot der ENTRIKS L.L.C. (Prishtina, Kosovo) und keine Versicherung und kein Versicherungsvermittler. Elektronisch erstellt und ohne Unterschrift gültig.', 'VANTARO is a service of ENTRIKS L.L.C. (Prishtina, Kosovo) and is neither an insurer nor an insurance intermediary. Generated electronically and valid without signature.'),
   ];
   if (payment.testMode) {
-    notes.unshift('Testmodus — keine handelsübliche Rechnung.');
+    notes.unshift(t('Testmodus — keine handelsübliche Rechnung.', 'Test mode — not a commercial invoice.'));
   }
   notes.forEach((note) => {
     wrapText(note, 'F1', 8, tableWidth).forEach((wrapped) => {
@@ -428,10 +468,10 @@ function buildContent(payment) {
   ops.push(rgb(...WHITE));
   const footerY = 52;
   const cols = [
-    ['VANTARO', 'René Schirner', 'Lead-Matching'],
-    ['E-Mail: info@vantaro.io', 'Web: www.vantaro.io'],
-    ['Geschäftsführung', 'René Schirner', 'USt. 0 %'],
-    ['Bank: ProCredit Bank', 'Zahlung per Karte'],
+    ['ENTRIKS L.L.C.', 'Lot Vaku L2.1', '10000 Prishtina, Kosovo'],
+    [t('Tel.: +383 43 889 344', 'Phone: +383 43 889 344'), t('E-Mail: info@vantaro.io', 'Email: info@vantaro.io'), 'Web: www.vantaro.io'],
+    [t('Geschäftsführung: René Schirner', 'Managing Director: René Schirner'), 'ARBK NUI: 811936668', t('USt. 0 %', 'VAT 0 %')],
+    ['Bank: ProCredit Bank', t('Zahlung per Karte', 'Paid by card')],
   ];
   cols.forEach((col, index) => {
     const x = MARGIN + index * 125;
@@ -485,8 +525,8 @@ function buildPdf(contentLatin1) {
   return Buffer.concat(parts);
 }
 
-export function buildInvoicePdf(payment) {
-  return buildPdf(buildContent(payment || {}));
+export function buildInvoicePdf(payment, lang = payment?.language) {
+  return buildPdf(withLang(lang, () => buildContent(payment || {})));
 }
 
 export function invoiceDownloadName(payment) {

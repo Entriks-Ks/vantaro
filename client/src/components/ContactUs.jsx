@@ -2,8 +2,16 @@ import React, { useState, useEffect } from 'react';
 import { CheckCircle2, X } from 'lucide-react';
 import DarkVeil from './DarkVeil';
 import './ContactUs.css';
+import { L } from '../lib/i18n';
 
 const FOCUS_OPTIONS = ['Versicherung / PKV', 'Energie / Photovoltaik', 'Energie / Wärmepumpe', 'Mehrere Bereiche'];
+// Display labels only: the German option value is what reaches the VANTARO inbox.
+const FOCUS_LABELS = {
+  'Versicherung / PKV': L('Versicherung / PKV', 'Insurance / private health (PKV)'),
+  'Energie / Photovoltaik': L('Energie / Photovoltaik', 'Energy / solar PV'),
+  'Energie / Wärmepumpe': L('Energie / Wärmepumpe', 'Energy / heat pump'),
+  'Mehrere Bereiche': L('Mehrere Bereiche', 'Several lines of business'),
+};
 
 export default function ContactUs() {
   const [formData, setFormData] = useState({
@@ -72,7 +80,7 @@ export default function ContactUs() {
       }
     } catch (err) {
       console.error('Submission error:', err);
-      setError('Es gab ein Problem beim Übermitteln. Bitte versuchen Sie es erneut.');
+      setError(L('Es gab ein Problem beim Übermitteln. Bitte versuchen Sie es erneut.', 'There was a problem sending your request. Please try again.'));
     } finally {
       setLoading(false);
     }
@@ -103,21 +111,21 @@ export default function ContactUs() {
         <div className="contact-us-grid">
           <div className="contact-form-card">
             <div className="contact-form-intro">
-              <h3>Kapazität prüfen</h3>
+              <h3>{L('Kapazität prüfen', 'Check capacity')}</h3>
             </div>
 
             <form onSubmit={handleSubmit}>
               <div className="contact-form-row">
                 <div className="contact-form-group">
                   <label className="contact-form-label" htmlFor="contact-name">
-                    Ihr Name <span className="required-star">*</span>
+                    {L('Ihr Name', 'Your name')} <span className="required-star">*</span>
                   </label>
                   <input
                     id="contact-name"
                     name="name"
                     type="text"
                     className="contact-form-input"
-                    placeholder="Ihr Name"
+                    placeholder={L('Ihr Name', 'Your name')}
                     value={formData.name}
                     onChange={handleInputChange}
                     autoComplete="name"
@@ -127,14 +135,14 @@ export default function ContactUs() {
 
                 <div className="contact-form-group">
                   <label className="contact-form-label" htmlFor="contact-email">
-                    E-Mail <span className="required-star">*</span>
+                    {L('E-Mail', 'Email')} <span className="required-star">*</span>
                   </label>
                   <input
                     id="contact-email"
                     name="email"
                     type="email"
                     className="contact-form-input"
-                    placeholder="E-Mail"
+                    placeholder={L('E-Mail', 'Email')}
                     value={formData.email}
                     onChange={handleInputChange}
                     autoComplete="email"
@@ -145,14 +153,14 @@ export default function ContactUs() {
 
               <div className="contact-form-group">
                 <label className="contact-form-label" htmlFor="contact-company">
-                  Maklerhaus / Unternehmen <span className="required-star">*</span>
+                  {L('Maklerhaus / Unternehmen', 'Brokerage / company')} <span className="required-star">*</span>
                 </label>
                 <input
                   id="contact-company"
                   name="company"
                   type="text"
                   className="contact-form-input"
-                  placeholder="Maklerhaus / Unternehmen"
+                  placeholder={L('Maklerhaus / Unternehmen', 'Brokerage / company')}
                   value={formData.company}
                   onChange={handleInputChange}
                   autoComplete="organization"
@@ -162,7 +170,7 @@ export default function ContactUs() {
 
               <div className="contact-form-group">
                 <label className="contact-form-label" htmlFor="contact-focus">
-                  Ihr Fokus <span className="required-star">*</span>
+                  {L('Ihr Fokus', 'Your focus')} <span className="required-star">*</span>
                 </label>
                 <select
                   id="contact-focus"
@@ -173,11 +181,11 @@ export default function ContactUs() {
                   required
                 >
                   <option value="" disabled hidden>
-                    Ihr Fokus
+                    {L('Ihr Fokus', 'Your focus')}
                   </option>
                   {FOCUS_OPTIONS.map((option) => (
                     <option key={option} value={option}>
-                      {option}
+                      {FOCUS_LABELS[option] || option}
                     </option>
                   ))}
                 </select>
@@ -185,13 +193,13 @@ export default function ContactUs() {
 
               <div className="contact-form-group">
                 <label className="contact-form-label" htmlFor="contact-message">
-                  Was möchten Sie mit VANTARO erreichen? <span className="required-star">*</span>
+                  {L('Was möchten Sie mit VANTARO erreichen?', 'What would you like to achieve with VANTARO?')} <span className="required-star">*</span>
                 </label>
                 <textarea
                   id="contact-message"
                   name="message"
                   className="contact-form-textarea"
-                  placeholder="Was möchten Sie mit VANTARO erreichen?"
+                  placeholder={L('Was möchten Sie mit VANTARO erreichen?', 'What would you like to achieve with VANTARO?')}
                   value={formData.message}
                   onChange={handleInputChange}
                   rows={4}
@@ -200,9 +208,9 @@ export default function ContactUs() {
               </div>
 
               <button type="submit" className="contact-submit-btn" disabled={loading}>
-                {loading ? 'Wird gesendet...' : (
+                {loading ? L('Wird gesendet...', 'Sending...') : (
                   <>
-                    Demo-Anfrage senden <span className="arrow">↗</span>
+                    {L('Demo-Anfrage senden', 'Send demo request')} <span className="arrow">↗</span>
                   </>
                 )}
               </button>
@@ -215,9 +223,9 @@ export default function ContactUs() {
             </form>
 
             <p className="contact-legal-note">
-              Ihre Angaben werden vertraulich behandelt. Es gelten unser{' '}
-              <a href="#impressum">Impressum</a> und die{' '}
-              <a href="#datenschutz">Datenschutzerklärung</a>.
+              {L('Ihre Angaben werden vertraulich behandelt. Es gelten unser', 'Your details are treated confidentially. Our')}{' '}
+              <a href="#impressum">{L('Impressum', 'Legal notice')}</a> {L('und die', 'and')}{' '}
+              <a href="#datenschutz">{L('Datenschutzerklärung', 'Privacy policy')}</a>{L('.', ' apply.')}
             </p>
           </div>
 
@@ -236,23 +244,23 @@ export default function ContactUs() {
                   <div className="contact-veil-overlay" />
                 </div>
                 <div className="contact-cutout-content">
-                  <div className="eyebrow light">Der nächste sinnvolle Schritt</div>
+                  <div className="eyebrow light">{L('Der nächste sinnvolle Schritt', 'The next sensible step')}</div>
                   <h2>
-                    Prüfen Sie nicht, ob VANTARO groß klingt.{' '}
-                    <span>Prüfen Sie, ob es für Sie funktioniert.</span>
+                    {L('Prüfen Sie nicht, ob VANTARO groß klingt.', "Don't check whether VANTARO sounds big.")}{' '}
+                    <span>{L('Prüfen Sie, ob es für Sie funktioniert.', 'Check whether it works for you.')}</span>
                   </h2>
                   <p>
-                    Starten Sie mit einem strukturierten Pilotgespräch. Wir schauen auf Bereich (Versicherung oder Energie), Region, Kapazität, Qualitätsstufe und die Kennzahlen, die für Ihr Unternehmen wirklich zählen.
+                    {L('Starten Sie mit einem strukturierten Pilotgespräch. Wir schauen auf Bereich (Versicherung oder Energie), Region, Kapazität, Qualitätsstufe und die Kennzahlen, die für Ihr Unternehmen wirklich zählen.', 'Start with a structured pilot call. We look at line of business (insurance or energy), region, capacity, quality level and the metrics that really matter to your company.')}
                   </p>
                   <div className="contact-cutout-actions">
                     <a
                       className="btn btn-primary"
                       href="mailto:info@vantaro.io?subject=VANTARO%20Pilotgespr%C3%A4ch"
                     >
-                      Pilotgespräch per E-Mail <span className="arrow">↗</span>
+                      {L('Pilotgespräch per E-Mail', 'Pilot call by email')} <span className="arrow">↗</span>
                     </a>
                     <a className="btn btn-outline-light" href="#preise">
-                      Preise ansehen <span className="arrow">↓</span>
+                      {L('Preise ansehen', 'View pricing')} <span className="arrow">↓</span>
                     </a>
                   </div>
                 </div>
@@ -270,16 +278,16 @@ export default function ContactUs() {
               <CheckCircle2 size={20} />
             </div>
             <div className="vantaro-toast-body">
-              <div className="vantaro-toast-title">Anfrage erfolgreich übermittelt</div>
+              <div className="vantaro-toast-title">{L('Anfrage erfolgreich übermittelt', 'Request sent successfully')}</div>
               <div className="vantaro-toast-message">
-                Vielen Dank! Ihre Anfrage wurde erfolgreich an uns übermittelt. Wir werden uns zeitnah bei Ihnen melden.
+                {L('Vielen Dank! Ihre Anfrage wurde erfolgreich an uns übermittelt. Wir werden uns zeitnah bei Ihnen melden.', "Thank you! Your request has been sent to us successfully. We'll get back to you shortly.")}
               </div>
             </div>
             <button
               type="button"
               className="vantaro-toast-close"
               onClick={() => setSubmitted(false)}
-              aria-label="Schließen"
+              aria-label={L('Schließen', 'Close')}
             >
               <X size={16} />
             </button>

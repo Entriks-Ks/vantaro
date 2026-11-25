@@ -26786,3 +26786,58 @@ html[data-theme="light"] .dash-pay-test {
   .impersonation-banner { flex-wrap: wrap; bottom: 8px; }
   .impersonation-banner button { width: 100%; justify-content: center; }
 }
+
+/* Language switch (DE | EN) */
+.lang-switch {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding: 3px;
+    border-radius: 999px;
+    border: 1px solid var(--wash-12);
+    background: var(--wash-04);
+    pointer-events: auto;
+    flex-shrink: 0;
+    color: var(--text);
+}
+.lang-switch__option {
+    min-width: 34px;
+    min-height: 30px;
+    padding: 0 8px;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: .06em;
+    opacity: .7;
+    cursor: pointer;
+    transition: background .15s ease, opacity .15s ease, color .15s ease;
+}
+.lang-switch__option:hover {
+    opacity: 1;
+}
+.lang-switch__option:focus-visible {
+    outline: 2px solid var(--thread-link);
+    outline-offset: 1px;
+}
+.lang-switch__option.is-active {
+    opacity: 1;
+    background: var(--thread-link);
+    color: #0b1220;
+}
+.site-header .lang-switch {
+    color: var(--white);
+}
+.broker-topbar {
+    gap: 10px;
+    align-items: center;
+}
+.auth-lang-switch {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    z-index: 60;
+}

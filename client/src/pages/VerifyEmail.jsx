@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import useNavigate from '../hooks/useNavigate';
+import { L } from '../lib/i18n';
 
 const CODE_LENGTH = 6;
 
@@ -18,7 +19,7 @@ export default function VerifyEmail() {
   const [code, setCode] = useState(codeFromQuery);
   const [error, setError] = useState('');
   const [message, setMessage] = useState(
-    emailFromQuery && !token && !codeFromQuery ? 'Wir haben Ihnen einen 6-stelligen Code per E-Mail gesendet.' : '',
+    emailFromQuery && !token && !codeFromQuery ? L('Wir haben Ihnen einen 6-stelligen Code per E-Mail gesendet.', 'We have sent you a 6-digit code by email.') : '',
   );
   const [submitting, setSubmitting] = useState(Boolean(token || codeFromQuery.length === CODE_LENGTH));
   const [resending, setResending] = useState(false);
@@ -234,19 +235,19 @@ export default function VerifyEmail() {
             />
           </div>
 
-          <h1 className="auth-title">E-Mail bestätigen</h1>
+          <h1 className="auth-title">{L('E-Mail bestätigen', 'Confirm email')}</h1>
           <p className="auth-subtitle">
             {fromLink && submitting
-              ? 'Ihr Bestätigungslink wird geprüft…'
+              ? L('Ihr Bestätigungslink wird geprüft…', 'Checking your confirmation link…')
               : email
-                ? `Wir haben einen Bestätigungslink und einen 6-stelligen Code an ${email} gesendet.`
-                : 'Geben Sie Ihre E-Mail-Adresse und den Bestätigungscode ein.'}
+                ? L(`Wir haben einen Bestätigungslink und einen 6-stelligen Code an ${email} gesendet.`, `We have sent a confirmation link and a 6-digit code to ${email}.`)
+                : L('Geben Sie Ihre E-Mail-Adresse und den Bestätigungscode ein.', 'Enter your email address and the confirmation code.')}
           </p>
 
           {error && <div className="auth-error">{error}</div>}
           {showWait && cooldown > 0 && (
             <div className="auth-error">
-              Bitte warten Sie {cooldown} Sekunden, bevor Sie einen neuen Code anfordern.
+              {L(`Bitte warten Sie ${cooldown} Sekunden, bevor Sie einen neuen Code anfordern.`, `Please wait ${cooldown} seconds before requesting a new code.`)}
             </div>
           )}
           {message && <div className="auth-success">{message}</div>}
@@ -261,14 +262,14 @@ export default function VerifyEmail() {
           >
             {!emailFromQuery && (
               <div className="form-group">
-                <label htmlFor="email">E-Mail-Adresse <span className="auth-required">*</span></label>
+                <label htmlFor="email">{L('E-Mail-Adresse', 'Email address')} <span className="auth-required">*</span></label>
                 <input
                   type="email"
                   id="email"
                   autoComplete="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="E-Mail-Adresse"
+                  placeholder={L('E-Mail-Adresse', 'Email address')}
                   required
                   disabled={submitting}
                 />
@@ -276,7 +277,7 @@ export default function VerifyEmail() {
             )}
 
             <div className="form-group">
-              <label htmlFor="code-0">Bestätigungscode <span className="auth-required">*</span></label>
+              <label htmlFor="code-0">{L('Bestätigungscode', 'Confirmation code')} <span className="auth-required">*</span></label>
               <div className="auth-otp" onPaste={handlePaste}>
                 {Array.from({ length: CODE_LENGTH }, (_, index) => (
                   <input
@@ -294,12 +295,12 @@ export default function VerifyEmail() {
                     onChange={(event) => handleDigitChange(index, event.target.value)}
                     onKeyDown={(event) => handleKeyDown(index, event)}
                     disabled={submitting}
-                    aria-label={`Ziffer ${index + 1} von ${CODE_LENGTH}`}
+                    aria-label={L(`Ziffer ${index + 1} von ${CODE_LENGTH}`, `Digit ${index + 1} of ${CODE_LENGTH}`)}
                   />
                 ))}
               </div>
               {submitting && (
-                <p className="auth-otp-hint">Code wird geprüft…</p>
+                <p className="auth-otp-hint">{L('Code wird geprüft…', 'Checking code…')}</p>
               )}
             </div>
           </form>
@@ -313,39 +314,39 @@ export default function VerifyEmail() {
             disabled={resending || cooldown > 0 || !email}
           >
             {cooldown > 0
-              ? `Neuer Code in ${cooldown}s`
+              ? L(`Neuer Code in ${cooldown}s`, `New code in ${cooldown}s`)
               : resending
-                ? 'Wird gesendet…'
-                : 'Neuen Code senden'}
+                ? L('Wird gesendet…', 'Sending…')
+                : L('Neuen Code senden', 'Send new code')}
           </button>
           )}
 
           <div className="auth-footer">
-            <span>Zurück zur</span>
-            <Link to="/login">Anmeldung</Link>
+            <span>{L('Zurück zur', 'Back to')}</span>
+            <Link to="/login">{L('Anmeldung', 'login')}</Link>
           </div>
         </div>
 
         <div className="auth-visual-panel">
           <div className="auth-visual-wrapper">
             <div className="auth-cutout-panel">
-              <div className="eyebrow light">Sicherer Zugang zu Ihrem Portal</div>
+              <div className="eyebrow light">{L('Sicherer Zugang zu Ihrem Portal', 'Secure access to your portal')}</div>
               <h2>
-                Bestätigen Sie Ihre E-Mail, um{' '}
-                <span>Ihr Matching zu starten.</span>
+                {L('Bestätigen Sie Ihre E-Mail, um', 'Confirm your email to')}{' '}
+                <span>{L('Ihr Matching zu starten.', 'start your matching.')}</span>
               </h2>
               <p>
-                Der Code aktiviert Ihr Konto. Danach öffnet sich Ihr Portal — mit Chancen, Nachverfolgung und Guthaben an einem Ort.
+                {L('Der Code aktiviert Ihr Konto. Danach öffnet sich Ihr Portal — mit Chancen, Nachverfolgung und Guthaben an einem Ort.', 'The code activates your account. Your portal then opens — with opportunities, follow-up and credit in one place.')}
               </p>
               <div className="auth-cutout-actions">
                 <Link className="btn btn-primary" to="/">
-                  Zurück zur Startseite <span className="arrow">←</span>
+                  {L('Zurück zur Startseite', 'Back to home page')} <span className="arrow">←</span>
                 </Link>
                 <a
                   className="btn btn-outline-light"
                   href="mailto:info@vantaro.io?subject=VANTARO%20Support"
                 >
-                  Support kontaktieren <span className="arrow">↗</span>
+                  {L('Support kontaktieren', 'Contact support')} <span className="arrow">↗</span>
                 </a>
               </div>
             </div>

@@ -2,24 +2,25 @@ import { useEffect, useState } from 'react';
 import { Monitor, Moon, Sun } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { readThemePreference, subscribeTheme, writeThemePreference } from '../lib/theme';
+import { L } from '../lib/i18n';
 
 const OPTIONS = [
   {
     id: 'dark',
-    label: 'Dunkel',
-    hint: 'Der aktuelle Look der Plattform.',
+    label: L('Dunkel', 'Dark'),
+    hint: L('Der aktuelle Look der Plattform.', 'The current look of the platform.'),
     icon: Moon,
   },
   {
     id: 'light',
-    label: 'Hell',
-    hint: 'Helles Papier mit derselben Farbwelt.',
+    label: L('Hell', 'Light'),
+    hint: L('Helles Papier mit derselben Farbwelt.', 'Light paper with the same colour palette.'),
     icon: Sun,
   },
   {
     id: 'device',
-    label: 'Gerät',
-    hint: 'Folgt der Einstellung von Browser oder Gerät.',
+    label: L('Gerät', 'Device'),
+    hint: L('Folgt der Einstellung von Browser oder Gerät.', 'Follows your browser or device setting.'),
     icon: Monitor,
   },
 ];
@@ -43,14 +44,14 @@ export default function ThemeMode({ variant = 'broker' }) {
     try {
       await updateProfile({ settings: { appearance: next } });
     } catch (err) {
-      setError(err.message || 'Der Modus konnte nicht gespeichert werden.');
+      setError(err.message || L('Der Modus konnte nicht gespeichert werden.', 'The mode could not be saved.'));
     } finally {
       setSaving(false);
     }
   }
 
   const options = (
-    <div className="theme-mode-options" role="radiogroup" aria-label="Modus">
+    <div className="theme-mode-options" role="radiogroup" aria-label={L('Modus', 'Mode')}>
       {OPTIONS.map((option) => {
         const Icon = option.icon;
         const active = preference === option.id;
@@ -78,8 +79,8 @@ export default function ThemeMode({ variant = 'broker' }) {
   if (variant === 'nav') {
     return (
       <div className="broker-profile-nav__theme">
-        <span className="broker-profile-nav__theme-label">Darstellung</span>
-        <div className="broker-profile-nav__modes" role="radiogroup" aria-label="Darstellung">
+        <span className="broker-profile-nav__theme-label">{L('Darstellung', 'Appearance')}</span>
+        <div className="broker-profile-nav__modes" role="radiogroup" aria-label={L('Darstellung', 'Appearance')}>
           {OPTIONS.map((option) => {
             const Icon = option.icon;
             const active = preference === option.id;
@@ -113,9 +114,9 @@ export default function ThemeMode({ variant = 'broker' }) {
             <span className="dash-profile-section__icon" aria-hidden="true">
               <Sun size={16} strokeWidth={2.2} />
             </span>
-            Darstellung
+            {L('Darstellung', 'Appearance')}
           </h3>
-          <p>Dunkel, Hell oder die Einstellung Ihres Geräts. Der Wechsel gilt sofort für die ganze Plattform.</p>
+          <p>{L('Dunkel, Hell oder die Einstellung Ihres Geräts. Der Wechsel gilt sofort für die ganze Plattform.', 'Dark, light or your device setting. The change applies immediately to the whole platform.')}</p>
         </header>
         {error ? <div className="dash-alert">{error}</div> : null}
         {options}
@@ -130,8 +131,8 @@ export default function ThemeMode({ variant = 'broker' }) {
           <Sun size={16} strokeWidth={2.2} />
         </span>
         <div className="broker-settings-section__heading">
-          <h3>Darstellung</h3>
-          <p>Dunkel, Hell oder die Einstellung Ihres Geräts. Der Wechsel gilt sofort für die ganze Plattform.</p>
+          <h3>{L('Darstellung', 'Appearance')}</h3>
+          <p>{L('Dunkel, Hell oder die Einstellung Ihres Geräts. Der Wechsel gilt sofort für die ganze Plattform.', 'Dark, light or your device setting. The change applies immediately to the whole platform.')}</p>
         </div>
       </header>
       {error ? <div className="broker-alert">{error}</div> : null}

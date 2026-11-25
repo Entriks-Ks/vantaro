@@ -63,6 +63,7 @@ import { useBroker } from '../../hooks/useBroker';
 import { returnTo, returnLabel } from './LeadDetail';
 import { OneTimeDiscountOffer, oneTimePickFor, visibleOneTimeOffers } from './OneTimeDiscountOffer';
 import CheckoutConfirmModal from '../../components/CheckoutConfirmModal';
+import { L } from '../../lib/i18n';
 
 const MIN_LEADS = 10;
 const LEAD_STEP = 5;
@@ -89,7 +90,7 @@ function presentLead(lead) {
   const address = [lead.street, lead.houseNumber, [lead.zip, lead.city].filter(Boolean).join(' ')].filter(Boolean).join(', ');
   return {
     ...lead,
-    name: lead.fullName || 'Ohne Namen',
+    name: lead.fullName || L('Ohne Namen', 'No name'),
     address: address || '—',
     packageId: energyLeadTypeOf(lead),
     packageLabel: energyTypeLabel(energyLeadTypeOf(lead)),
@@ -114,7 +115,7 @@ function StatusMark({ lead }) {
         <Icon size={14} aria-hidden="true" />
         {statusLabel(lead.status)}
       </span>
-      {blocked ? <span className="broker-status is-blocked">Gesperrt</span> : reviewing ? <span className="broker-status is-reported">In Prüfung</span> : null}
+      {blocked ? <span className="broker-status is-blocked">{L('Gesperrt', 'Locked')}</span> : reviewing ? <span className="broker-status is-reported">{L('In Prüfung', 'Under review')}</span> : null}
     </span>
   );
 }
@@ -170,42 +171,42 @@ export function EnergyHome() {
     <div className="broker-page">
       <div className="broker-heading">
         <div>
-          <div className="eyebrow">Ihr Tag</div>
-          <h1>Willkommen zurück, <em>{displayName(user)}</em></h1>
-          <p className="lede">Schön, dass Sie da sind. Hier sehen Sie, welche Gespräche als Nächstes warten.</p>
+          <div className="eyebrow">{L('Ihr Tag', 'Your day')}</div>
+          <h1>{L('Willkommen zurück, ', 'Welcome back, ')}<em>{displayName(user)}</em></h1>
+          <p className="lede">{L('Schön, dass Sie da sind. Hier sehen Sie, welche Gespräche als Nächstes warten.', 'Good to see you. Here you can see which conversations are waiting next.')}</p>
         </div>
       </div>
       {error ? <div className="broker-alert">{error}</div> : null}
       <div className="broker-home-metrics broker-home-metrics--leads">
         <article className="broker-home-metric is-signal">
           <div className="broker-home-metric-body">
-            <span>Im Bestand</span>
+            <span>{L('Im Bestand', 'In your portfolio')}</span>
             <strong>{loading ? '—' : stats.total}</strong>
-            <small>Aktive Leads</small>
+            <small>{L('Aktive Leads', 'Active leads')}</small>
           </div>
           <span className="broker-home-metric-icon" aria-hidden="true"><Users size={22} /></span>
         </article>
         <article className="broker-home-metric">
           <div className="broker-home-metric-body">
-            <span>Neu</span>
+            <span>{L('Neu', 'New')}</span>
             <strong>{loading ? '—' : stats.neu}</strong>
-            <small>Noch nicht kontaktiert</small>
+            <small>{L('Noch nicht kontaktiert', 'Not contacted yet')}</small>
           </div>
           <span className="broker-home-metric-icon" aria-hidden="true"><UserPlus size={22} /></span>
         </article>
         <article className="broker-home-metric">
           <div className="broker-home-metric-body">
-            <span>In Bearbeitung</span>
+            <span>{L('In Bearbeitung', 'In progress')}</span>
             <strong>{loading ? '—' : stats.inProgress}</strong>
-            <small>Zugewiesen, Termin oder Wiedervorlage</small>
+            <small>{L('Zugewiesen, Termin oder Wiedervorlage', 'Assigned, appointment or follow-up')}</small>
           </div>
           <span className="broker-home-metric-icon" aria-hidden="true"><MessageCircle size={22} /></span>
         </article>
         <article className="broker-home-metric">
           <div className="broker-home-metric-body">
-            <span>Abgeschlossen</span>
+            <span>{L('Abgeschlossen', 'Closed')}</span>
             <strong>{loading ? '—' : stats.done}</strong>
-            <small>Erledigt oder nicht erschienen</small>
+            <small>{L('Erledigt oder nicht erschienen', 'Done or no-show')}</small>
           </div>
           <span className="broker-home-metric-icon" aria-hidden="true"><FileCheck2 size={22} /></span>
         </article>
@@ -214,12 +215,12 @@ export function EnergyHome() {
       <section className="broker-panel broker-home-pipeline">
         <div className="broker-panel-header">
           <div>
-            <div className="eyebrow">Trichter-Übersicht</div>
+            <div className="eyebrow">{L('Trichter-Übersicht', 'Funnel overview')}</div>
             <h2>Pipeline</h2>
-            <p>Echtzeit-Verteilung Ihrer Leads nach aktuellem Bearbeitungsstand</p>
+            <p>{L('Echtzeit-Verteilung Ihrer Leads nach aktuellem Bearbeitungsstand', 'Real-time distribution of your leads by current stage')}</p>
           </div>
           <Link to="/dashboard/leads" className="broker-pipeline-open">
-            <span>Board öffnen</span>
+            <span>{L('Board öffnen', 'Open board')}</span>
             <ArrowRight size={14} strokeWidth={2.25} aria-hidden="true" />
           </Link>
         </div>
@@ -233,7 +234,7 @@ export function EnergyHome() {
                 key={status.id}
                 className="broker-pipeline-seg"
                 style={{ width: `${pct}%`, background: PIPELINE_COLORS[status.id] }}
-                title={`${status.label}: ${value} Leads`}
+                title={L(`${status.label}: ${value} Leads`, `${status.label}: ${value} leads`)}
               />
             );
           })}
@@ -266,15 +267,15 @@ export function EnergyHome() {
       <section className="broker-panel broker-home-recent">
         <div className="broker-panel-header">
           <div>
-            <h2>Aktuelle Leads</h2>
-            <p>Neue Chancen in Ihrem Bestand</p>
+            <h2>{L('Aktuelle Leads', 'Recent leads')}</h2>
+            <p>{L('Neue Chancen in Ihrem Bestand', 'New opportunities in your portfolio')}</p>
           </div>
-          <Link to="/dashboard/leads" state={{ from: location.pathname + location.search }} className="broker-text-btn">Alle anzeigen</Link>
+          <Link to="/dashboard/leads" state={{ from: location.pathname + location.search }} className="broker-text-btn">{L('Alle anzeigen', 'Show all')}</Link>
         </div>
         {loading ? (
           <div className="broker-empty">
-            <strong>Leads werden geladen</strong>
-            <p>Einen Moment bitte.</p>
+            <strong>{L('Leads werden geladen', 'Loading leads')}</strong>
+            <p>{L('Einen Moment bitte.', 'One moment please.')}</p>
           </div>
         ) : recent.length ? (
           <ul className="broker-home-lead-list">
@@ -301,8 +302,8 @@ export function EnergyHome() {
           </ul>
         ) : (
           <div className="broker-empty">
-            <strong>Noch keine Leads</strong>
-            <p>Sobald wir Ihnen Chancen zuteilen, finden Sie sie hier und unter Meine Leads.</p>
+            <strong>{L('Noch keine Leads', 'No leads yet')}</strong>
+            <p>{L('Sobald wir Ihnen Chancen zuteilen, finden Sie sie hier und unter Meine Leads.', 'As soon as we allocate opportunities to you, you will find them here and under My leads.')}</p>
           </div>
         )}
       </section>
@@ -357,15 +358,15 @@ export function EnergyLeads() {
     <div className="broker-page broker-page--wide">
       <div className="broker-heading">
         <div>
-          <div className="eyebrow">Ihr Bestand</div>
-          <h1>Meine Leads</h1>
-          <p className="lede">Leads und Termine im Board oder in der Liste. Filtern Sie nach Paket.</p>
+          <div className="eyebrow">{L('Ihr Bestand', 'Your portfolio')}</div>
+          <h1>{L('Meine Leads', 'My leads')}</h1>
+          <p className="lede">{L('Leads und Termine im Board oder in der Liste. Filtern Sie nach Paket.', 'Leads and appointments on the board or in the list. Filter by package.')}</p>
         </div>
       </div>
       {error ? <div className="broker-alert">{error}</div> : null}
       <div className="broker-filterbar">
-        <div className="broker-ins-filter" role="group" aria-label="Paket">
-          <span className="broker-ins-filter__label">Paket</span>
+        <div className="broker-ins-filter" role="group" aria-label={L('Paket', 'Package')}>
+          <span className="broker-ins-filter__label">{L('Paket', 'Package')}</span>
           <div className="broker-ins-filter__options">
             {ENERGY_PACKAGES.map((option) => {
               const checked = packages.includes(option.id);
@@ -382,7 +383,7 @@ export function EnergyLeads() {
           </div>
         </div>
         <div className="broker-filterbar-end">
-          <div className="broker-pills broker-pills--view" role="tablist" aria-label="Ansicht">
+          <div className="broker-pills broker-pills--view" role="tablist" aria-label={L('Ansicht', 'View')}>
             {VIEW_MODES.map((mode) => (
               <button
                 key={mode.id}
@@ -399,7 +400,7 @@ export function EnergyLeads() {
             ))}
           </div>
           <span className="broker-filter-count">
-            {loading ? 'Laden…' : `${openCount} ${openCount === 1 ? 'Chance' : 'Chancen'}`}
+            {loading ? L('Laden…', 'Loading…') : L(`${openCount} ${openCount === 1 ? 'Chance' : 'Chancen'}`, `${openCount} ${openCount === 1 ? 'opportunity' : 'opportunities'}`)}
           </span>
         </div>
       </div>
@@ -407,27 +408,27 @@ export function EnergyLeads() {
       {loading ? (
         <div className="broker-panel broker-empty">
           <span className="broker-inline-loader" aria-hidden="true" />
-          <strong>Leads werden geladen</strong>
-          <p>Einen Moment bitte.</p>
+          <strong>{L('Leads werden geladen', 'Loading leads')}</strong>
+          <p>{L('Einen Moment bitte.', 'One moment please.')}</p>
         </div>
       ) : !visible.length ? (
         <div className="broker-panel broker-empty">
-          <strong>{packages.length ? 'Keine Leads für dieses Paket' : 'Noch keine Leads'}</strong>
+          <strong>{packages.length ? L('Keine Leads für dieses Paket', 'No leads for this package') : L('Noch keine Leads', 'No leads yet')}</strong>
           <p>
             {packages.length
-              ? 'Anderes Paket wählen — oder alle Häkchen entfernen, um den gesamten Bestand zu sehen.'
-              : 'Sobald wir Ihnen Chancen zuteilen, erscheinen sie hier.'}
+              ? L('Anderes Paket wählen — oder alle Häkchen entfernen, um den gesamten Bestand zu sehen.', 'Choose another package — or clear all checkboxes to see your entire portfolio.')
+              : L('Sobald wir Ihnen Chancen zuteilen, erscheinen sie hier.', 'As soon as we allocate opportunities to you, they will appear here.')}
           </p>
         </div>
       ) : view === 'list' ? (
         <>
           <div className="broker-panel broker-list-panel">
             <div className="broker-list-head" aria-hidden="true">
-              <span>Kontakt</span>
-              <span>Paket</span>
-              <span>Art</span>
+              <span>{L('Kontakt', 'Contact')}</span>
+              <span>{L('Paket', 'Package')}</span>
+              <span>{L('Art', 'Type')}</span>
               <span>Status</span>
-              <span>Gebiet</span>
+              <span>{L('Gebiet', 'Area')}</span>
             </div>
             <div className="broker-list-body">
               {pageItems.map((lead) => (
@@ -437,7 +438,7 @@ export function EnergyLeads() {
                     <small>{lead.address}</small>
                   </span>
                   <span className="broker-list-meta">{lead.packageLabel}</span>
-                  <span className="broker-list-meta">{lead.deliveryType === 'appointment' ? 'Termin' : 'Lead'}</span>
+                  <span className="broker-list-meta">{lead.deliveryType === 'appointment' ? L('Termin', 'Appointment') : 'Lead'}</span>
                   <StatusMark lead={lead} />
                   <span className="broker-list-meta">{[lead.zip, lead.city].filter(Boolean).join(' ') || '—'}</span>
                 </button>
@@ -446,9 +447,9 @@ export function EnergyLeads() {
           </div>
           {visible.length > pageSize ? (
             <div className="broker-pagination">
-              <button type="button" className="btn btn-outline" disabled={page <= 1} onClick={() => setPage((value) => Math.max(1, value - 1))}>Zurück</button>
-              <span>Seite {page} von {totalPages}</span>
-              <button type="button" className="btn btn-outline" disabled={page >= totalPages} onClick={() => setPage((value) => Math.min(totalPages, value + 1))}>Weiter</button>
+              <button type="button" className="btn btn-outline" disabled={page <= 1} onClick={() => setPage((value) => Math.max(1, value - 1))}>{L('Zurück', 'Back')}</button>
+              <span>{L(`Seite ${page} von ${totalPages}`, `Page ${page} of ${totalPages}`)}</span>
+              <button type="button" className="btn btn-outline" disabled={page >= totalPages} onClick={() => setPage((value) => Math.min(totalPages, value + 1))}>{L('Weiter', 'Next')}</button>
             </div>
           ) : null}
         </>
@@ -486,7 +487,7 @@ export function EnergyLeads() {
                       <small>{lead.address}</small>
                     </article>
                   )) : (
-                    <div className="broker-kanban-empty">Keine Leads</div>
+                    <div className="broker-kanban-empty">{L('Keine Leads', 'No leads')}</div>
                   )}
                 </div>
               </section>
@@ -549,13 +550,13 @@ export function EnergyOrders() {
     const payment = params.get('payment');
     if (!payment) return;
     if (payment === 'success') {
-      setNotice('Zahlung erfolgreich. Ihre Anforderung wurde angelegt.');
+      setNotice(L('Zahlung erfolgreich. Ihre Anforderung wurde angelegt.', 'Payment successful. Your request has been created.'));
       setError('');
     } else if (payment === 'failed') {
-      setError(params.get('error') || 'Zahlung fehlgeschlagen oder abgebrochen.');
+      setError(params.get('error') || L('Zahlung fehlgeschlagen oder abgebrochen.', 'Payment failed or was cancelled.'));
       setNotice('');
     } else if (payment === 'pending') {
-      setNotice('Zahlung noch nicht abgeschlossen. Der Status wird aktualisiert, sobald die Bank bestätigt.');
+      setNotice(L('Zahlung noch nicht abgeschlossen. Der Status wird aktualisiert, sobald die Bank bestätigt.', 'Payment not yet completed. The status will be updated as soon as the bank confirms.'));
       setError('');
     }
     loadBilling().catch(() => {});
@@ -619,7 +620,7 @@ export function EnergyOrders() {
     setError('');
     setNotice('');
     if (!territory) {
-      setError('Bitte geben Sie ein Gebiet (PLZ oder Ort) an. Standard ist Ihre Geschäftsadresse.');
+      setError(L('Bitte geben Sie ein Gebiet (PLZ oder Ort) an. Standard ist Ihre Geschäftsadresse.', 'Please enter an area (postcode or town). The default is your business address.'));
       return;
     }
     setTimeframe(defaultTimeframe());
@@ -631,7 +632,7 @@ export function EnergyOrders() {
     const area = String(checkout.territory || '').trim();
     const period = String(timeframe || '').trim();
     if (!area || !period) {
-      setError('Gebiet und gewünschter Zeitraum sind erforderlich.');
+      setError(L('Gebiet und gewünschter Zeitraum sind erforderlich.', 'Area and desired timeframe are required.'));
       return;
     }
     setPaying(true);
@@ -653,7 +654,7 @@ export function EnergyOrders() {
         window.location.assign(result.redirectUrl);
         return;
       }
-      throw new Error('Zahlungsseite der Bank konnte nicht geöffnet werden.');
+      throw new Error(L('Zahlungsseite der Bank konnte nicht geöffnet werden.', "The bank's payment page could not be opened."));
     } catch (err) {
       setError(err.message);
       setPaying(false);
@@ -668,11 +669,11 @@ export function EnergyOrders() {
       const result = await syncMyPayment(paymentId);
       await loadBilling();
       if (result.outcome === 'paid') {
-        setNotice('Zahlung bestätigt. Ihre Anforderung wurde angelegt.');
+        setNotice(L('Zahlung bestätigt. Ihre Anforderung wurde angelegt.', 'Payment confirmed. Your request has been created.'));
       } else if (result.outcome === 'failed') {
-        setError('Zahlung wurde von der Bank abgelehnt oder abgebrochen.');
+        setError(L('Zahlung wurde von der Bank abgelehnt oder abgebrochen.', 'Payment was declined by the bank or cancelled.'));
       } else {
-        setNotice('Zahlung ist bei der Bank noch offen. Bitte später erneut prüfen.');
+        setNotice(L('Zahlung ist bei der Bank noch offen. Bitte später erneut prüfen.', 'Payment is still pending at the bank. Please check again later.'));
       }
     } catch (err) {
       setError(err.message);
@@ -688,7 +689,7 @@ export function EnergyOrders() {
     try {
       await action(paymentId);
     } catch (err) {
-      setError(err.message || 'Rechnung konnte nicht geladen werden.');
+      setError(err.message || L('Rechnung konnte nicht geladen werden.', 'The invoice could not be loaded.'));
     } finally {
       setInvoiceBusyId('');
     }
@@ -698,34 +699,34 @@ export function EnergyOrders() {
     <div className="broker-page">
       <div className="broker-heading broker-billing-heading">
         <div>
-          <div className="eyebrow">Abrechnung</div>
-          <h1>Pakete &amp; Guthaben</h1>
+          <div className="eyebrow">{L('Abrechnung', 'Billing')}</div>
+          <h1>{L('Pakete & Guthaben', 'Packages & balance')}</h1>
           <p className="lede">
-            Zwei Pakete: Photovoltaik und Wärmepumpe. Wählen Sie Lead oder Termin, Gebiet und Menge.
+            {L('Zwei Pakete: Photovoltaik und Wärmepumpe. Wählen Sie Lead oder Termin, Gebiet und Menge.', 'Two packages: solar PV and heat pump. Choose lead or appointment, area and quantity.')}
           </p>
         </div>
       </div>
       <div className="broker-panel broker-simple-status-bar">
         <div className="broker-status-stat">
-          <span className="broker-stat-label">Verfügbares Kontingent</span>
+          <span className="broker-stat-label">{L('Verfügbares Kontingent', 'Available quota')}</span>
           <div className="broker-stat-val">
-            <strong>{leadsRemaining} Leads</strong>
-            <small>({leadsUsed} zugewiesen von {leadQuota} gebucht)</small>
+            <strong>{L(`${leadsRemaining} Leads`, `${leadsRemaining} leads`)}</strong>
+            <small>{L(`(${leadsUsed} zugewiesen von ${leadQuota} gebucht)`, `(${leadsUsed} assigned of ${leadQuota} booked)`)}</small>
           </div>
         </div>
         <div className="broker-status-divider" />
         <div className="broker-status-stat">
-          <span className="broker-stat-label">Aktives Paket</span>
+          <span className="broker-stat-label">{L('Aktives Paket', 'Active package')}</span>
           <div className="broker-stat-val">
-            <strong>{activeProduct?.label || 'Kein Paket gewählt'}</strong>
+            <strong>{activeProduct?.label || L('Kein Paket gewählt', 'No package selected')}</strong>
           </div>
         </div>
         <div className="broker-status-divider" />
         <div className="broker-status-stat broker-status-stat--link">
-          <span className="broker-stat-label">Rechnungsadresse</span>
+          <span className="broker-stat-label">{L('Rechnungsadresse', 'Billing address')}</span>
           <Link to="/dashboard/unternehmen" state={{ from: '/dashboard/paket' }} className="broker-status-action">
             <Building2 size={15} aria-hidden="true" />
-            <span>Bearbeiten</span>
+            <span>{L('Bearbeiten', 'Edit')}</span>
             <ArrowRight size={14} aria-hidden="true" />
           </Link>
         </div>
@@ -739,8 +740,8 @@ export function EnergyOrders() {
           const territory = getTerritory(product.id);
           const deliveryMeta = ENERGY_DELIVERY_TYPES.find((item) => item.id === deliveryType);
           const active = activeProductId === product.id;
-          const unitLabel = deliveryType === 'appointment' ? 'Termin' : 'Lead';
-          const unitPlural = deliveryType === 'appointment' ? 'Termine' : 'Leads';
+          const unitLabel = deliveryType === 'appointment' ? L('Termin', 'appointment') : L('Lead', 'lead');
+          const unitPlural = deliveryType === 'appointment' ? L('Termine', 'appointments') : L('Leads', 'leads');
           const pkg = energyPackageFor(product.id, deliveryType);
           const offers = visibleOneTimeOffers(
             matchingOneTimes(discounts.oneTimes, pkg?.id, pkg?.id),
@@ -759,7 +760,7 @@ export function EnergyOrders() {
               <div className="broker-simple-pkg-header">
                 <div>
                   <span className="broker-simple-scope-tag">
-                    {deliveryType === 'appointment' ? 'Termin' : 'Lead'}
+                    {deliveryType === 'appointment' ? L('Termin', 'Appointment') : 'Lead'}
                   </span>
                   <h3>{product.title}</h3>
                 </div>
@@ -767,10 +768,10 @@ export function EnergyOrders() {
                   {/* Total for the selected quantity; updates with the stepper. */}
                   {discounted ? <s>{formatEuroExact(quote.listCents)}</s> : null}
                   <strong>{formatEuroExact(quote.netCents)}</strong>
-                  <small>für {qty} {unitPlural} · {formatEuroExact(units.netUnit)} / {unitLabel}</small>
+                  <small>{L('für', 'for')} {qty} {unitPlural} · {formatEuroExact(units.netUnit)} / {unitLabel}</small>
                   {quote.standing ? (
                     <em className="broker-disc-badge">
-                      Ihre Konditionen
+                      {L('Ihre Konditionen', 'Your terms')}
                       {quote.standing.discount?.expiresAt
                         ? ` · ${remainingTimeLabel(quote.standing.discount.expiresAt)}`
                         : ''}
@@ -788,8 +789,8 @@ export function EnergyOrders() {
               />
 
               <div className="broker-simple-stepper-row broker-energy-pkg-row">
-                <span className="broker-simple-row-label">Art</span>
-                <div className="broker-energy-delivery-seg" role="tablist" aria-label={`${product.label} Art`}>
+                <span className="broker-simple-row-label">{L('Art', 'Type')}</span>
+                <div className="broker-energy-delivery-seg" role="tablist" aria-label={L(`${product.label} Art`, `${product.label} type`)}>
                   {ENERGY_DELIVERY_TYPES.map((option) => (
                     <button
                       key={option.id}
@@ -808,7 +809,7 @@ export function EnergyOrders() {
 
               <div className="broker-energy-pkg-field broker-energy-pkg-field--compact">
                 <div className="broker-energy-pkg-field-head">
-                  <span className="broker-simple-row-label">Gebiet / Standort</span>
+                  <span className="broker-simple-row-label">{L('Gebiet / Standort', 'Area / location')}</span>
                   <button
                     type="button"
                     className="broker-text-btn broker-energy-pkg-link"
@@ -822,7 +823,7 @@ export function EnergyOrders() {
                       });
                     }}
                   >
-                    {editingTerritory[product.id] ? 'Fertig' : 'Ändern'}
+                    {editingTerritory[product.id] ? L('Fertig', 'Done') : L('Ändern', 'Change')}
                   </button>
                 </div>
                 {editingTerritory[product.id] ? (
@@ -830,28 +831,28 @@ export function EnergyOrders() {
                     className="broker-energy-pkg-input"
                     value={territory}
                     onChange={(event) => setTerritory(product.id, event.target.value)}
-                    placeholder="z. B. 50667 Köln"
-                    aria-label={`${product.label} Gebiet`}
+                    placeholder={L('z. B. 50667 Köln', 'e.g. 50667 Köln')}
+                    aria-label={L(`${product.label} Gebiet`, `${product.label} area`)}
                     autoFocus
                   />
                 ) : (
                   <p className="broker-energy-pkg-address">
-                    {territory.trim() || businessLabel || 'Noch keine Adresse hinterlegt'}
+                    {territory.trim() || businessLabel || L('Noch keine Adresse hinterlegt', 'No address on file yet')}
                   </p>
                 )}
               </div>
 
               <div className="broker-simple-stepper-row">
-                <span className="broker-simple-row-label">{unitPlural}-Menge (ab 10)</span>
+                <span className="broker-simple-row-label">{L(`${unitPlural}-Menge (ab 10)`, `Number of ${unitPlural} (min. 10)`)}</span>
                 <div className="broker-qty-controls">
-                  <button type="button" onClick={() => setQty(product.id, qty - LEAD_STEP)} disabled={qty <= MIN_LEADS} aria-label="Weniger">−</button>
+                  <button type="button" onClick={() => setQty(product.id, qty - LEAD_STEP)} disabled={qty <= MIN_LEADS} aria-label={L('Weniger', 'Fewer')}>−</button>
                   <input type="number" min={MIN_LEADS} step={LEAD_STEP} value={qty} onChange={(event) => setQty(product.id, event.target.value)} />
-                  <button type="button" onClick={() => setQty(product.id, qty + LEAD_STEP)} aria-label="Mehr">+</button>
+                  <button type="button" onClick={() => setQty(product.id, qty + LEAD_STEP)} aria-label={L('Mehr', 'More')}>+</button>
                 </div>
               </div>
 
               <div className="broker-simple-sum-row">
-                <span>Gesamt ({qty} × {formatEuroExact(ENERGY_UNIT_CENTS)}, ohne MwSt.)</span>
+                <span>{L('Gesamt', 'Total')} ({qty} × {formatEuroExact(ENERGY_UNIT_CENTS)}, {L('ohne MwSt.', 'excl. VAT')})</span>
                 <strong>
                   {discounted ? <s>{formatEuroExact(quote.listCents)}</s> : null}
                   {discounted ? ' ' : null}
@@ -866,12 +867,12 @@ export function EnergyOrders() {
                   disabled={paying}
                   onClick={() => openCheckout(product.id)}
                 >
-                  <CreditCard size={15} /> {unitPlural} buchen
+                  <CreditCard size={15} /> {L(`${unitPlural} buchen`, `Book ${unitPlural}`)}
                 </button>
                 {!active ? (
-                  <button type="button" className="btn btn-outline" onClick={() => setActiveProductId(product.id)}>Als Standard merken</button>
+                  <button type="button" className="btn btn-outline" onClick={() => setActiveProductId(product.id)}>{L('Als Standard merken', 'Save as default')}</button>
                 ) : (
-                  <span className="broker-simple-active-badge"><Check size={13} /> Aktiver Standard</span>
+                  <span className="broker-simple-active-badge"><Check size={13} /> {L('Aktiver Standard', 'Active default')}</span>
                 )}
               </div>
             </article>
@@ -884,28 +885,28 @@ export function EnergyOrders() {
           productLabel={checkoutPkg.label}
           productTitle={checkoutPkg.title}
           quantity={checkout.qty}
-          unitPlural={String(checkoutPkg.id || '').includes('APPOINTMENT') ? 'Termine' : 'Leads'}
+          unitPlural={String(checkoutPkg.id || '').includes('APPOINTMENT') ? L('Termine', 'appointments') : L('Leads', 'leads')}
           listCents={checkoutQuote?.listCents ?? ENERGY_UNIT_CENTS * checkout.qty}
           netCents={checkoutNet}
           discountLines={checkoutQuote?.lines || []}
           details={(
             <div className="checkout-modal__fields">
               <label className="checkout-modal__field">
-                Gebiet / PLZ
+                {L('Gebiet / PLZ', 'Area / postcode')}
                 <input
                   value={checkout.territory}
                   onChange={(event) => setCheckout((prev) => (prev ? { ...prev, territory: event.target.value } : prev))}
-                  placeholder="z. B. 50667 oder Köln"
+                  placeholder={L('z. B. 50667 oder Köln', 'e.g. 50667 or Köln')}
                   disabled={paying}
                   required
                 />
               </label>
               <label className="checkout-modal__field">
-                Gewünschter Zeitraum
+                {L('Gewünschter Zeitraum', 'Desired timeframe')}
                 <input
                   value={timeframe}
                   onChange={(event) => setTimeframe(event.target.value)}
-                  placeholder="z. B. Oktober 2026"
+                  placeholder={L('z. B. Oktober 2026', 'e.g. October 2026')}
                   disabled={paying}
                   required
                 />
@@ -917,7 +918,7 @@ export function EnergyOrders() {
               offers={checkoutOffers}
               selectedId={checkoutUseId}
               onChange={(id) => setOneTimePick(id ? { id, key: checkoutPkg.id } : { id: '', key: '' })}
-              unitLabel={String(checkoutPkg.id || '').includes('APPOINTMENT') ? 'Termin' : 'Lead'}
+              unitLabel={String(checkoutPkg.id || '').includes('APPOINTMENT') ? L('Termin', 'appointment') : L('Lead', 'lead')}
               compact
             />
           )}
@@ -933,11 +934,11 @@ export function EnergyOrders() {
       <section className="broker-panel broker-invoice-panel">
         <div className="broker-panel-header">
           <div>
-            <h2>Rechnungen</h2>
-            <p>Übersicht Ihrer bisherigen Zahlungen</p>
+            <h2>{L('Rechnungen', 'Invoices')}</h2>
+            <p>{L('Übersicht Ihrer bisherigen Zahlungen', 'Overview of your payments to date')}</p>
           </div>
           <Link to="/dashboard/zahlung" state={{ from: '/dashboard/paket' }} className="broker-pipeline-open">
-            <span>Alle Zahlungen</span>
+            <span>{L('Alle Zahlungen', 'All payments')}</span>
             <ArrowRight size={14} strokeWidth={2.25} aria-hidden="true" />
           </Link>
         </div>
@@ -946,13 +947,13 @@ export function EnergyOrders() {
             <table className="broker-invoice-table">
               <thead>
                 <tr>
-                  <th>Rechnung</th>
-                  <th>Datum</th>
-                  <th>Paket</th>
-                  <th>Zahlung</th>
+                  <th>{L('Rechnung', 'Invoice')}</th>
+                  <th>{L('Datum', 'Date')}</th>
+                  <th>{L('Paket', 'Package')}</th>
+                  <th>{L('Zahlung', 'Payment')}</th>
                   <th>Status</th>
-                  <th style={{ textAlign: 'right' }}>Betrag</th>
-                  <th className="broker-invoice-actions-col">Aktion</th>
+                  <th style={{ textAlign: 'right' }}>{L('Betrag', 'Amount')}</th>
+                  <th className="broker-invoice-actions-col">{L('Aktion', 'Action')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -972,14 +973,14 @@ export function EnergyOrders() {
                     <td>{formatDateTime(invoice.paidAt || invoice.createdAt)}</td>
                     <td>
                       <strong>{invoice.packageLabel}</strong>
-                      <small>{invoice.leadCount} {String(invoice.leadType || '').includes('APPOINTMENT') ? 'Termine' : 'Leads'}</small>
+                      <small>{invoice.leadCount} {String(invoice.leadType || '').includes('APPOINTMENT') ? L('Termine', 'appointments') : L('Leads', 'leads')}</small>
                     </td>
                     <td>
                       <span>{formatCardMask(invoice)}</span>
                     </td>
                     <td>
                       <span className={`broker-invoice-status ${invoice.status === 'paid' ? 'is-paid' : 'is-unpaid'}`}>
-                        {invoice.status === 'paid' ? 'Bezahlt' : paymentStatusLabel(invoice.status)}
+                        {invoice.status === 'paid' ? L('Bezahlt', 'Paid') : paymentStatusLabel(invoice.status)}
                       </span>
                       {invoice.status === 'pending' ? (
                         <button
@@ -989,14 +990,14 @@ export function EnergyOrders() {
                           disabled={Boolean(syncingId)}
                           onClick={() => handleSyncPending(invoice.id)}
                         >
-                          {syncingId === invoice.id ? 'Prüfe…' : 'Status prüfen'}
+                          {syncingId === invoice.id ? L('Prüfe…', 'Checking…') : L('Status prüfen', 'Check status')}
                         </button>
                       ) : null}
                     </td>
                     <td style={{ textAlign: 'right' }}>
                       <strong className="broker-inv-amount">{formatEuroExact(invoice.netCents || invoice.grossCents)}</strong>
                       {invoice.discountCents > 0 ? (
-                        <small>inkl. Rabatt · {formatEuroExact(invoice.listCents)}</small>
+                        <small>{L('inkl. Rabatt', 'incl. discount')} · {formatEuroExact(invoice.listCents)}</small>
                       ) : null}
                     </td>
                     <td>
@@ -1004,8 +1005,8 @@ export function EnergyOrders() {
                         <button
                           type="button"
                           className="broker-invoice-action"
-                          title="Rechnung öffnen"
-                          aria-label={`Rechnung ${invoice.invoiceNumber} öffnen`}
+                          title={L('Rechnung öffnen', 'Open invoice')}
+                          aria-label={L(`Rechnung ${invoice.invoiceNumber} öffnen`, `Open invoice ${invoice.invoiceNumber}`)}
                           disabled={Boolean(invoiceBusyId)}
                           onClick={() => runInvoiceAction(invoice.id, openPaymentInvoice)}
                         >
@@ -1014,8 +1015,8 @@ export function EnergyOrders() {
                         <button
                           type="button"
                           className="broker-invoice-action"
-                          title="Rechnung herunterladen"
-                          aria-label={`Rechnung ${invoice.invoiceNumber} herunterladen`}
+                          title={L('Rechnung herunterladen', 'Download invoice')}
+                          aria-label={L(`Rechnung ${invoice.invoiceNumber} herunterladen`, `Download invoice ${invoice.invoiceNumber}`)}
                           disabled={Boolean(invoiceBusyId)}
                           onClick={() => runInvoiceAction(invoice.id, downloadPaymentInvoice)}
                         >
@@ -1030,7 +1031,7 @@ export function EnergyOrders() {
           </div>
         ) : (
           <div className="broker-empty">
-            <p>Noch keine Rechnungen vorhanden.</p>
+            <p>{L('Noch keine Rechnungen vorhanden.', 'No invoices yet.')}</p>
           </div>
         )}
       </section>

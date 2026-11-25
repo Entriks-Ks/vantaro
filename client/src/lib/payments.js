@@ -1,5 +1,6 @@
 import { apiUrl } from './api';
 import { readStoredSession } from './auth';
+import { L } from './i18n';
 
 function authHeaders(json = false) {
   const session = readStoredSession();
@@ -12,7 +13,7 @@ function authHeaders(json = false) {
 async function parseResponse(response) {
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new Error(payload.error || 'Etwas ist schiefgelaufen. Bitte versuchen Sie es erneut.');
+    throw new Error(payload.error || L('Etwas ist schiefgelaufen. Bitte versuchen Sie es erneut.', 'Something went wrong. Please try again.'));
   }
   return payload;
 }
@@ -46,14 +47,14 @@ async function fetchPaymentInvoice(paymentId, { download = false } = {}) {
   const type = response.headers.get('content-type') || '';
   if (!response.ok) {
     const payload = type.includes('json') ? await response.json().catch(() => ({})) : {};
-    throw new Error(payload.error || 'Rechnung konnte nicht geladen werden.');
+    throw new Error(payload.error || L('Rechnung konnte nicht geladen werden.', 'Could not load the invoice.'));
   }
   const blob = await response.blob();
   const disposition = response.headers.get('content-disposition') || '';
   const match = disposition.match(/filename="?([^"]+)"?/i);
   return {
     blob,
-    filename: match?.[1] || 'Rechnung.pdf',
+    filename: match?.[1] || L('Rechnung.pdf', 'Invoice.pdf'),
   };
 }
 
@@ -110,13 +111,13 @@ export async function syncMyPayment(paymentId) {
 export function paymentStatusLabel(status) {
   switch (String(status || '').toLowerCase()) {
     case 'paid':
-      return 'Bezahlt';
+      return L('Bezahlt', 'Paid');
     case 'pending':
-      return 'Offen';
+      return L('Offen', 'Pending');
     case 'failed':
-      return 'Fehlgeschlagen';
+      return L('Fehlgeschlagen', 'Failed');
     case 'refunded':
-      return 'Erstattet';
+      return L('Erstattet', 'Refunded');
     default:
       return status || '—';
   }
@@ -124,7 +125,7 @@ export function paymentStatusLabel(status) {
 
 export function formatCardMask(payment) {
   if (payment?.cardLast4) {
-    return `${payment.cardBrand || 'Karte'} •••• ${payment.cardLast4}`;
+    return `${payment.cardBrand || L('Karte', 'Card')} •••• ${payment.cardLast4}`;
   }
   if (payment?.method === 'card') return 'ProCredit Bank';
   return '—';

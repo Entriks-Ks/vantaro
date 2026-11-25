@@ -1,6 +1,8 @@
 import PhoneInput, { parsePhoneNumber } from 'react-phone-number-input';
 import de from 'react-phone-number-input/locale/de';
+import en from 'react-phone-number-input/locale/en';
 import 'react-phone-number-input/style.css';
+import { getLang } from '../lib/i18n';
 
 // ITU-T E.164 allows at most 15 digits (country code + subscriber number).
 const E164_MAX_DIGITS = 15;
@@ -53,7 +55,7 @@ export default function PhoneField({
         international
         countryCallingCodeEditable={false}
         defaultCountry={defaultCountry}
-        labels={de}
+        labels={getLang() === 'en' ? en : de}
         value={value || undefined}
         onChange={(next) => onChange(next || '')}
         disabled={disabled}

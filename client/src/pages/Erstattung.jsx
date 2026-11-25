@@ -1,8 +1,13 @@
-import LegalLayout from './LegalLayout';
+import LegalLayout, { EnglishVersionNote } from './LegalLayout';
 import { COMPLAINT_REASON_OPTIONS, ENERGY_COMPLAINT_REASONS } from '../lib/complaints';
+import { getLang } from '../lib/i18n';
 
 // Bump CHECKOUT_TERMS_VERSION in server/src/lib/payments.js when this page changes materially.
 export default function Erstattung() {
+  return getLang() === 'en' ? <ErstattungEn /> : <ErstattungDe />;
+}
+
+function ErstattungDe() {
   return (
     <LegalLayout active="erstattung">
       <h1>Erstattungsrichtlinie</h1>
@@ -112,6 +117,120 @@ export default function Erstattung() {
       </p>
 
       <p className="legal-updated">Stand: November 2026</p>
+    </LegalLayout>
+  );
+}
+
+function ErstattungEn() {
+  return (
+    <LegalLayout active="erstattung">
+      <h1>Refund policy</h1>
+      <p className="legal-lede">
+        When you receive a credit, a replacement delivery or a refund for
+        purchased leads and appointments, and how to request it. This policy
+        forms part of our <a href="#agb">terms and conditions</a>.
+      </p>
+      <EnglishVersionNote />
+
+      <h2>1. No right of withdrawal</h2>
+      <p>
+        VANTARO sells exclusively to entrepreneurs. The statutory right of
+        withdrawal for consumers therefore does not apply. Refunds are made in
+        accordance with the following rules.
+      </p>
+
+      <h2>2. Cancellation before delivery starts</h2>
+      <p>
+        As long as no lead and no appointment has yet been delivered from a paid
+        order, you can cancel the order by e-mail to{' '}
+        <a href="mailto:info@vantaro.io">info@vantaro.io</a>, stating the
+        invoice number. You will then receive a refund of the full amount
+        paid.
+      </p>
+
+      <h2>3. Complaints about individual leads and appointments</h2>
+      <p>
+        You can report delivered leads and appointments in the portal via
+        “Complaint”. The following reasons are accepted:
+      </p>
+      <h3>Insurance (private health insurance, PKV)</h3>
+      <ul>
+        {COMPLAINT_REASON_OPTIONS.map((reason) => (
+          <li key={reason.id}>
+            <strong>{reason.label}:</strong> {reason.hint}
+          </li>
+        ))}
+      </ul>
+      <h3>Energy (photovoltaics and heat pumps)</h3>
+      <ul>
+        {ENERGY_COMPLAINT_REASONS.map((reason) => (
+          <li key={reason.id}>
+            <strong>{reason.label}:</strong> {reason.hint}
+          </li>
+        ))}
+      </ul>
+      <p>
+        Please submit your complaint without undue delay, at the latest 14 days
+        after delivery, with a comprehensible justification and, where
+        available, evidence (e.g. a screenshot or call log). Other reasons,
+        such as lack of interest or no contract being concluded, do not entitle
+        you to a credit.
+      </p>
+
+      <h2>4. Review and decision</h2>
+      <p>
+        VANTARO reviews every complaint and documents the decision in the
+        portal:
+      </p>
+      <ul>
+        <li>
+          <strong>Accepted:</strong> credit of the full price of the lead or
+          appointment concerned.
+        </li>
+        <li>
+          <strong>Partially accepted:</strong> partial credit.
+        </li>
+        <li>
+          <strong>Query:</strong> we need further information; the complaint
+          remains open until it has been provided.
+        </li>
+        <li>
+          <strong>Rejected:</strong> with a justification that you can see in
+          the portal.
+        </li>
+      </ul>
+
+      <h2>5. Form of refund</h2>
+      <p>
+        Credits are primarily settled by a replacement delivery (replacement
+        lead or replacement appointment within the same order). If a
+        replacement delivery is not possible or a credit balance remains after
+        the order has been completed, we will refund the amount on request.
+      </p>
+      <p>
+        Refunds are made exclusively to the credit card used for payment, via
+        ProCredit Bank. We initiate the refund within 14 days of the decision or
+        cancellation. When the amount appears on your card statement depends on
+        your card-issuing bank (usually 5 to 10 bank working days). Cash
+        payouts or refunds to other accounts are not possible.
+      </p>
+
+      <h2>6. Incorrect charges</h2>
+      <p>
+        If your card has been charged twice or with an incorrect amount, please
+        contact us immediately at{' '}
+        <a href="mailto:info@vantaro.io">info@vantaro.io</a>. We will refund
+        any amounts charged in error in full.
+      </p>
+
+      <h2>7. Contact</h2>
+      <p>
+        Please send questions about refunds and complaints, stating the invoice
+        number, to{' '}
+        <a href="mailto:info@vantaro.io">info@vantaro.io</a>.
+      </p>
+
+      <p className="legal-updated">Last updated: November 2026</p>
     </LegalLayout>
   );
 }

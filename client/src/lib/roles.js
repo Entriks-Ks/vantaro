@@ -1,3 +1,5 @@
+import { L } from './i18n';
+
 export const ROLES = {
   BERATER: 'berater',
   ADMIN: 'admin',
@@ -5,9 +7,9 @@ export const ROLES = {
 };
 
 export const ROLE_LABELS = {
-  [ROLES.BERATER]: 'Berater',
+  [ROLES.BERATER]: L('Berater', 'Advisor'),
   [ROLES.ADMIN]: 'Admin',
-  [ROLES.IT_SUPPORT]: 'IT-Support',
+  [ROLES.IT_SUPPORT]: L('IT-Support', 'IT support'),
 };
 
 export function normalizeRole(value) {

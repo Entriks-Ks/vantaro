@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import useNavigate from '../hooks/useNavigate';
 import { validatePassword } from '../lib/profile';
+import { L } from '../lib/i18n';
 
 export default function ResetPassword() {
   const [searchParams] = useSearchParams();
@@ -26,7 +27,7 @@ export default function ResetPassword() {
     setMessage('');
 
     if (!hasValidLink) {
-      setError('Bitte öffnen Sie den Link aus der E-Mail.');
+      setError(L('Bitte öffnen Sie den Link aus der E-Mail.', 'Please open the link from the email.'));
       return;
     }
     const passwordError = validatePassword(password);
@@ -35,7 +36,7 @@ export default function ResetPassword() {
       return;
     }
     if (password !== confirmPassword) {
-      setError('Passwörter stimmen nicht überein');
+      setError(L('Passwörter stimmen nicht überein', 'Passwords do not match'));
       return;
     }
 
@@ -84,11 +85,11 @@ export default function ResetPassword() {
             />
           </div>
 
-          <h1 className="auth-title">Neues Passwort festlegen</h1>
+          <h1 className="auth-title">{L('Neues Passwort festlegen', 'Set a new password')}</h1>
           <p className="auth-subtitle">
             {hasValidLink
-              ? 'Wählen Sie ein neues Passwort für Ihr VANTARO-Konto.'
-              : 'Öffnen Sie den Button in der E-Mail, um fortzufahren.'}
+              ? L('Wählen Sie ein neues Passwort für Ihr VANTARO-Konto.', 'Choose a new password for your VANTARO account.')
+              : L('Öffnen Sie den Button in der E-Mail, um fortzufahren.', 'Click the button in the email to continue.')}
           </p>
 
           {error && <div className="auth-error">{error}</div>}
@@ -96,13 +97,13 @@ export default function ResetPassword() {
 
           {!hasValidLink ? (
             <div className="auth-footer" style={{ marginTop: '1.5rem' }}>
-              <span>Keinen Link erhalten?</span>
-              <Link to="/forgot-password">Erneut anfordern</Link>
+              <span>{L('Keinen Link erhalten?', 'Didn’t receive a link?')}</span>
+              <Link to="/forgot-password">{L('Erneut anfordern', 'Request again')}</Link>
             </div>
           ) : (
             <form className="auth-form" onSubmit={handleSubmit}>
               <div className="form-group">
-                <label htmlFor="password">Neues Passwort <span className="auth-required">*</span></label>
+                <label htmlFor="password">{L('Neues Passwort', 'New password')} <span className="auth-required">*</span></label>
                 <div className="password-input-wrapper">
                   <input
                     type={showPassword ? 'text' : 'password'}
@@ -110,7 +111,7 @@ export default function ResetPassword() {
                     autoComplete="new-password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Mindestens 8 Zeichen"
+                    placeholder={L('Mindestens 8 Zeichen', 'At least 8 characters')}
                     required
                     disabled={submitting}
                   />
@@ -135,7 +136,7 @@ export default function ResetPassword() {
               </div>
 
               <div className="form-group">
-                <label htmlFor="confirmPassword">Passwort bestätigen <span className="auth-required">*</span></label>
+                <label htmlFor="confirmPassword">{L('Passwort bestätigen', 'Confirm password')} <span className="auth-required">*</span></label>
                 <div className="password-input-wrapper">
                   <input
                     type={showPassword ? 'text' : 'password'}
@@ -143,7 +144,7 @@ export default function ResetPassword() {
                     autoComplete="new-password"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
-                    placeholder="Passwort wiederholen"
+                    placeholder={L('Passwort wiederholen', 'Repeat password')}
                     required
                     disabled={submitting}
                   />
@@ -151,7 +152,7 @@ export default function ResetPassword() {
                     type="button"
                     className="password-toggle"
                     onClick={() => setShowPassword(!showPassword)}
-                    aria-label={showPassword ? 'Passwort verbergen' : 'Passwort anzeigen'}
+                    aria-label={showPassword ? L('Passwort verbergen', 'Hide password') : L('Passwort anzeigen', 'Show password')}
                   >
                     {showPassword ? (
                       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -169,37 +170,37 @@ export default function ResetPassword() {
               </div>
 
               <button type="submit" className="auth-submit" disabled={submitting}>
-                {submitting ? 'Wird gespeichert…' : 'Passwort speichern'}
+                {submitting ? L('Wird gespeichert…', 'Saving…') : L('Passwort speichern', 'Save password')}
               </button>
             </form>
           )}
 
           <div className="auth-footer">
-            <span>Zurück zur</span>
-            <Link to="/login">Anmeldung</Link>
+            <span>{L('Zurück zur', 'Back to')}</span>
+            <Link to="/login">{L('Anmeldung', 'login')}</Link>
           </div>
         </div>
 
         <div className="auth-visual-panel">
           <div className="auth-visual-wrapper">
             <div className="auth-cutout-panel">
-              <div className="eyebrow light">Sicherer Zugang zu Ihrem Konto</div>
+              <div className="eyebrow light">{L('Sicherer Zugang zu Ihrem Konto', 'Secure access to your account')}</div>
               <h2>
-                Wählen Sie ein neues Passwort und{' '}
-                <span>melden Sie sich wieder an.</span>
+                {L('Wählen Sie ein neues Passwort und', 'Choose a new password and')}{' '}
+                <span>{L('melden Sie sich wieder an.', 'log in again.')}</span>
               </h2>
               <p>
-                Nach dem Speichern können Sie sich mit Ihrem neuen Passwort im Portal anmelden.
+                {L('Nach dem Speichern können Sie sich mit Ihrem neuen Passwort im Portal anmelden.', 'Once saved, you can log in to the portal with your new password.')}
               </p>
               <div className="auth-cutout-actions">
                 <Link className="btn btn-primary" to="/">
-                  Zurück zur Startseite <span className="arrow">←</span>
+                  {L('Zurück zur Startseite', 'Back to home page')} <span className="arrow">←</span>
                 </Link>
                 <a
                   className="btn btn-outline-light"
                   href="mailto:info@vantaro.io?subject=VANTARO%20Support"
                 >
-                  Support kontaktieren <span className="arrow">↗</span>
+                  {L('Support kontaktieren', 'Contact support')} <span className="arrow">↗</span>
                 </a>
               </div>
             </div>

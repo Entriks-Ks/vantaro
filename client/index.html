@@ -296,6 +296,25 @@
     <div id="preloader" class="preloader" role="status" aria-live="polite" aria-busy="true" aria-label="VANTARO wird geladen">
       <span class="loader" aria-hidden="true"></span>
     </div>
+    <script>
+      // Same rule as src/lib/i18n.js: saved choice, else browser language (German only for de-*).
+      (function () {
+        var lang = 'de';
+        try {
+          var stored = localStorage.getItem('vantaro.lang');
+          if (stored === 'de' || stored === 'en') lang = stored;
+          else {
+            var first = String((navigator.languages && navigator.languages[0]) || navigator.language || 'de').toLowerCase();
+            lang = first.indexOf('de') === 0 ? 'de' : 'en';
+          }
+        } catch (e) {}
+        if (lang !== 'en') return;
+        document.documentElement.lang = 'en';
+        document.title = 'VANTARO — Sales platform for insurance & energy';
+        var pre = document.getElementById('preloader');
+        if (pre) pre.setAttribute('aria-label', 'Loading VANTARO');
+      })();
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>

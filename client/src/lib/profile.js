@@ -1,3 +1,5 @@
+import { L } from './i18n';
+
 export const LEGAL_FORMS = [
   'GmbH',
   'UG (haftungsbeschränkt)',
@@ -25,19 +27,19 @@ export function formatAddress(address) {
 export function validatePassword(password) {
   const value = String(password ?? '');
   if (value.length < 8) {
-    return 'Passwort muss mindestens 8 Zeichen lang sein.';
+    return L('Passwort muss mindestens 8 Zeichen lang sein.', 'Password must be at least 8 characters long.');
   }
   if (!/[a-zäöüß]/.test(value)) {
-    return 'Passwort muss mindestens einen Kleinbuchstaben enthalten.';
+    return L('Passwort muss mindestens einen Kleinbuchstaben enthalten.', 'Password must contain at least one lowercase letter.');
   }
   if (!/[A-ZÄÖÜ]/.test(value)) {
-    return 'Passwort muss mindestens einen Großbuchstaben enthalten.';
+    return L('Passwort muss mindestens einen Großbuchstaben enthalten.', 'Password must contain at least one uppercase letter.');
   }
   if (!/\d/.test(value)) {
-    return 'Passwort muss mindestens eine Zahl enthalten.';
+    return L('Passwort muss mindestens eine Zahl enthalten.', 'Password must contain at least one number.');
   }
   if (!/[!@$%#?&*_\-+=.^]/.test(value)) {
-    return 'Passwort muss mindestens ein Sonderzeichen enthalten (!@$%#?&*_-+.=^).';
+    return L('Passwort muss mindestens ein Sonderzeichen enthalten (!@$%#?&*_-+.=^).', 'Password must contain at least one special character (!@$%#?&*_-+.=^).');
   }
   return '';
 }
@@ -63,11 +65,11 @@ export function generatePassword(length = 14) {
 export function passwordRules(password) {
   const value = String(password ?? '');
   return [
-    { id: 'length', label: 'Mindestens 8 Zeichen', ok: value.length >= 8 },
-    { id: 'lower', label: 'Kleinbuchstabe', ok: /[a-zäöüß]/.test(value) },
-    { id: 'upper', label: 'Großbuchstabe', ok: /[A-ZÄÖÜ]/.test(value) },
-    { id: 'digit', label: 'Zahl', ok: /\d/.test(value) },
-    { id: 'special', label: 'Sonderzeichen (!@$%#…)', ok: /[!@$%#?&*_\-+=.^]/.test(value) },
+    { id: 'length', label: L('Mindestens 8 Zeichen', 'At least 8 characters'), ok: value.length >= 8 },
+    { id: 'lower', label: L('Kleinbuchstabe', 'Lowercase letter'), ok: /[a-zäöüß]/.test(value) },
+    { id: 'upper', label: L('Großbuchstabe', 'Uppercase letter'), ok: /[A-ZÄÖÜ]/.test(value) },
+    { id: 'digit', label: L('Zahl', 'Number'), ok: /\d/.test(value) },
+    { id: 'special', label: L('Sonderzeichen (!@$%#…)', 'Special character (!@$%#…)'), ok: /[!@$%#?&*_\-+=.^]/.test(value) },
   ];
 }
 
@@ -78,15 +80,15 @@ export function fileToAvatarDataUrl(file) {
       return;
     }
     if (!file.type?.startsWith('image/')) {
-      reject(new Error('Bitte wählen Sie eine Bilddatei.'));
+      reject(new Error(L('Bitte wählen Sie eine Bilddatei.', 'Please choose an image file.')));
       return;
     }
 
     const reader = new FileReader();
-    reader.onerror = () => reject(new Error('Profilbild konnte nicht gelesen werden.'));
+    reader.onerror = () => reject(new Error(L('Profilbild konnte nicht gelesen werden.', 'Profile picture could not be read.')));
     reader.onload = () => {
       const image = new Image();
-      image.onerror = () => reject(new Error('Profilbild ist ungültig.'));
+      image.onerror = () => reject(new Error(L('Profilbild ist ungültig.', 'Profile picture is invalid.')));
       image.onload = () => {
         const scale = Math.min(1, AVATAR_MAX_SIDE / Math.max(image.width, image.height));
         const width = Math.max(1, Math.round(image.width * scale));

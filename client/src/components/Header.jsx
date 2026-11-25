@@ -3,15 +3,17 @@ import { Link } from 'react-router-dom';
 import { Menu, X } from 'lucide-react';
 import Brand from './Brand';
 import { useAuth } from '../hooks/useAuth';
+import LanguageSwitch from './LanguageSwitch';
+import { L } from '../lib/i18n';
 
 const LINKS = [
-  { href: '#system', label: 'Das System' },
-  { href: '#sparten', label: 'Bereiche' },
-  { href: '#qualitaet', label: 'Qualität' },
-  { href: '#referenzen', label: 'Referenzen' },
-  { href: '#ueber-uns', label: 'Über uns' },
-  { href: '#preise', label: 'Preise' },
-  { href: '#kontakt', label: 'Kontakt' },
+  { href: '#system', label: L('Das System', 'The system') },
+  { href: '#sparten', label: L('Bereiche', 'Lines of business') },
+  { href: '#qualitaet', label: L('Qualität', 'Quality') },
+  { href: '#referenzen', label: L('Referenzen', 'References') },
+  { href: '#ueber-uns', label: L('Über uns', 'About us') },
+  { href: '#preise', label: L('Preise', 'Pricing') },
+  { href: '#kontakt', label: L('Kontakt', 'Contact') },
 ];
 
 export default function Header({ solid = false }) {
@@ -95,7 +97,7 @@ export default function Header({ solid = false }) {
         <nav
           id="nav-links"
           className={`nav-links${open ? ' open' : ''}`}
-          aria-label="Hauptnavigation"
+          aria-label={L('Hauptnavigation', 'Main navigation')}
         >
           {LINKS.map((link) => (
             <a
@@ -110,19 +112,20 @@ export default function Header({ solid = false }) {
           ))}
         </nav>
         <div className="nav-end">
+          <LanguageSwitch />
           {user ? (
             <Link to="/dashboard" className="btn btn-primary nav-auth-btn" onClick={close}>
-              Zum Portal
+              {L('Zum Portal', 'Go to portal')}
             </Link>
           ) : (
             <Link to="/login" className="btn btn-primary nav-auth-btn" onClick={close}>
-              Anmelden
+              {L('Anmelden', 'Log in')}
             </Link>
           )}
           <button
             type="button"
             className="menu-toggle"
-            aria-label={open ? 'Menü schließen' : 'Menü öffnen'}
+            aria-label={open ? L('Menü schließen', 'Close menu') : L('Menü öffnen', 'Open menu')}
             aria-expanded={open}
             aria-controls="nav-links"
             onClick={() => setOpen((value) => !value)}

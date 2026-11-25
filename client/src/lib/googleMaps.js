@@ -1,3 +1,5 @@
+import { L } from './i18n';
+
 const API_KEY = String(import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '').trim();
 const MAP_ID = String(import.meta.env.VITE_GOOGLE_MAPS_MAP_ID || 'DEMO_MAP_ID').trim();
 
@@ -91,7 +93,7 @@ function ensureMapsBootstrap() {
         authFailed = true;
         loadPromise = null;
         reject(new Error(
-          'Google Maps: API-Schlüssel ungültig oder APIs nicht aktiviert (Maps JavaScript, Places API (New), Geocoding).',
+          L('Google Maps: API-Schlüssel ungültig oder APIs nicht aktiviert (Maps JavaScript, Places API (New), Geocoding).', 'Google Maps: API key invalid or APIs not enabled (Maps JavaScript, Places API (New), Geocoding).'),
         ));
       };
 
@@ -104,7 +106,7 @@ function ensureMapsBootstrap() {
         const script = document.createElement('script');
         script.src = `https://maps.googleapis.com/maps/api/js?${params}`;
         script.async = true;
-        script.onerror = () => reject(new Error('Google Maps Script konnte nicht geladen werden.'));
+        script.onerror = () => reject(new Error(L('Google Maps Script konnte nicht geladen werden.', 'The Google Maps script could not be loaded.')));
         document.head.appendChild(script);
       };
 
@@ -118,7 +120,7 @@ function ensureMapsBootstrap() {
 async function importMapsLibraries() {
   const maps = window.google?.maps;
   if (!maps?.importLibrary) {
-    throw new Error('Google Maps konnte nicht geladen werden.');
+    throw new Error(L('Google Maps konnte nicht geladen werden.', 'Google Maps could not be loaded.'));
   }
   await Promise.all([
     maps.importLibrary('maps'),
@@ -126,18 +128,18 @@ async function importMapsLibraries() {
     maps.importLibrary('marker'),
   ]);
   if (!window.google?.maps?.places || !window.google?.maps?.marker) {
-    throw new Error('Google Places- oder Marker-Bibliothek nicht geladen.');
+    throw new Error(L('Google Places- oder Marker-Bibliothek nicht geladen.', 'Google Places or Marker library not loaded.'));
   }
   return window.google.maps;
 }
 
 export function loadGoogleMaps() {
   if (!API_KEY) {
-    return Promise.reject(new Error('Google-Maps-Schlüssel fehlt.'));
+    return Promise.reject(new Error(L('Google-Maps-Schlüssel fehlt.', 'Google Maps key is missing.')));
   }
 
   if (authFailed) {
-    return Promise.reject(new Error('Google Maps API-Schlüssel abgelehnt'));
+    return Promise.reject(new Error(L('Google Maps API-Schlüssel abgelehnt', 'Google Maps API key rejected')));
   }
 
   if (window.google?.maps?.places?.PlaceAutocompleteElement && window.google?.maps?.marker) {
@@ -160,10 +162,10 @@ export function loadGoogleMaps() {
 /** Load only the Geocoder — do not pull Places/Marker into the page. */
 export function loadGoogleGeocoding() {
   if (!API_KEY) {
-    return Promise.reject(new Error('Google-Maps-Schlüssel fehlt.'));
+    return Promise.reject(new Error(L('Google-Maps-Schlüssel fehlt.', 'Google Maps key is missing.')));
   }
   if (authFailed) {
-    return Promise.reject(new Error('Google Maps API-Schlüssel abgelehnt'));
+    return Promise.reject(new Error(L('Google Maps API-Schlüssel abgelehnt', 'Google Maps API key rejected')));
   }
   if (window.google?.maps?.Geocoder) {
     return Promise.resolve(window.google.maps);
@@ -252,7 +254,7 @@ export async function geocodeAddress(query) {
       { address: text, componentRestrictions: { country: 'DE' }, language: 'de' },
       (results, status) => {
         if (status === 'REQUEST_DENIED') {
-          reject(new Error('Geocoding API ist nicht aktiviert oder der Schlüssel ist eingeschränkt.'));
+          reject(new Error(L('Geocoding API ist nicht aktiviert oder der Schlüssel ist eingeschränkt.', 'Geocoding API is not enabled or the key is restricted.')));
           return;
         }
         if (status !== 'OK' || !results?.[0]?.geometry?.location) {
@@ -277,7 +279,7 @@ export async function reverseGeocode(lat, lng) {
       { location: { lat, lng }, language: 'de' },
       (results, status) => {
         if (status === 'REQUEST_DENIED') {
-          reject(new Error('Geocoding API ist nicht aktiviert oder der Schlüssel ist eingeschränkt.'));
+          reject(new Error(L('Geocoding API ist nicht aktiviert oder der Schlüssel ist eingeschränkt.', 'Geocoding API is not enabled or the key is restricted.')));
           return;
         }
         if (status !== 'OK' || !results?.length) {

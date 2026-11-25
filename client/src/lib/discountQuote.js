@@ -1,3 +1,5 @@
+import { L } from './i18n';
+
 export const DISCOUNT_KINDS = ['standing', 'one_time'];
 export const DISCOUNT_VALUE_TYPES = ['percent', 'fixed_cents'];
 export const DISCOUNT_APPLIES_TO = ['all', 'leads', 'appointments'];
@@ -115,12 +117,17 @@ export function remainingTimeLabel(expiresAt, now = Date.now()) {
   const end = new Date(expiresAt).getTime();
   if (!Number.isFinite(end)) return '';
   const diff = end - now;
-  if (diff <= 0) return 'Abgelaufen';
+  if (diff <= 0) return L('Abgelaufen', 'Expired');
   const minutes = Math.floor(diff / 60000);
   const days = Math.floor(minutes / (60 * 24));
   const hours = Math.floor((minutes % (60 * 24)) / 60);
   const mins = minutes % 60;
-  if (days >= 1) return `noch ${days} Tag${days === 1 ? '' : 'e'}${hours ? `, ${hours} Std.` : ''}`;
-  if (hours >= 1) return `noch ${hours} Std. ${mins} Min.`;
-  return `noch ${Math.max(1, mins)} Min.`;
+  if (days >= 1) {
+    return L(
+      `noch ${days} Tag${days === 1 ? '' : 'e'}${hours ? `, ${hours} Std.` : ''}`,
+      `${days} day${days === 1 ? '' : 's'}${hours ? `, ${hours} h` : ''} left`,
+    );
+  }
+  if (hours >= 1) return L(`noch ${hours} Std. ${mins} Min.`, `${hours} h ${mins} min left`);
+  return L(`noch ${Math.max(1, mins)} Min.`, `${Math.max(1, mins)} min left`);
 }

@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useLayoutEffect } from 'react';
+import { Fragment, lazy, Suspense, useEffect, useLayoutEffect } from 'react';
 import { BrowserRouter, Navigate, Routes, Route, useLocation } from 'react-router-dom';
 import Header from './components/Header';
 import Hero from './components/Hero';
@@ -27,6 +27,8 @@ import BootScreen from './components/BootScreen';
 import ImpersonationBanner from './components/ImpersonationBanner';
 import { documentTitle } from './pages/dashboard/helpers';
 import { applyTheme, readThemePreference, subscribeTheme, writeThemePreference } from './lib/theme';
+import LanguageSwitch from './components/LanguageSwitch';
+import { getLang, hasStoredLang, L, setLang, useLang } from './lib/i18n';
 
 // Separate chunk: Berater and admins never download the IT Support console.
 const ItSupportApp = lazy(() => import('./pages/itSupport/ItSupportApp'));
@@ -44,9 +46,34 @@ function ThemeSync() {
   return null;
 }
 
+/**
+ * Keeps the browser language and the account's language (used for e-mails and invoices) in step.
+ * A language picked in this browser wins; otherwise the account's saved language is applied.
+ * Accounts without a saved language get the current one, so the first confirmation e-mail
+ * already matches what the customer saw.
+ */
+function LanguageSync() {
+  const { user, loading, updateProfile } = useAuth();
+  const saved = user?.settings?.language || null;
+
+  useEffect(() => {
+    if (loading || !user) return;
+    if (saved && !hasStoredLang()) {
+      setLang(saved);
+      return;
+    }
+    if (saved !== getLang()) {
+      updateProfile({ settings: { language: getLang() } }).catch(() => {});
+    }
+  }, [loading, user, user?.id, saved, updateProfile]);
+
+  return null;
+}
+
 function AppContent() {
   const location = useLocation();
   const { isAdmin } = useAuth();
+  const lang = useLang();
   const isImpressum = location.hash === '#impressum' || location.pathname === '/impressum';
   const isDatenschutz = location.hash === '#datenschutz' || location.pathname === '/datenschutz';
   const isAgb = location.hash === '#agb' || location.pathname === '/agb';
@@ -93,11 +120,14 @@ function AppContent() {
       document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, 120);
     return () => window.clearTimeout(timer);
-  }, [location.pathname, location.hash, isLegal, isAuth, isDashboard, isItSupport, isAdmin]);
+  }, [location.pathname, location.hash, isLegal, isAuth, isDashboard, isItSupport, isAdmin, lang]);
 
+  // key={lang}: remount the page tree so every text (including memoised lists) switches language together.
   return (
-    <>
+    <Fragment key={lang}>
       <ThemeSync />
+      <LanguageSync />
+      {isAuth && <LanguageSwitch className="auth-lang-switch" />}
       <ImpersonationBanner />
       <Preloader />
       {!isAppShell && <Header solid={isLegal} />}
@@ -131,7 +161,7 @@ function AppContent() {
         />
         <Route path="*" element={
           <>
-            <a className="skip-link" href="#inhalt">Zum Inhalt springen</a>
+            <a className="skip-link" href="#inhalt">{L('Zum Inhalt springen', 'Skip to content')}</a>
             {isImpressum ? (
               <Impressum />
             ) : isDatenschutz ? (
@@ -154,47 +184,47 @@ function AppContent() {
           <div className="wrap footer-main">
             <div className="footer-brand">
               <Brand />
-              <p>Die Vertriebsplattform für Versicherung und Energie — vom Erstkontakt bis zum Ergebnis. Qualifizierte Chancen, exklusives Matching und messbares Follow-up in einer durchgängigen Strecke.</p>
+              <p>{L('Die Vertriebsplattform für Versicherung und Energie — vom Erstkontakt bis zum Ergebnis. Qualifizierte Chancen, exklusives Matching und messbares Follow-up in einer durchgängigen Strecke.', 'The sales platform for insurance and energy — from first contact to outcome. Qualified opportunities, exclusive matching and measurable follow-up in one seamless workflow.')}</p>
             </div>
             <div className="footer-links">
               <div className="footer-col">
-                <h4>Entdecken</h4>
-                <a href="#system">Das System</a>
-                <a href="#portal">Partnerportal</a>
-                <a href="#sparten">Bereiche &amp; Sparten</a>
-                <a href="#qualitaet">Qualitätsprozess</a>
-                <a href="#referenzen">Partnerstimmen</a>
+                <h4>{L('Entdecken', 'Discover')}</h4>
+                <a href="#system">{L('Das System', 'The system')}</a>
+                <a href="#portal">{L('Partnerportal', 'Partner portal')}</a>
+                <a href="#sparten">{L('Bereiche & Sparten', 'Lines of business')}</a>
+                <a href="#qualitaet">{L('Qualitätsprozess', 'Quality process')}</a>
+                <a href="#referenzen">{L('Partnerstimmen', 'Partner voices')}</a>
               </div>
               <div className="footer-col">
-                <h4>Starten</h4>
-                <a href="#kontakt">Pilotgespräch anfragen</a>
-                <a href="#preise">Preise &amp; Richtwerte</a>
-                <a href="#faq">FAQ &amp; Antworten</a>
+                <h4>{L('Starten', 'Get started')}</h4>
+                <a href="#kontakt">{L('Pilotgespräch anfragen', 'Request a pilot call')}</a>
+                <a href="#preise">{L('Preise & Richtwerte', 'Pricing & guide prices')}</a>
+                <a href="#faq">{L('FAQ & Antworten', 'FAQ & answers')}</a>
                 <a href="mailto:info@vantaro.io?subject=VANTARO%20Anfrage">info@vantaro.io</a>
               </div>
               <div className="footer-col">
-                <h4>Rechtliches</h4>
-                <a href="#impressum">Impressum</a>
-                <a href="#datenschutz">Datenschutz</a>
-                <a href="#agb">AGB</a>
-                <a href="#erstattung">Erstattungsrichtlinie</a>
-                <a href="#datenschutz">Compliance &amp; Hinweise</a>
+                <h4>{L('Rechtliches', 'Legal')}</h4>
+                <a href="#impressum">{L('Impressum', 'Legal notice')}</a>
+                <a href="#datenschutz">{L('Datenschutz', 'Privacy policy')}</a>
+                <a href="#agb">{L('AGB', 'Terms & conditions')}</a>
+                <a href="#erstattung">{L('Erstattungsrichtlinie', 'Refund policy')}</a>
+                <a href="#datenschutz">{L('Compliance & Hinweise', 'Compliance & notices')}</a>
               </div>
             </div>
           </div>
           <div className="wrap footer-bottom">
-            <span className="footer-copy-text">© {new Date().getFullYear()} VANTARO. Vertriebs- und Matching-Plattform für Versicherung und Energie.</span>
+            <span className="footer-copy-text">© {new Date().getFullYear()} VANTARO, {L('ein Angebot der ENTRIKS L.L.C.', 'a service of ENTRIKS L.L.C.')}, Lot Vaku L2.1, 10000 Prishtina, Kosovo · +383 43 889 344 · info@vantaro.io</span>
             <CardLogos />
-            <nav className="footer-bottom-nav" aria-label="Rechtliches">
-              <a href="#impressum">Impressum</a>
-              <a href="#datenschutz">Datenschutz</a>
-              <a href="#agb">AGB</a>
-              <a href="#erstattung">Erstattung</a>
+            <nav className="footer-bottom-nav" aria-label={L('Rechtliches', 'Legal')}>
+              <a href="#impressum">{L('Impressum', 'Legal notice')}</a>
+              <a href="#datenschutz">{L('Datenschutz', 'Privacy policy')}</a>
+              <a href="#agb">{L('AGB', 'Terms & conditions')}</a>
+              <a href="#erstattung">{L('Erstattung', 'Refunds')}</a>
               <button
                 type="button"
                 onClick={() => window.dispatchEvent(new Event('vantaro:cookies'))}
               >
-                Cookie-Einstellungen
+                {L('Cookie-Einstellungen', 'Cookie settings')}
               </button>
             </nav>
           </div>
@@ -202,7 +232,7 @@ function AppContent() {
       )}
       {!isDashboard && !isItSupport && <CookieConsent />}
       <Analytics />
-    </>
+    </Fragment>
   );
 }
 

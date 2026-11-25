@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import useNavigate from '../hooks/useNavigate';
 import { validatePassword } from '../lib/profile';
+import { L } from '../lib/i18n';
 
 export default function AcceptInvite() {
   const [searchParams] = useSearchParams();
@@ -26,7 +27,7 @@ export default function AcceptInvite() {
     setMessage('');
 
     if (!hasValidLink) {
-      setError('Bitte öffnen Sie den Link aus der Einladungs-E-Mail.');
+      setError(L('Bitte öffnen Sie den Link aus der Einladungs-E-Mail.', 'Please open the link from the invitation email.'));
       return;
     }
     const passwordError = validatePassword(password);
@@ -35,7 +36,7 @@ export default function AcceptInvite() {
       return;
     }
     if (password !== confirmPassword) {
-      setError('Passwörter stimmen nicht überein');
+      setError(L('Passwörter stimmen nicht überein', 'Passwords do not match'));
       return;
     }
 
@@ -84,11 +85,11 @@ export default function AcceptInvite() {
             />
           </div>
 
-          <h1 className="auth-title">Einladung annehmen</h1>
+          <h1 className="auth-title">{L('Einladung annehmen', 'Accept invitation')}</h1>
           <p className="auth-subtitle">
             {hasValidLink
-              ? 'Legen Sie ein Passwort für Ihren Partner-Zugang fest.'
-              : 'Öffnen Sie den Button in der Einladungs-E-Mail, um fortzufahren.'}
+              ? L('Legen Sie ein Passwort für Ihren Partner-Zugang fest.', 'Set a password for your partner access.')
+              : L('Öffnen Sie den Button in der Einladungs-E-Mail, um fortzufahren.', 'Click the button in the invitation email to continue.')}
           </p>
 
           {error && <div className="auth-error">{error}</div>}
@@ -96,13 +97,13 @@ export default function AcceptInvite() {
 
           {!hasValidLink ? (
             <div className="auth-footer" style={{ marginTop: '1.5rem' }}>
-              <span>Keinen Link erhalten?</span>
-              <Link to="/login">Zur Anmeldung</Link>
+              <span>{L('Keinen Link erhalten?', 'Didn’t receive a link?')}</span>
+              <Link to="/login">{L('Zur Anmeldung', 'Go to login')}</Link>
             </div>
           ) : (
             <form className="auth-form" onSubmit={handleSubmit}>
               <div className="form-group">
-                <label htmlFor="password">Passwort <span className="auth-required">*</span></label>
+                <label htmlFor="password">{L('Passwort', 'Password')} <span className="auth-required">*</span></label>
                 <div className="password-input-wrapper">
                   <input
                     type={showPassword ? 'text' : 'password'}
@@ -110,7 +111,7 @@ export default function AcceptInvite() {
                     autoComplete="new-password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Mindestens 8 Zeichen"
+                    placeholder={L('Mindestens 8 Zeichen', 'At least 8 characters')}
                     required
                     disabled={submitting}
                   />
@@ -135,7 +136,7 @@ export default function AcceptInvite() {
               </div>
 
               <div className="form-group">
-                <label htmlFor="confirmPassword">Passwort bestätigen <span className="auth-required">*</span></label>
+                <label htmlFor="confirmPassword">{L('Passwort bestätigen', 'Confirm password')} <span className="auth-required">*</span></label>
                 <div className="password-input-wrapper">
                   <input
                     type={showPassword ? 'text' : 'password'}
@@ -143,7 +144,7 @@ export default function AcceptInvite() {
                     autoComplete="new-password"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
-                    placeholder="Passwort wiederholen"
+                    placeholder={L('Passwort wiederholen', 'Repeat password')}
                     required
                     disabled={submitting}
                   />
@@ -151,7 +152,7 @@ export default function AcceptInvite() {
                     type="button"
                     className="password-toggle"
                     onClick={() => setShowPassword(!showPassword)}
-                    aria-label={showPassword ? 'Passwort verbergen' : 'Passwort anzeigen'}
+                    aria-label={showPassword ? L('Passwort verbergen', 'Hide password') : L('Passwort anzeigen', 'Show password')}
                   >
                     {showPassword ? (
                       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -169,37 +170,37 @@ export default function AcceptInvite() {
               </div>
 
               <button type="submit" className="auth-submit" disabled={submitting}>
-                {submitting ? 'Wird gespeichert…' : 'Passwort festlegen'}
+                {submitting ? L('Wird gespeichert…', 'Saving…') : L('Passwort festlegen', 'Set password')}
               </button>
             </form>
           )}
 
           <div className="auth-footer">
-            <span>Zurück zur</span>
-            <Link to="/login">Anmeldung</Link>
+            <span>{L('Zurück zur', 'Back to')}</span>
+            <Link to="/login">{L('Anmeldung', 'login')}</Link>
           </div>
         </div>
 
         <div className="auth-visual-panel">
           <div className="auth-visual-wrapper">
             <div className="auth-cutout-panel">
-              <div className="eyebrow light">Partner-Zugang</div>
+              <div className="eyebrow light">{L('Partner-Zugang', 'Partner access')}</div>
               <h2>
-                Nehmen Sie die Einladung an und{' '}
-                <span>legen Sie Ihr Passwort fest.</span>
+                {L('Nehmen Sie die Einladung an und', 'Accept the invitation and')}{' '}
+                <span>{L('legen Sie Ihr Passwort fest.', 'set your password.')}</span>
               </h2>
               <p>
-                Danach können Sie sich mit Ihrer E-Mail-Adresse und dem neuen Passwort im Portal anmelden.
+                {L('Danach können Sie sich mit Ihrer E-Mail-Adresse und dem neuen Passwort im Portal anmelden.', 'You can then log in to the portal with your email address and new password.')}
               </p>
               <div className="auth-cutout-actions">
                 <Link className="btn btn-primary" to="/">
-                  Zurück zur Startseite <span className="arrow">←</span>
+                  {L('Zurück zur Startseite', 'Back to home page')} <span className="arrow">←</span>
                 </Link>
                 <a
                   className="btn btn-outline-light"
                   href="mailto:info@vantaro.io?subject=VANTARO%20Support"
                 >
-                  Support kontaktieren <span className="arrow">↗</span>
+                  {L('Support kontaktieren', 'Contact support')} <span className="arrow">↗</span>
                 </a>
               </div>
             </div>

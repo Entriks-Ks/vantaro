@@ -122,7 +122,9 @@ router.get('/mine', async (req, res) => {
 
 router.get('/:id/invoice', async (req, res) => {
   try {
-    const payment = await getPaymentForViewer(req.user, req.params.id);
+    const found = await getPaymentForViewer(req.user, req.params.id);
+    const lang = ['de', 'en'].includes(req.query.lang) ? req.query.lang : found.language;
+    const payment = { ...found, language: lang };
     const download = ['1', 'true', 'download'].includes(String(req.query.download || '').toLowerCase());
     const filename = invoiceDownloadName(payment);
     const pdf = buildInvoicePdf(payment);

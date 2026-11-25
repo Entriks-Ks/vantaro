@@ -191,6 +191,8 @@ export function normalizeUserSettings(raw) {
     terminAlerts: src.terminAlerts !== false,
     wiedervorlageAlerts: src.wiedervorlageAlerts !== false,
     appearance: normalizeAppearance(src.appearance),
+    // Portal language, also used for payment e-mails and invoices. null = never chosen (treated as German).
+    language: src.language === 'en' || src.language === 'de' ? src.language : null,
   };
 }
 

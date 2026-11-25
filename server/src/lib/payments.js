@@ -32,7 +32,7 @@ const TAX_RATE = 0;
  * (ProCredit requirement). Bump it whenever client/src/pages/AGB.jsx or Erstattung.jsx change materially;
  * the accepted version is recorded per checkout in payment_audit_log.
  */
-export const CHECKOUT_TERMS_VERSION = '2026-11-17';
+export const CHECKOUT_TERMS_VERSION = '2026-11-25';
 
 function fail(message, status = 400) {
   const error = new Error(message);
@@ -211,6 +211,7 @@ function invoicePartyFromUser(user) {
     billingStreet: address.street || '',
     billingZip: address.zip || '',
     billingCity: address.city || '',
+    language: user?.settings?.language === 'en' ? 'en' : 'de',
   };
 }
 
@@ -318,6 +319,7 @@ function withInvoiceParty(row, party = {}) {
     billingStreet: party.billingStreet || '',
     billingZip: party.billingZip || '',
     billingCity: party.billingCity || '',
+    language: party.language === 'en' ? 'en' : 'de',
   };
 }
 

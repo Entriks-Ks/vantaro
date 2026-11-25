@@ -11,6 +11,7 @@ import { useBroker } from '../../hooks/useBroker';
 import { didGoogleMapsAuthFail, geocodeAddress, hasGoogleMapsKey, isInGermany, reverseGeocode } from '../../lib/googleMaps';
 import { readStoredSession } from '../../lib/auth';
 import { apiUrl } from '../../lib/api';
+import { L, locale } from '../../lib/i18n';
 import {
   fetchMyRequests,
 } from '../../lib/berater';
@@ -103,9 +104,9 @@ function leadProduct(lead) {
 }
 
 const DELIVERY_FILTERS = [
-  { id: 'all', label: 'Alle' },
-  { id: 'lead', label: 'Leads' },
-  { id: 'appointment', label: 'Termine' },
+  { id: 'all', label: L('Alle', 'All') },
+  { id: 'lead', label: L('Leads', 'Leads') },
+  { id: 'appointment', label: L('Termine', 'Appointments') },
 ];
 
 function withPipeline(lead, leadStatuses) {
@@ -137,16 +138,16 @@ function leadInitials(lead) {
 
 function leadCoverageShort(lead) {
   const circle = Array.isArray(lead?.coverageCircle) ? lead.coverageCircle : [];
-  if (circle.includes('familie')) return 'Familie';
-  if (circle.includes('kinder')) return 'Kinder';
-  if (circle.includes('partner')) return 'Partner';
-  if (circle.includes('allein')) return 'Allein';
+  if (circle.includes('familie')) return L('Familie', 'Family');
+  if (circle.includes('kinder')) return L('Kinder', 'Children');
+  if (circle.includes('partner')) return L('Partner', 'Partner');
+  if (circle.includes('allein')) return L('Allein', 'Single');
   return '';
 }
 
 function leadProductShort(lead) {
   const insurance = Array.isArray(lead?.insuranceStatus) ? lead.insuranceStatus : [];
-  if (insurance.includes('zusatz') && !insurance.includes('pkv_voll')) return 'Zusatz';
+  if (insurance.includes('zusatz') && !insurance.includes('pkv_voll')) return L('Zusatz', 'Supplementary');
   return lead.productCode || leadProductCode(lead);
 }
 
@@ -241,17 +242,17 @@ function schedulePresets() {
   inHour.setSeconds(0, 0);
   inHour.setMilliseconds(0);
   return [
-    { id: 'hour', label: 'In 1 Stunde', at: inHour },
-    { id: 'tomorrow', label: 'Morgen 09:00 Uhr', at: atNine(addDays(now, 1)) },
-    { id: 'three', label: 'In 3 Tagen 09:00 Uhr', at: atNine(addDays(now, 3)) },
-    { id: 'week', label: 'Nächste Woche 09:00 Uhr', at: atNine(addDays(now, 7)) },
+    { id: 'hour', label: L('In 1 Stunde', 'In 1 hour'), at: inHour },
+    { id: 'tomorrow', label: L('Morgen 09:00 Uhr', 'Tomorrow 09:00'), at: atNine(addDays(now, 1)) },
+    { id: 'three', label: L('In 3 Tagen 09:00 Uhr', 'In 3 days 09:00'), at: atNine(addDays(now, 3)) },
+    { id: 'week', label: L('Nächste Woche 09:00 Uhr', 'Next week 09:00'), at: atNine(addDays(now, 7)) },
   ];
 }
 
 function formatScheduleLabel(value) {
   if (!value) return '';
   const text = formatDateTime(value).replace(',', ' · ');
-  return /uhr/i.test(text) ? text : `${text} Uhr`;
+  return /uhr/i.test(text) ? text : L(`${text} Uhr`, text);
 }
 
 const MS_HOUR = 60 * 60 * 1000;
@@ -273,12 +274,12 @@ function formatScheduleParts(value) {
   if (!value) return { dateLabel: '', timeLabel: '', label: '' };
   const date = new Date(value);
   return {
-    dateLabel: new Intl.DateTimeFormat('de-DE', {
+    dateLabel: new Intl.DateTimeFormat(locale(), {
       day: '2-digit',
       month: '2-digit',
       year: 'numeric',
     }).format(date),
-    timeLabel: new Intl.DateTimeFormat('de-DE', {
+    timeLabel: new Intl.DateTimeFormat(locale(), {
       hour: '2-digit',
       minute: '2-digit',
       hourCycle: 'h23',
@@ -324,7 +325,7 @@ function LeadScheduleBlock({ kind = 'wiedervorlage', at, compact = false }) {
   return (
     <div
       className={`broker-lead-when is-${urgency}${overdue ? ' is-overdue' : ''}${compact ? ' is-compact' : ''}`}
-      aria-label={`${isTermin ? 'Termin' : 'Wiedervorlage'} ${parts.label}`}
+      aria-label={`${isTermin ? L('Termin', 'Appointment') : L('Wiedervorlage', 'Follow-up')} ${parts.label}`}
     >
       <Icon className="broker-lead-when-icon" size={compact ? 15 : 18} aria-hidden="true" />
       <span className="broker-lead-when-date">{parts.dateLabel}</span>
@@ -350,7 +351,7 @@ function GermanTimeSelect({ id, value, disabled, onChange }) {
     <div className="broker-calendar-time-de" role="group" aria-labelledby={id}>
       <select
         id={id}
-        aria-label="Stunde"
+        aria-label={L('Stunde', 'Hour')}
         value={hour}
         disabled={disabled}
         onChange={(event) => emit(event.target.value, minute)}
@@ -361,7 +362,7 @@ function GermanTimeSelect({ id, value, disabled, onChange }) {
       </select>
       <span className="broker-calendar-time-de__sep" aria-hidden="true">:</span>
       <select
-        aria-label="Minute"
+        aria-label={L('Minute', 'Minute')}
         value={minute}
         disabled={disabled}
         onChange={(event) => emit(hour, event.target.value)}
@@ -370,7 +371,7 @@ function GermanTimeSelect({ id, value, disabled, onChange }) {
           <option key={option} value={option}>{option}</option>
         ))}
       </select>
-      <span className="broker-calendar-time-de__unit">Uhr</span>
+      <span className="broker-calendar-time-de__unit">{L('Uhr', '')}</span>
     </div>
   );
 }
@@ -402,7 +403,7 @@ function LeadSchedulePicker({ kind, value, saving, locked, onSave, variant = 'si
   }, [value, kind]);
 
   const todayKey = toDateKey(new Date());
-  const monthLabel = new Date(cursor.year, cursor.month, 1).toLocaleDateString('de-DE', {
+  const monthLabel = new Date(cursor.year, cursor.month, 1).toLocaleDateString(locale(), {
     month: 'long',
     year: 'numeric',
   });
@@ -435,7 +436,7 @@ function LeadSchedulePicker({ kind, value, saving, locked, onSave, variant = 'si
       {savedLabel ? (
         <p className="broker-calendar-saved">
           <Check size={16} aria-hidden="true" />
-          {isTermin ? 'Termin' : 'Wiedervorlage'} am {savedLabel}
+          {isTermin ? L('Termin', 'Appointment') : L('Wiedervorlage', 'Follow-up')} {L('am', 'on')} {savedLabel}
         </p>
       ) : null}
 
@@ -458,7 +459,7 @@ function LeadSchedulePicker({ kind, value, saving, locked, onSave, variant = 'si
           <button
             type="button"
             className="broker-calendar-nav-btn"
-            aria-label="Voriger Monat"
+            aria-label={L('Voriger Monat', 'Previous month')}
             disabled={locked}
             onClick={() => setCursor((current) => (
               current.month === 0
@@ -472,7 +473,7 @@ function LeadSchedulePicker({ kind, value, saving, locked, onSave, variant = 'si
           <button
             type="button"
             className="broker-calendar-nav-btn"
-            aria-label="Nächster Monat"
+            aria-label={L('Nächster Monat', 'Next month')}
             disabled={locked}
             onClick={() => setCursor((current) => (
               current.month === 11
@@ -484,7 +485,7 @@ function LeadSchedulePicker({ kind, value, saving, locked, onSave, variant = 'si
           </button>
         </div>
         <div className="broker-calendar-weekdays">
-          {['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'].map((day) => (
+          {(L('Mo|Di|Mi|Do|Fr|Sa|So', 'Mon|Tue|Wed|Thu|Fri|Sat|Sun')).split('|').map((day) => (
             <span key={day}>{day}</span>
           ))}
         </div>
@@ -518,7 +519,7 @@ function LeadSchedulePicker({ kind, value, saving, locked, onSave, variant = 'si
       <div className="broker-calendar-time">
         <label htmlFor={`lead-schedule-time-${kind}`}>
           <Clock size={14} aria-hidden="true" />
-          Uhrzeit
+          {L('Uhrzeit', 'Time')}
         </label>
         <GermanTimeSelect
           id={`lead-schedule-time-${kind}`}
@@ -528,9 +529,9 @@ function LeadSchedulePicker({ kind, value, saving, locked, onSave, variant = 'si
         />
       </div>
       {past ? (
-        <p className="broker-calendar-hint">Bitte eine Uhrzeit in der Zukunft wählen.</p>
+        <p className="broker-calendar-hint">{L('Bitte eine Uhrzeit in der Zukunft wählen.', 'Please choose a time in the future.')}</p>
       ) : !date ? (
-        <p className="broker-calendar-hint">Bitte zuerst ein Datum wählen.</p>
+        <p className="broker-calendar-hint">{L('Bitte zuerst ein Datum wählen.', 'Please choose a date first.')}</p>
       ) : null}
 
       <button
@@ -540,7 +541,7 @@ function LeadSchedulePicker({ kind, value, saving, locked, onSave, variant = 'si
         onClick={() => onSave(iso)}
       >
         <Save size={16} aria-hidden="true" />
-        {saving ? 'Wird gespeichert…' : isTermin ? 'Termin speichern' : 'Wiedervorlage speichern'}
+        {saving ? L('Wird gespeichert…', 'Saving…') : isTermin ? L('Termin speichern', 'Save appointment') : L('Wiedervorlage speichern', 'Save follow-up')}
       </button>
     </>
   );
@@ -556,11 +557,11 @@ function LeadSchedulePicker({ kind, value, saving, locked, onSave, variant = 'si
           <Icon size={18} />
         </span>
         <div>
-          <h3>{isTermin ? 'Termin legen' : 'Wiedervorlage legen'}</h3>
+          <h3>{isTermin ? L('Termin legen', 'Schedule appointment') : L('Wiedervorlage legen', 'Schedule follow-up')}</h3>
           <p>
             {isTermin
-              ? 'Datum und Uhrzeit für das Gespräch mit dem Kunden.'
-              : 'Datum und Uhrzeit, wann Sie den Lead wieder anrufen. Sie erhalten dann eine E-Mail.'}
+              ? L('Datum und Uhrzeit für das Gespräch mit dem Kunden.', 'Date and time for the meeting with the customer.')
+              : L('Datum und Uhrzeit, wann Sie den Lead wieder anrufen. Sie erhalten dann eine E-Mail.', 'Date and time when you will call the lead again. You will then receive an e-mail.')}
           </p>
         </div>
       </div>
@@ -580,12 +581,12 @@ function LeadScheduleSummary({ kind = 'wiedervorlage', value, locked, onEdit }) 
           <Icon size={18} />
         </span>
         <div>
-          <h3>{isTermin ? 'Termin' : 'Wiedervorlage'}</h3>
-          <p>{label ? `Am ${label}` : 'Noch kein Zeitpunkt gewählt'}</p>
+          <h3>{isTermin ? L('Termin', 'Appointment') : L('Wiedervorlage', 'Follow-up')}</h3>
+          <p>{label ? L(`Am ${label}`, `On ${label}`) : L('Noch kein Zeitpunkt gewählt', 'No time selected yet')}</p>
         </div>
       </div>
       <button type="button" className="btn btn-outline broker-calendar-save" disabled={locked} onClick={onEdit}>
-        {label ? 'Ändern' : 'Zeitpunkt wählen'}
+        {label ? L('Ändern', 'Change') : L('Zeitpunkt wählen', 'Choose time')}
       </button>
     </div>
   );
@@ -596,7 +597,7 @@ function CloseOutcomeMark({ outcome, compact = false }) {
     return (
       <span className={`broker-close-outcome is-erfolgreich${compact ? ' is-compact' : ''}`}>
         <CircleCheck size={compact ? 11 : 12} aria-hidden="true" />
-        Erfolgreich
+        {L('Erfolgreich', 'Successful')}
       </span>
     );
   }
@@ -604,13 +605,13 @@ function CloseOutcomeMark({ outcome, compact = false }) {
     return (
       <span className={`broker-close-outcome is-fehlgeschlagen${compact ? ' is-compact' : ''}`}>
         <CircleX size={compact ? 11 : 12} aria-hidden="true" />
-        Nicht erfolgreich
+        {L('Nicht erfolgreich', 'Not successful')}
       </span>
     );
   }
   return (
     <span className={`broker-close-outcome is-pending${compact ? ' is-compact' : ''}`}>
-      Ergebnis wählen
+      {L('Ergebnis wählen', 'Choose outcome')}
     </span>
   );
 }
@@ -628,17 +629,17 @@ export function LeadCloseOutcomeModal({ leadName, value, saving, onSave, onClose
 
   return (
     <div className="broker-modal" role="dialog" aria-modal="true" aria-labelledby={titleId}>
-      <button type="button" className="broker-modal__backdrop" aria-label="Schließen" onClick={saving ? undefined : onClose} />
+      <button type="button" className="broker-modal__backdrop" aria-label={L('Schließen', 'Close')} onClick={saving ? undefined : onClose} />
       <div className="broker-modal__panel broker-schedule-modal broker-close-outcome-modal">
         <div className="broker-modal__top">
-          <h2 id={titleId}>Vorgang abschließen</h2>
-          <button type="button" className="broker-modal__close" aria-label="Schließen" disabled={saving} onClick={onClose}>
+          <h2 id={titleId}>{L('Vorgang abschließen', 'Close case')}</h2>
+          <button type="button" className="broker-modal__close" aria-label={L('Schließen', 'Close')} disabled={saving} onClick={onClose}>
             <X size={18} />
           </button>
         </div>
         <p className="broker-schedule-modal__lede">
           {leadName ? `${leadName} · ` : ''}
-          Wurde aus dem Gespräch ein Kunde, oder nicht?
+          {L('Wurde aus dem Gespräch ein Kunde, oder nicht?', 'Did the conversation result in a customer or not?')}
         </p>
         <div className="broker-close-outcome-choices">
           {CLOSE_OUTCOMES.map((option) => {
@@ -663,7 +664,7 @@ export function LeadCloseOutcomeModal({ leadName, value, saving, onSave, onClose
             );
           })}
         </div>
-        {saving ? <p className="broker-calendar-hint">Wird gespeichert…</p> : null}
+        {saving ? <p className="broker-calendar-hint">{L('Wird gespeichert…', 'Saving…')}</p> : null}
       </div>
     </div>
   );
@@ -683,19 +684,19 @@ export function LeadScheduleModal({ kind, value, saving, locked, leadName, onSav
 
   return (
     <div className="broker-modal" role="dialog" aria-modal="true" aria-labelledby={titleId}>
-      <button type="button" className="broker-modal__backdrop" aria-label="Schließen" onClick={saving ? undefined : onClose} />
+      <button type="button" className="broker-modal__backdrop" aria-label={L('Schließen', 'Close')} onClick={saving ? undefined : onClose} />
       <div className="broker-modal__panel broker-schedule-modal">
         <div className="broker-modal__top">
-          <h2 id={titleId}>{isTermin ? 'Termin legen' : 'Wiedervorlage legen'}</h2>
-          <button type="button" className="broker-modal__close" aria-label="Schließen" disabled={saving} onClick={onClose}>
+          <h2 id={titleId}>{isTermin ? L('Termin legen', 'Schedule appointment') : L('Wiedervorlage legen', 'Schedule follow-up')}</h2>
+          <button type="button" className="broker-modal__close" aria-label={L('Schließen', 'Close')} disabled={saving} onClick={onClose}>
             <X size={18} />
           </button>
         </div>
         <p className="broker-schedule-modal__lede">
           {leadName ? `${leadName} · ` : ''}
           {isTermin
-            ? 'Datum und Uhrzeit für das Gespräch mit dem Kunden.'
-            : 'Wann Sie den Lead wieder anrufen. Sie erhalten dann eine E-Mail.'}
+            ? L('Datum und Uhrzeit für das Gespräch mit dem Kunden.', 'Date and time for the meeting with the customer.')
+            : L('Wann Sie den Lead wieder anrufen. Sie erhalten dann eine E-Mail.', 'When you will call the lead again. You will then receive an e-mail.')}
         </p>
         <LeadSchedulePicker
           kind={kind}
@@ -712,11 +713,11 @@ export function LeadScheduleModal({ kind, value, saving, locked, leadName, onSav
 
 function inProgressHint(stats) {
   const bits = [
-    stats.kontaktiert ? `${stats.kontaktiert} In Kontakt` : '',
-    stats.termin ? `${stats.termin} ${stats.termin === 1 ? 'Termin' : 'Termine'}` : '',
-    stats.wiedervorlage ? `${stats.wiedervorlage} Wiedervorlage` : '',
+    stats.kontaktiert ? L(`${stats.kontaktiert} In Kontakt`, `${stats.kontaktiert} in contact`) : '',
+    stats.termin ? `${stats.termin} ${stats.termin === 1 ? L('Termin', 'appointment') : L('Termine', 'appointments')}` : '',
+    stats.wiedervorlage ? L(`${stats.wiedervorlage} Wiedervorlage`, `${stats.wiedervorlage} follow-up${stats.wiedervorlage === 1 ? '' : 's'}`) : '',
   ].filter(Boolean);
-  return bits.join(' · ') || 'Noch ohne Fortschritt';
+  return bits.join(' · ') || L('Noch ohne Fortschritt', 'No progress yet');
 }
 
 const PIPELINE_ICONS = {
@@ -752,12 +753,12 @@ function LeadStatusMark({ lead, large = false, placement = 'list' }) {
   const reviewMark = blocked ? (
     <span className={`broker-status is-blocked${large ? ' broker-status--lg' : ''}${compact ? ' is-compact' : ''}`}>
       <Lock size={compact ? 11 : large ? 14 : 12} aria-hidden="true" />
-      {isReplacementPending(lead.complaint) ? (compact ? 'Ersatz' : 'Gesperrt · Ersatz') : (compact ? 'Gesperrt' : 'Gesperrt')}
+      {isReplacementPending(lead.complaint) ? (compact ? L('Ersatz', 'Replacement') : L('Gesperrt · Ersatz', 'Locked · Replacement')) : (compact ? L('Gesperrt', 'Locked') : L('Gesperrt', 'Locked'))}
     </span>
   ) : reviewing ? (
     <span className={`broker-status is-reported${large ? ' broker-status--lg' : ''}${compact ? ' is-compact' : ''}`}>
       <Flag size={compact ? 11 : large ? 14 : 12} aria-hidden="true" />
-      {compact ? 'Prüfung' : 'In Prüfung'}
+      {compact ? L('Prüfung', 'Review') : L('In Prüfung', 'Under review')}
     </span>
   ) : null;
 
@@ -791,12 +792,12 @@ export function LeadStatusDropdown({
   const reviewMark = blocked ? (
     <span className="broker-status is-blocked broker-status--lg">
       <Lock size={14} aria-hidden="true" />
-      Gesperrt
+      {L('Gesperrt', 'Locked')}
     </span>
   ) : reviewing ? (
     <span className="broker-status is-reported broker-status--lg">
       <Flag size={14} aria-hidden="true" />
-      In Prüfung
+      {L('In Prüfung', 'Under review')}
     </span>
   ) : null;
   const CurrentIcon = PIPELINE_ICONS[status] || Sparkles;
@@ -834,7 +835,7 @@ export function LeadStatusDropdown({
           disabled={disabled || saving}
           aria-haspopup="listbox"
           aria-expanded={open}
-          title={disabled ? 'Status nicht bearbeitbar' : 'Status ändern'}
+          title={disabled ? L('Status nicht bearbeitbar', 'Status cannot be edited') : L('Status ändern', 'Change status')}
         >
           <span className="broker-status-iconic is-large">
             <CurrentIcon size={15} aria-hidden="true" />
@@ -848,10 +849,10 @@ export function LeadStatusDropdown({
       </div>
 
       {open && (
-        <div className="broker-status-dropdown-menu" role="listbox" aria-label="Status auswählen">
+        <div className="broker-status-dropdown-menu" role="listbox" aria-label={L('Status auswählen', 'Select status')}>
           <div className="broker-status-dropdown-menu-header">
-            <strong>Gesprächsstatus</strong>
-            <p>Tippen Sie, wo der Lead gerade steht</p>
+            <strong>{L('Gesprächsstatus', 'Conversation status')}</strong>
+            <p>{L('Tippen Sie, wo der Lead gerade steht', 'Tap where the lead currently stands')}</p>
           </div>
           <div className="broker-status-dropdown-menu-items">
             {LEAD_STATUSES.map((option) => {
@@ -877,7 +878,7 @@ export function LeadStatusDropdown({
                     <strong>{option.label}</strong>
                     <small>
                       {option.id === 'abgeschlossen' && outcome
-                        ? `${option.hint} · aktuell ${closeOutcomeLabel(outcome)}`
+                        ? `${option.hint} · ${L('aktuell', 'currently')} ${closeOutcomeLabel(outcome)}`
                         : option.hint}
                     </small>
                   </span>
@@ -899,7 +900,7 @@ function DetailFact({ label, children, wide = false }) {
   return (
     <div className={`broker-detail-fact${wide ? ' is-wide' : ''}${empty ? ' is-empty' : ''}`}>
       <span>{label}</span>
-      <strong>{empty ? 'Nicht hinterlegt' : children}</strong>
+      <strong>{empty ? L('Nicht hinterlegt', 'Not provided') : children}</strong>
     </div>
   );
 }
@@ -915,16 +916,16 @@ function readProofFile(file) {
     }
     const okType = /^(image\/(jpeg|jpg|png|webp|gif)|application\/pdf)$/i.test(file.type);
     if (!okType) {
-      reject(new Error('Nachweis bitte als PDF oder Bild (JPG, PNG, WebP) hochladen.'));
+      reject(new Error(L('Nachweis bitte als PDF oder Bild (JPG, PNG, WebP) hochladen.', 'Please upload the proof as a PDF or image (JPG, PNG, WebP).')));
       return;
     }
     if (file.size > PROOF_MAX_BYTES) {
-      reject(new Error('Der Nachweis ist zu groß. Maximal 1,2 MB.'));
+      reject(new Error(L('Der Nachweis ist zu groß. Maximal 1,2 MB.', 'The proof file is too large. Maximum 1.2 MB.')));
       return;
     }
     const reader = new FileReader();
     reader.onload = () => resolve({ name: file.name, data: String(reader.result || '') });
-    reader.onerror = () => reject(new Error('Datei konnte nicht gelesen werden.'));
+    reader.onerror = () => reject(new Error(L('Datei konnte nicht gelesen werden.', 'The file could not be read.')));
     reader.readAsDataURL(file);
   });
 }
@@ -940,45 +941,45 @@ function ComplaintFacts({ lead, notes, contactStatus }) {
       lead?.phone,
       lead?.email,
       formatLeadAddress(lead),
-      lead?.appointmentAt ? `Termin ${formatDateTime(lead.appointmentAt)}` : '',
+      lead?.appointmentAt ? `${L('Termin', 'Appointment')} ${formatDateTime(lead.appointmentAt)}` : '',
     ]
     : [
       lead?.phone,
       lead?.email,
       employment,
       brief.insurance,
-    ]).filter((value) => value && value !== '—').join(' · ') || 'Keine Gesprächsdaten hinterlegt';
+    ]).filter((value) => value && value !== '—').join(' · ') || L('Keine Gesprächsdaten hinterlegt', 'No conversation details provided');
   const brokerNotes = String(notes || lead?.brokerNotes || '').trim();
   const stockNotes = String(lead?.notes || '').trim();
 
   return (
     <dl className="broker-report-facts">
       <div>
-        <dt>Lead-ID</dt>
+        <dt>{L('Lead-ID', 'Lead ID')}</dt>
         <dd title={lead?.id || ''}>{shortLeadId(lead?.id)}</dd>
       </div>
       <div>
-        <dt>Übergabezeitpunkt</dt>
+        <dt>{L('Übergabezeitpunkt', 'Handover time')}</dt>
         <dd>{formatDateTime(lead?.assignedAt)}</dd>
       </div>
       <div>
-        <dt>Kaufpreis</dt>
+        <dt>{L('Kaufpreis', 'Purchase price')}</dt>
         <dd>{formatEuroExact(leadPriceCents(lead))}</dd>
       </div>
       <div>
-        <dt>Kontaktversuche</dt>
+        <dt>{L('Kontaktversuche', 'Contact attempts')}</dt>
         <dd>{contactStatusLabel(contactStatus)}</dd>
       </div>
       <div className="is-wide">
-        <dt>Gesprächsdaten</dt>
+        <dt>{L('Gesprächsdaten', 'Conversation details')}</dt>
         <dd>{talk}</dd>
       </div>
       <div className="is-wide">
-        <dt>Vorhandene Notizen</dt>
+        <dt>{L('Vorhandene Notizen', 'Existing notes')}</dt>
         <dd>
-          {brokerNotes || stockNotes || 'Keine Notizen'}
+          {brokerNotes || stockNotes || L('Keine Notizen', 'No notes')}
           {brokerNotes && stockNotes && brokerNotes !== stockNotes ? (
-            <small>Bestand: {stockNotes}</small>
+            <small>{L('Bestand', 'Original')}: {stockNotes}</small>
           ) : null}
         </dd>
       </div>
@@ -1044,7 +1045,7 @@ function LeadReportPanel({ lead, notes, contactStatus, onReported }) {
     setError('');
     if (step === 1) {
       if (!reason) {
-        setError('Bitte einen akzeptierten Stornierungsgrund wählen.');
+        setError(L('Bitte einen akzeptierten Stornierungsgrund wählen.', 'Please choose an accepted cancellation reason.'));
         return;
       }
       setStep(2);
@@ -1053,11 +1054,11 @@ function LeadReportPanel({ lead, notes, contactStatus, onReported }) {
     const detail = comment.trim();
     if (!reason) {
       setStep(1);
-      setError('Bitte einen akzeptierten Stornierungsgrund wählen.');
+      setError(L('Bitte einen akzeptierten Stornierungsgrund wählen.', 'Please choose an accepted cancellation reason.'));
       return;
     }
     if (detail.length < COMPLAINT_COMMENT_MIN) {
-      setError(`Bitte die Begründung mit mindestens ${COMPLAINT_COMMENT_MIN} Zeichen beschreiben.`);
+      setError(L(`Bitte die Begründung mit mindestens ${COMPLAINT_COMMENT_MIN} Zeichen beschreiben.`, `Please describe the reason in at least ${COMPLAINT_COMMENT_MIN} characters.`));
       return;
     }
     setSaving(true);
@@ -1112,12 +1113,12 @@ function LeadReportPanel({ lead, notes, contactStatus, onReported }) {
             <strong>{complaintStatusLabel(complaint.status)}</strong>
             <span>{complaintReasonLabel(complaint.reason, verticalOrInsurance(lead.vertical))}</span>
             {complaint.refundCents != null ? (
-              <span>Gutschrift: {formatEuroExact(complaint.refundCents)}</span>
+              <span>{L('Gutschrift', 'Credit')}: {formatEuroExact(complaint.refundCents)}</span>
             ) : null}
-            {complaint.comment ? <em>Reklamation: {complaint.comment}</em> : null}
+            {complaint.comment ? <em>{L('Reklamation', 'Complaint')}: {complaint.comment}</em> : null}
             {complaint.adminNote ? (
               <p className="broker-detail-report-done-reply">
-                <b>Antwort VANTARO</b>
+                <b>{L('Antwort VANTARO', 'Reply from VANTARO')}</b>
                 {complaint.adminNote}
               </p>
             ) : null}
@@ -1127,11 +1128,11 @@ function LeadReportPanel({ lead, notes, contactStatus, onReported }) {
         {canAmend ? (
           <button type="button" className="broker-detail-report-again" onClick={() => setOpen(true)}>
             {complaint.status === 'info_needed' || complaint.status === 'infos_noetig'
-              ? 'Angaben ergänzen'
-              : 'Erneut reklamieren'}
+              ? L('Angaben ergänzen', 'Add details')
+              : L('Erneut reklamieren', 'Submit complaint again')}
           </button>
         ) : openComplaint ? (
-          <p className="broker-muted-note">VANTARO prüft den Fall. Sie sehen das Ergebnis hier.</p>
+          <p className="broker-muted-note">{L('VANTARO prüft den Fall. Sie sehen das Ergebnis hier.', 'VANTARO is reviewing the case. You will see the result here.')}</p>
         ) : complaint.status === 'approved' || complaint.status === 'partial' || complaint.status === 'refunded' ? (
           <p className="broker-muted-note">{creditedComplaintBeraterNote(complaint)}</p>
         ) : null}
@@ -1148,8 +1149,8 @@ function LeadReportPanel({ lead, notes, contactStatus, onReported }) {
             <Flag size={18} />
           </span>
           <span className="broker-report-trigger-copy">
-            <strong>Reklamation einreichen</strong>
-            <small>Standardgrund, Begründung und optional Nachweis</small>
+            <strong>{L('Reklamation einreichen', 'Submit complaint')}</strong>
+            <small>{L('Standardgrund, Begründung und optional Nachweis', 'Standard reason, explanation and optional proof')}</small>
           </span>
           <ChevronRight size={16} className="broker-report-trigger-caret" aria-hidden="true" />
         </button>
@@ -1187,7 +1188,7 @@ function ReportModal({
   const proofId = `report-proof-${lead.id}`;
   const modal = (
     <div className="broker-modal broker-report-modal-wrap" role="dialog" aria-modal="true" aria-labelledby={titleId}>
-      <button type="button" className="broker-modal__backdrop" aria-label="Schließen" onClick={saving ? undefined : onClose} disabled={saving} />
+      <button type="button" className="broker-modal__backdrop" aria-label={L('Schließen', 'Close')} onClick={saving ? undefined : onClose} disabled={saving} />
       <form
         ref={panelRef}
         className={`broker-modal__panel broker-report-modal${step === 2 ? ' is-step-2' : ''}`}
@@ -1195,25 +1196,25 @@ function ReportModal({
       >
         <div className="broker-report-modal__head">
           <div className="broker-report-modal__intro">
-            <span className="broker-report-modal__badge">Reklamation</span>
-            <h2 id={titleId}>Reklamation einreichen</h2>
+            <span className="broker-report-modal__badge">{L('Reklamation', 'Complaint')}</span>
+            <h2 id={titleId}>{L('Reklamation einreichen', 'Submit complaint')}</h2>
             {lead.fullName ? <p className="broker-report-modal__lead">{lead.fullName}</p> : null}
             <p className="broker-report-modal__hint">
-              Nur bei akzeptierten Stornierungsgründen. VANTARO prüft den Fall und entscheidet über die Gutschrift.
+              {L('Nur bei akzeptierten Stornierungsgründen. VANTARO prüft den Fall und entscheidet über die Gutschrift.', 'Only for accepted cancellation reasons. VANTARO reviews the case and decides on the credit.')}
             </p>
-            <div className="broker-report-progress" aria-label={`Schritt ${step} von 2`}>
+            <div className="broker-report-progress" aria-label={L(`Schritt ${step} von 2`, `Step ${step} of 2`)}>
               <span className={step === 1 ? 'is-current' : 'is-done'}>
                 <span>1</span>
-                Grund
+                {L('Grund', 'Reason')}
               </span>
               <span aria-hidden="true" className={`broker-report-progress__rail${step > 1 ? ' is-done' : ''}`} />
               <span className={step === 2 ? 'is-current' : undefined}>
                 <span>2</span>
-                Angaben
+                {L('Angaben', 'Details')}
               </span>
             </div>
           </div>
-          <button type="button" className="broker-report-close" onClick={onClose} aria-label="Schließen">
+          <button type="button" className="broker-report-close" onClick={onClose} aria-label={L('Schließen', 'Close')}>
             <X size={18} />
           </button>
         </div>
@@ -1224,10 +1225,10 @@ function ReportModal({
           {step === 1 ? (
             <section className="broker-report-step">
               <div className="broker-report-step__copy">
-                <h3>Grund wählen</h3>
-                <p>Akzeptierte Stornierungsgründe laut Vantaro-Richtlinie</p>
+                <h3>{L('Grund wählen', 'Choose reason')}</h3>
+                <p>{L('Akzeptierte Stornierungsgründe laut Vantaro-Richtlinie', 'Accepted cancellation reasons under the Vantaro policy')}</p>
               </div>
-              <div className="broker-report-reasons" role="radiogroup" aria-label="Grund der Reklamation">
+              <div className="broker-report-reasons" role="radiogroup" aria-label={L('Grund der Reklamation', 'Reason for the complaint')}>
                 {reasons.map((option) => {
                   const selected = reason === option.id;
                   return (
@@ -1265,8 +1266,8 @@ function ReportModal({
           ) : (
             <section className="broker-report-step">
               <div className="broker-report-step__copy">
-                <h3>Angaben zur Reklamation</h3>
-                <p>Diese Lead-Daten werden automatisch mitgeschickt. Ergänzen Sie eine kurze Begründung.</p>
+                <h3>{L('Angaben zur Reklamation', 'Complaint details')}</h3>
+                <p>{L('Diese Lead-Daten werden automatisch mitgeschickt. Ergänzen Sie eine kurze Begründung.', 'This lead data is sent automatically. Add a short explanation.')}</p>
               </div>
               {selectedReason ? (
                 <button
@@ -1276,24 +1277,24 @@ function ReportModal({
                   disabled={saving}
                 >
                   <span>
-                    <small>Gewählter Grund</small>
+                    <small>{L('Gewählter Grund', 'Selected reason')}</small>
                     <strong>{selectedReason.label}</strong>
                   </span>
-                  <em>Ändern</em>
+                  <em>{L('Ändern', 'Change')}</em>
                 </button>
               ) : null}
 
               <ComplaintFacts lead={lead} notes={notes} contactStatus={contactStatus} />
 
               <label className="broker-report-detail-field" htmlFor={`report-detail-${lead.id}`}>
-                <span>Kurze Begründung</span>
+                <span>{L('Kurze Begründung', 'Short explanation')}</span>
                 <textarea
                   ref={detailRef}
                   id={`report-detail-${lead.id}`}
                   className="broker-report-detail"
                   value={comment}
                   onChange={(event) => setComment(event.target.value)}
-                  placeholder={selectedReason?.placeholder || 'Beschreiben Sie den Mangel möglichst konkret…'}
+                  placeholder={selectedReason?.placeholder || L('Beschreiben Sie den Mangel möglichst konkret…', 'Describe the problem as specifically as possible…')}
                   rows={5}
                   disabled={saving}
                   required
@@ -1302,15 +1303,15 @@ function ReportModal({
                   <strong>{detailLen}</strong>
                   <span>/</span>
                   <span>{COMPLAINT_COMMENT_MIN}</span>
-                  <em>Zeichen min.</em>
+                  <em>{L('Zeichen min.', 'characters min.')}</em>
                 </span>
               </label>
 
               <div className="broker-report-proof">
-                <span className="broker-report-proof__label">Nachweis (falls erforderlich)</span>
+                <span className="broker-report-proof__label">{L('Nachweis (falls erforderlich)', 'Proof (if required)')}</span>
                 <label className="broker-report-proof__btn" htmlFor={proofId}>
                   <Paperclip size={16} aria-hidden="true" />
-                  {proof ? 'Datei ersetzen' : 'PDF oder Bild anhängen'}
+                  {proof ? L('Datei ersetzen', 'Replace file') : L('PDF oder Bild anhängen', 'Attach PDF or image')}
                   <input
                     id={proofId}
                     type="file"
@@ -1328,11 +1329,11 @@ function ReportModal({
                     <FileCheck2 size={14} aria-hidden="true" />
                     {proof.name}
                     <button type="button" onClick={() => onProof(null)} disabled={saving}>
-                      Entfernen
+                      {L('Entfernen', 'Remove')}
                     </button>
                   </span>
                 ) : (
-                  <span className="broker-report-proof-chip">Optional · max. 1,2 MB</span>
+                  <span className="broker-report-proof-chip">{L('Optional · max. 1,2 MB', 'Optional · max. 1.2 MB')}</span>
                 )}
               </div>
             </section>
@@ -1343,20 +1344,20 @@ function ReportModal({
           <div className={`broker-report-actions${step === 2 ? ' is-split' : ''}`}>
             {step === 1 ? (
               <button type="button" className="btn btn-outline" onClick={onClose} disabled={saving}>
-                Abbrechen
+                {L('Abbrechen', 'Cancel')}
               </button>
             ) : (
               <button type="button" className="btn btn-outline" onClick={() => setStep(1)} disabled={saving}>
-                Zurück
+                {L('Zurück', 'Back')}
               </button>
             )}
             {step === 1 ? (
               <button type="submit" className="btn btn-primary" disabled={!canContinue || saving}>
-                Weiter
+                {L('Weiter', 'Next')}
               </button>
             ) : (
               <button type="submit" className="btn btn-primary" disabled={!canSubmit || saving}>
-                {saving ? 'Wird gesendet…' : 'Reklamation einreichen'}
+                {saving ? L('Wird gesendet…', 'Sending…') : L('Reklamation einreichen', 'Submit complaint')}
               </button>
             )}
           </div>
@@ -1440,9 +1441,9 @@ export function BeraterHome() {
     <div className="broker-page">
       <div className="broker-heading">
         <div>
-          <div className="eyebrow">Ihr Tag</div>
-          <h1>Willkommen zurück, <em>{displayName(user)}</em></h1>
-          <p className="lede">Schön, dass Sie da sind. Hier sehen Sie, welche Gespräche als Nächstes warten.</p>
+          <div className="eyebrow">{L('Ihr Tag', 'Your day')}</div>
+          <h1>{L('Willkommen zurück, ', 'Welcome back, ')}<em>{displayName(user)}</em></h1>
+          <p className="lede">{L('Schön, dass Sie da sind. Hier sehen Sie, welche Gespräche als Nächstes warten.', 'Good to see you. Here you can see which conversations are up next.')}</p>
         </div>
       </div>
 
@@ -1451,9 +1452,9 @@ export function BeraterHome() {
       <div className="broker-home-metrics broker-home-metrics--leads">
         <article className="broker-home-metric is-signal">
           <div className="broker-home-metric-body">
-            <span>Im Bestand</span>
+            <span>{L('Im Bestand', 'In portfolio')}</span>
             <strong>{loading ? '—' : stats.total}</strong>
-            <small>Aktive Leads</small>
+            <small>{L('Aktive Leads', 'Active leads')}</small>
           </div>
           <span className="broker-home-metric-icon" aria-hidden="true">
             <Users size={22} />
@@ -1461,9 +1462,9 @@ export function BeraterHome() {
         </article>
         <article className="broker-home-metric">
           <div className="broker-home-metric-body">
-            <span>Neu</span>
+            <span>{L('Neu', 'New')}</span>
             <strong>{loading ? '—' : stats.neu}</strong>
-            <small>Noch nicht kontaktiert</small>
+            <small>{L('Noch nicht kontaktiert', 'Not yet contacted')}</small>
           </div>
           <span className="broker-home-metric-icon" aria-hidden="true">
             <UserPlus size={22} />
@@ -1471,7 +1472,7 @@ export function BeraterHome() {
         </article>
         <article className="broker-home-metric">
           <div className="broker-home-metric-body">
-            <span>In Bearbeitung</span>
+            <span>{L('In Bearbeitung', 'In progress')}</span>
             <strong>{loading ? '—' : inProgress}</strong>
             <small>{loading ? '—' : inProgressHint(stats)}</small>
           </div>
@@ -1481,9 +1482,9 @@ export function BeraterHome() {
         </article>
         <article className="broker-home-metric">
           <div className="broker-home-metric-body">
-            <span>Abgeschlossen</span>
+            <span>{L('Abgeschlossen', 'Closed')}</span>
             <strong>{loading ? '—' : stats.erfolgreich}</strong>
-            <small>Verträge abgeschlossen</small>
+            <small>{L('Verträge abgeschlossen', 'Contracts signed')}</small>
           </div>
           <span className="broker-home-metric-icon" aria-hidden="true">
             <FileCheck2 size={22} />
@@ -1494,12 +1495,12 @@ export function BeraterHome() {
       <section className="broker-panel broker-home-pipeline">
         <div className="broker-panel-header">
           <div>
-            <div className="eyebrow">Trichter-Übersicht</div>
+            <div className="eyebrow">{L('Trichter-Übersicht', 'Funnel overview')}</div>
             <h2>Pipeline</h2>
-            <p>Echtzeit-Verteilung Ihrer Leads nach aktuellem Bearbeitungsstand</p>
+            <p>{L('Echtzeit-Verteilung Ihrer Leads nach aktuellem Bearbeitungsstand', 'Real-time distribution of your leads by current stage')}</p>
           </div>
           <Link to="/dashboard/leads" className="broker-pipeline-open">
-            <span>Board öffnen</span>
+            <span>{L('Board öffnen', 'Open board')}</span>
             <ArrowRight size={14} strokeWidth={2.25} aria-hidden="true" />
           </Link>
         </div>
@@ -1514,7 +1515,7 @@ export function BeraterHome() {
                 key={status.id}
                 className="broker-pipeline-seg"
                 style={{ width: `${pct}%`, background: pipelineColors[status.id] }}
-                title={`${status.label}: ${value} Leads`}
+                title={L(`${status.label}: ${value} Leads`, `${status.label}: ${value} ${value === 1 ? 'lead' : 'leads'}`)}
               />
             );
           })}
@@ -1553,15 +1554,15 @@ export function BeraterHome() {
       <section className="broker-panel broker-home-recent">
         <div className="broker-panel-header">
           <div>
-            <h2>Aktuelle Leads</h2>
-            <p>Neue Chancen in Ihrem Bestand</p>
+            <h2>{L('Aktuelle Leads', 'Recent leads')}</h2>
+            <p>{L('Neue Chancen in Ihrem Bestand', 'New opportunities in your portfolio')}</p>
           </div>
-          <Link to="/dashboard/leads" state={{ from: location.pathname + location.search }} className="broker-text-btn">Alle anzeigen</Link>
+          <Link to="/dashboard/leads" state={{ from: location.pathname + location.search }} className="broker-text-btn">{L('Alle anzeigen', 'Show all')}</Link>
         </div>
         {loading ? (
           <div className="broker-empty">
-            <strong>Leads werden geladen</strong>
-            <p>Einen Moment bitte.</p>
+            <strong>{L('Leads werden geladen', 'Loading leads')}</strong>
+            <p>{L('Einen Moment bitte.', 'One moment please.')}</p>
           </div>
         ) : recent.length ? (
           <ul className="broker-home-lead-list">
@@ -1576,7 +1577,7 @@ export function BeraterHome() {
                         {leadInitials(lead)}
                       </span>
                       <span className="broker-home-lead-copy">
-                        <strong>{lead.name || 'Ohne Namen'}</strong>
+                        <strong>{lead.name || L('Ohne Namen', 'No name')}</strong>
                         {preview ? <small>{preview}</small> : null}
                         {schedule ? (
                           <small className={`broker-home-lead-schedule${schedule.overdue ? ' is-overdue' : ''}`}>
@@ -1609,8 +1610,8 @@ export function BeraterHome() {
           </ul>
         ) : (
           <div className="broker-empty">
-            <strong>Noch keine Leads</strong>
-            <p>Sobald wir Ihnen Chancen zuteilen, finden Sie sie hier und unter Meine Leads.</p>
+            <strong>{L('Noch keine Leads', 'No leads yet')}</strong>
+            <p>{L('Sobald wir Ihnen Chancen zuteilen, finden Sie sie hier und unter Meine Leads.', 'As soon as we assign opportunities to you, you will find them here and under My leads.')}</p>
           </div>
         )}
       </section>
@@ -1659,7 +1660,7 @@ function LeadCard({ lead, onOpen, dragging = false, onDragStart, onDragEnd }) {
       }}
     >
       <div className="broker-lead-top">
-        <div className="broker-lead-name" title={lead.name}>{lead.name || 'Ohne Namen'}</div>
+        <div className="broker-lead-name" title={lead.name}>{lead.name || L('Ohne Namen', 'No name')}</div>
         {lead.status === 'abgeschlossen' ? <CloseOutcomeMark outcome={closeOutcomeOf(lead)} compact /> : null}
       </div>
       {place ? (
@@ -1672,13 +1673,13 @@ function LeadCard({ lead, onOpen, dragging = false, onDragStart, onDragEnd }) {
       {schedule ? (
         <LeadScheduleBlock kind={schedule.kind} at={schedule.at} compact />
       ) : needsSchedule ? (
-        <div className="broker-lead-when is-missing is-compact">Datum wählen</div>
+        <div className="broker-lead-when is-missing is-compact">{L('Datum wählen', 'Choose date')}</div>
       ) : null}
       <div className="broker-lead-tags">
         <span>{lead.product || lead.productCode || leadProductCode(lead)}</span>
-        {isAppointment ? <span>Termin</span> : lead.quality ? <span>{lead.quality}</span> : null}
+        {isAppointment ? <span>{L('Termin', 'Appointment')}</span> : lead.quality ? <span>{lead.quality}</span> : null}
         {lead.notes ? (
-          <StickyNote size={13} className="broker-lead-note-icon" aria-label="Notiz vorhanden" />
+          <StickyNote size={13} className="broker-lead-note-icon" aria-label={L('Notiz vorhanden', 'Note available')} />
         ) : null}
       </div>
     </article>
@@ -1706,10 +1707,10 @@ function LeadListRow({ lead, onOpen }) {
 function complaintChipLabel(complaint) {
   const tone = complaintTone(complaint?.status);
   if (tone === 'gutgeschrieben' || tone === 'teilweise') {
-    return isReplacementPending(complaint) ? 'Ersatz ausstehend' : 'Ersetzt';
+    return isReplacementPending(complaint) ? L('Ersatz ausstehend', 'Replacement pending') : L('Ersetzt', 'Replaced');
   }
-  if (tone === 'infos_noetig') return 'Infos nötig';
-  return 'In Prüfung';
+  if (tone === 'infos_noetig') return L('Infos nötig', 'Info needed');
+  return L('In Prüfung', 'Under review');
 }
 
 function ComplaintLeadRow({ lead, onOpen }) {
@@ -1736,7 +1737,7 @@ function ComplaintLeadRow({ lead, onOpen }) {
           <ComplaintStatusIcon status={complaint.status} size={12} />
           {complaintChipLabel(complaint)}
         </span>
-        {needsInfo ? <small>Aktion nötig</small> : blocked ? <small>Gesperrt</small> : null}
+        {needsInfo ? <small>{L('Aktion nötig', 'Action needed')}</small> : blocked ? <small>{L('Gesperrt', 'Locked')}</small> : null}
       </span>
       <span className="broker-list-meta broker-complaint-credit">
         {complaint.refundCents != null ? formatEuroExact(complaint.refundCents) : '—'}
@@ -1788,7 +1789,7 @@ function KanbanColumn({
             onDragEnd={onDragEnd}
           />
         )) : (
-          <div className="broker-kanban-empty">Hierhin ziehen</div>
+          <div className="broker-kanban-empty">{L('Hierhin ziehen', 'Drag here')}</div>
         )}
       </div>
     </section>
@@ -1800,8 +1801,8 @@ function FilterDropdown({ label, options, selected, counts, onToggle, onClear })
   const wrapRef = useRef(null);
   const chosen = options.filter((option) => selected.includes(option.id));
   const summary = !chosen.length
-    ? 'Alle'
-    : chosen.length === 1 ? chosen[0].label : `${chosen.length} ausgewählt`;
+    ? L('Alle', 'All')
+    : chosen.length === 1 ? chosen[0].label : L(`${chosen.length} ausgewählt`, `${chosen.length} selected`);
 
   useDropdownDismiss(open, setOpen, wrapRef);
 
@@ -1839,10 +1840,10 @@ function FilterDropdown({ label, options, selected, counts, onToggle, onClear })
             </div>
             <div className="broker-filter-dd__foot">
               <button type="button" className="broker-filter-dd__reset" disabled={!chosen.length} onClick={onClear}>
-                Zurücksetzen
+                {L('Zurücksetzen', 'Reset')}
               </button>
               <button type="button" className="broker-filter-dd__done" onClick={() => setOpen(false)}>
-                Fertig
+                {L('Fertig', 'Done')}
               </button>
             </div>
           </div>
@@ -1854,7 +1855,7 @@ function FilterDropdown({ label, options, selected, counts, onToggle, onClear })
           type="button"
           className="broker-filter-chip"
           onClick={() => onToggle(option.id)}
-          aria-label={`Filter ${option.label} entfernen`}
+          aria-label={L(`Filter ${option.label} entfernen`, `Remove filter ${option.label}`)}
         >
           {option.label}
           <X size={12} strokeWidth={2.5} aria-hidden="true" />
@@ -2055,8 +2056,8 @@ export function BeraterLeads() {
       setOutcomeTarget(null);
       showToast(
         outcomeId === 'erfolgreich'
-          ? 'Lead als erfolgreich gespeichert.'
-          : 'Lead als nicht erfolgreich gespeichert.',
+          ? L('Lead als erfolgreich gespeichert.', 'Lead saved as successful.')
+          : L('Lead als nicht erfolgreich gespeichert.', 'Lead saved as not successful.'),
       );
     } catch (err) {
       setError(err.message);
@@ -2085,8 +2086,8 @@ export function BeraterLeads() {
       setScheduleTarget(null);
       showToast(
         kind === 'termin'
-          ? 'Termin gespeichert.'
-          : 'Wiedervorlage gespeichert. Wir erinnern Sie per E-Mail.',
+          ? L('Termin gespeichert.', 'Appointment saved.')
+          : L('Wiedervorlage gespeichert. Wir erinnern Sie per E-Mail.', 'Follow-up saved. We will remind you by e-mail.'),
       );
     } catch (err) {
       setError(err.message);
@@ -2134,14 +2135,14 @@ export function BeraterLeads() {
     <div className="broker-page broker-page--wide broker-page--fit">
       <div className="broker-heading">
         <div>
-          <div className="eyebrow">Ihr Bestand</div>
-          <h1>Meine Leads</h1>
+          <div className="eyebrow">{L('Ihr Bestand', 'Your portfolio')}</div>
+          <h1>{L('Meine Leads', 'My leads')}</h1>
           <p className="lede">
             {complaintsView
-              ? 'Reklamierte Leads prüft VANTARO. Sie zählen nicht zu Ihren aktiven Chancen.'
+              ? L('Reklamierte Leads prüft VANTARO. Sie zählen nicht zu Ihren aktiven Chancen.', 'VANTARO reviews leads under complaint. They do not count towards your active opportunities.')
               : energy
-                ? 'Karten in die passende Spalte ziehen — Termine erscheinen direkt unter Termin.'
-                : 'Karten in die passende Spalte ziehen — oder in der Liste öffnen.'}
+                ? L('Karten in die passende Spalte ziehen — Termine erscheinen direkt unter Termin.', 'Drag cards into the matching column — appointments appear directly under Appointment.')
+                : L('Karten in die passende Spalte ziehen — oder in der Liste öffnen.', 'Drag cards into the matching column — or open them in the list.')}
           </p>
         </div>
       </div>
@@ -2151,7 +2152,7 @@ export function BeraterLeads() {
       <div className="broker-filterbar">
         {energy ? (
           <FilterDropdown
-            label="Paket"
+            label={L('Paket', 'Package')}
             options={ENERGY_PACKAGES}
             selected={packages}
             counts={loading ? null : filterCounts}
@@ -2160,7 +2161,7 @@ export function BeraterLeads() {
           />
         ) : (
           <FilterDropdown
-            label="Versicherungsstatus"
+            label={L('Versicherungsstatus', 'Insurance status')}
             options={INSURANCE_OPTIONS}
             selected={insurance}
             counts={loading ? null : filterCounts}
@@ -2172,25 +2173,25 @@ export function BeraterLeads() {
         <div className="broker-filterbar-end">
           {showSegments ? (
             <SelectDropdown
-              label="Bereich"
+              label={L('Bereich', 'Section')}
               value={segment}
               onChange={setSegment}
               options={[
-                { id: 'active', label: 'Aktiv', icon: Sparkles, count: loading ? null : activePipeline.length },
+                { id: 'active', label: L('Aktiv', 'Active'), icon: Sparkles, count: loading ? null : activePipeline.length },
                 {
                   id: 'complaints',
-                  label: 'Reklamiert',
+                  label: L('Reklamiert', 'Under complaint'),
                   icon: Flag,
                   count: loading ? null : complaintPipeline.length,
                   alert: complaintsNeedInfo,
-                  title: complaintsNeedInfo ? 'Mindestens eine Reklamation braucht weitere Angaben' : undefined,
+                  title: complaintsNeedInfo ? L('Mindestens eine Reklamation braucht weitere Angaben', 'At least one complaint needs more details') : undefined,
                 },
               ]}
             />
           ) : null}
           {energy ? (
             <SelectDropdown
-              label="Anzeigen"
+              label={L('Anzeigen', 'Show')}
               icon={CalendarClock}
               value={delivery}
               onChange={setDelivery}
@@ -2202,7 +2203,7 @@ export function BeraterLeads() {
           ) : null}
           {complaintsView ? null : (
             <SelectDropdown
-              label="Ansicht"
+              label={L('Ansicht', 'View')}
               value={view}
               onChange={setView}
               options={VIEW_MODES.map((mode) => ({
@@ -2217,31 +2218,31 @@ export function BeraterLeads() {
       {loading ? (
         <div className="broker-panel broker-empty">
           <span className="broker-inline-loader" aria-hidden="true" />
-          <strong>Leads werden geladen</strong>
-          <p>Einen Moment bitte.</p>
+          <strong>{L('Leads werden geladen', 'Loading leads')}</strong>
+          <p>{L('Einen Moment bitte.', 'One moment please.')}</p>
         </div>
       ) : !visible.length ? (
         <div className="broker-panel broker-empty">
           <strong>
             {filterActive
-              ? 'Keine Leads für diesen Filter'
-              : complaintsView ? 'Keine reklamierten Leads' : 'Noch keine Leads'}
+              ? L('Keine Leads für diesen Filter', 'No leads for this filter')
+              : complaintsView ? L('Keine reklamierten Leads', 'No leads under complaint') : L('Noch keine Leads', 'No leads yet')}
           </strong>
           <p>
             {filterActive
               ? (energy
-                ? 'Anderes Paket oder „Alle“ wählen, um den gesamten Bestand zu sehen.'
-                : 'Andere Versicherungsstatus wählen — oder alle Häkchen entfernen, um den gesamten Bestand zu sehen.')
+                ? L('Anderes Paket oder „Alle“ wählen, um den gesamten Bestand zu sehen.', 'Choose another package or “All” to see your entire portfolio.')
+                : L('Andere Versicherungsstatus wählen — oder alle Häkchen entfernen, um den gesamten Bestand zu sehen.', 'Choose a different insurance status — or clear all checkboxes to see your entire portfolio.'))
               : complaintsView
-                ? 'Reklamationen reichen Sie direkt im Lead ein. Sie erscheinen dann hier, bis VANTARO entschieden hat.'
-                : 'Sobald wir Ihnen Chancen zuteilen, erscheinen sie hier.'}
+                ? L('Reklamationen reichen Sie direkt im Lead ein. Sie erscheinen dann hier, bis VANTARO entschieden hat.', 'Submit complaints directly in the lead. They will appear here until VANTARO has decided.')
+                : L('Sobald wir Ihnen Chancen zuteilen, erscheinen sie hier.', 'As soon as we assign opportunities to you, they will appear here.')}
           </p>
         </div>
       ) : complaintsView ? (
         <div className="broker-complaint-groups">
           {[
-            { id: 'open', title: 'Offen', hint: 'VANTARO prüft den Fall. Bei „Infos nötig“ bitte im Lead ergänzen.', items: complaintGroups.open },
-            { id: 'done', title: 'Erledigt', hint: 'Gutschrift erteilt. Der Lead bleibt gesperrt; Ersatz folgt oder wurde gesendet.', items: complaintGroups.done },
+            { id: 'open', title: L('Offen', 'Open'), hint: L('VANTARO prüft den Fall. Bei „Infos nötig“ bitte im Lead ergänzen.', 'VANTARO is reviewing the case. If “Info needed” is shown, please add details in the lead.'), items: complaintGroups.open },
+            { id: 'done', title: L('Erledigt', 'Done'), hint: L('Gutschrift erteilt. Der Lead bleibt gesperrt; Ersatz folgt oder wurde gesendet.', 'Credit issued. The lead stays locked; a replacement will follow or has been sent.'), items: complaintGroups.done },
           ].filter((group) => group.items.length).map((group) => (
             <section key={group.id} className="broker-panel broker-list-panel broker-complaint-group">
               <header className="broker-complaint-group__head">
@@ -2250,11 +2251,11 @@ export function BeraterLeads() {
                 <small>{group.hint}</small>
               </header>
               <div className="broker-list-head broker-complaint-row" aria-hidden="true">
-                <span>Kontakt</span>
-                <span>Grund</span>
-                <span>Eingereicht</span>
-                <span>Status</span>
-                <span>Gutschrift</span>
+                <span>{L('Kontakt', 'Contact')}</span>
+                <span>{L('Grund', 'Reason')}</span>
+                <span>{L('Eingereicht', 'Submitted')}</span>
+                <span>{L('Status', 'Status')}</span>
+                <span>{L('Gutschrift', 'Credit')}</span>
               </div>
               <div className="broker-list-body">
                 {group.items.map((lead) => (
@@ -2268,11 +2269,11 @@ export function BeraterLeads() {
         <>
           <div className="broker-panel broker-list-panel">
             <div className="broker-list-head" aria-hidden="true">
-              <span>Kontakt</span>
-              <span>{energy ? 'Paket' : 'Produkt'}</span>
-              <span>{energy ? 'Art' : 'Qualität'}</span>
-              <span>Status</span>
-              <span>{energy ? 'Gebiet' : 'Preis'}</span>
+              <span>{L('Kontakt', 'Contact')}</span>
+              <span>{energy ? L('Paket', 'Package') : L('Produkt', 'Product')}</span>
+              <span>{energy ? L('Art', 'Type') : L('Qualität', 'Quality')}</span>
+              <span>{L('Status', 'Status')}</span>
+              <span>{energy ? L('Gebiet', 'Area') : L('Preis', 'Price')}</span>
             </div>
             <div className="broker-list-body">
               {pageItems.map((lead) => (
@@ -2284,7 +2285,7 @@ export function BeraterLeads() {
                     </span>
                     <span className="broker-list-meta">{lead.product}</span>
                     <span className="broker-list-meta">
-                      {(lead.deliveryType || lead.delivery_type) === 'appointment' ? 'Termin' : 'Lead'}
+                      {(lead.deliveryType || lead.delivery_type) === 'appointment' ? L('Termin', 'Appointment') : L('Lead', 'Lead')}
                     </span>
                     <LeadStatusMark lead={lead} />
                     <span className="broker-list-meta">{[lead.zip, lead.city].filter(Boolean).join(' ') || '—'}</span>
@@ -2303,10 +2304,10 @@ export function BeraterLeads() {
                 disabled={page <= 1}
                 onClick={() => setPage((value) => Math.max(1, value - 1))}
               >
-                Zurück
+                {L('Zurück', 'Back')}
               </button>
               <span>
-                Seite {page} von {totalPages}
+                {L(`Seite ${page} von ${totalPages}`, `Page ${page} of ${totalPages}`)}
               </span>
               <button
                 type="button"
@@ -2314,7 +2315,7 @@ export function BeraterLeads() {
                 disabled={page >= totalPages}
                 onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
               >
-                Weiter
+                {L('Weiter', 'Next')}
               </button>
             </div>
           ) : null}
@@ -2428,9 +2429,9 @@ function getWeekDays(referenceDate) {
     days.push({
       date: d,
       dateKey: toDateKey(d),
-      dayName: d.toLocaleDateString('de-DE', { weekday: 'short' }),
+      dayName: d.toLocaleDateString(locale(), { weekday: 'short' }),
       dayNumber: d.getDate(),
-      formatted: d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' }),
+      formatted: d.toLocaleDateString(locale(), { day: '2-digit', month: '2-digit' }),
     });
   }
   return days;
@@ -2444,14 +2445,14 @@ function formatRelativeSchedule(isoStr) {
   const targetMidnight = new Date(target.getFullYear(), target.getMonth(), target.getDate());
   
   const diffDays = Math.round((targetMidnight.getTime() - todayMidnight.getTime()) / (1000 * 60 * 60 * 24));
-  const timeStr = target.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) + ' Uhr';
+  const timeStr = target.toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit' }) + L(' Uhr', '');
 
-  if (diffDays === 0) return `Heute um ${timeStr}`;
-  if (diffDays === 1) return `Morgen um ${timeStr}`;
-  if (diffDays === 2) return `Übermorgen um ${timeStr}`;
-  if (diffDays === -1) return `Gestern um ${timeStr}`;
-  if (diffDays < -1) return `Vor ${Math.abs(diffDays)} Tagen um ${timeStr}`;
-  return `In ${diffDays} Tagen (${target.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })}) um ${timeStr}`;
+  if (diffDays === 0) return L(`Heute um ${timeStr}`, `Today at ${timeStr}`);
+  if (diffDays === 1) return L(`Morgen um ${timeStr}`, `Tomorrow at ${timeStr}`);
+  if (diffDays === 2) return L(`Übermorgen um ${timeStr}`, `The day after tomorrow at ${timeStr}`);
+  if (diffDays === -1) return L(`Gestern um ${timeStr}`, `Yesterday at ${timeStr}`);
+  if (diffDays < -1) return L(`Vor ${Math.abs(diffDays)} Tagen um ${timeStr}`, `${Math.abs(diffDays)} days ago at ${timeStr}`);
+  return L(`In ${diffDays} Tagen (${target.toLocaleDateString(locale(), { day: '2-digit', month: '2-digit' })}) um ${timeStr}`, `In ${diffDays} days (${target.toLocaleDateString(locale(), { day: '2-digit', month: '2-digit' })}) at ${timeStr}`);
 }
 
 function calAvatarInitials(name = '') {
@@ -2471,7 +2472,7 @@ export function BeraterCalendar() {
   const [searchParams] = useSearchParams();
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(searchParams.get('calendar') === 'error' ? 'Google Kalender konnte nicht verbunden werden.' : '');
+  const [error, setError] = useState(searchParams.get('calendar') === 'error' ? L('Google Kalender konnte nicht verbunden werden.', 'Google Calendar could not be connected.') : '');
   const [calendarLink, setCalendarLink] = useState(null);
   
   const now = new Date();
@@ -2523,8 +2524,8 @@ export function BeraterCalendar() {
     const list = [];
     pipelineLeads.forEach((lead) => {
       const product = energy
-        ? (energyTypeLabel(energyLeadTypeOf(lead)) || 'Energie')
-        : (leadProduct(lead) || lead.product || 'Versicherung');
+        ? (energyTypeLabel(energyLeadTypeOf(lead)) || L('Energie', 'Energy'))
+        : (leadProduct(lead) || lead.product || L('Versicherung', 'Insurance'));
       if (lead.appointmentAt) {
         const at = lead.appointmentAt;
         const d = new Date(at);
@@ -2534,11 +2535,11 @@ export function BeraterCalendar() {
           kind: 'termin',
           at,
           dateKey: toDateKey(d),
-          timeStr: d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) + ' Uhr',
+          timeStr: d.toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit' }) + L(' Uhr', ''),
           label: formatScheduleLabel(at),
           relative: formatRelativeSchedule(at),
           overdue: d.getTime() < Date.now(),
-          leadName: lead.name || lead.fullName || 'Ohne Namen',
+          leadName: lead.name || lead.fullName || L('Ohne Namen', 'No name'),
           phone: lead.phone || '',
           email: lead.email || '',
           product,
@@ -2553,11 +2554,11 @@ export function BeraterCalendar() {
           kind: 'wiedervorlage',
           at,
           dateKey: toDateKey(d),
-          timeStr: d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) + ' Uhr',
+          timeStr: d.toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit' }) + L(' Uhr', ''),
           label: formatScheduleLabel(at),
           relative: formatRelativeSchedule(at),
           overdue: d.getTime() < Date.now(),
-          leadName: lead.name || lead.fullName || 'Ohne Namen',
+          leadName: lead.name || lead.fullName || L('Ohne Namen', 'No name'),
           phone: lead.phone || '',
           email: lead.email || '',
           product,
@@ -2610,7 +2611,7 @@ export function BeraterCalendar() {
   }, [allEvents, todayKey]);
 
   // Month navigation & cells
-  const monthLabel = new Date(cursor.year, cursor.month, 1).toLocaleDateString('de-DE', {
+  const monthLabel = new Date(cursor.year, cursor.month, 1).toLocaleDateString(locale(), {
     month: 'long',
     year: 'numeric',
   });
@@ -2621,8 +2622,8 @@ export function BeraterCalendar() {
   const weekDays = useMemo(() => getWeekDays(weekCursorDate), [weekCursorDate]);
   const weekLabel = useMemo(() => {
     if (!weekDays.length) return '';
-    const start = weekDays[0].date.toLocaleDateString('de-DE', { day: 'numeric', month: 'short' });
-    const end = weekDays[6].date.toLocaleDateString('de-DE', { day: 'numeric', month: 'short', year: 'numeric' });
+    const start = weekDays[0].date.toLocaleDateString(locale(), { day: 'numeric', month: 'short' });
+    const end = weekDays[6].date.toLocaleDateString(locale(), { day: 'numeric', month: 'short', year: 'numeric' });
     return `${start} – ${end}`;
   }, [weekDays]);
 
@@ -2673,10 +2674,10 @@ export function BeraterCalendar() {
       );
       setScheduleTarget(null);
       if (showToast) {
-        showToast(kind === 'termin' ? 'Termin erfolgreich aktualisiert.' : 'Wiedervorlage aktualisiert.');
+        showToast(kind === 'termin' ? L('Termin erfolgreich aktualisiert.', 'Appointment updated successfully.') : L('Wiedervorlage aktualisiert.', 'Follow-up updated.'));
       }
     } catch (err) {
-      setError(err.message || 'Fehler beim Speichern');
+      setError(err.message || L('Fehler beim Speichern', 'Error while saving'));
     } finally {
       setSavingSchedule(false);
     }
@@ -2692,8 +2693,8 @@ export function BeraterCalendar() {
     return Object.entries(groups).map(([dKey, items]) => {
       const [y, m, d] = dKey.split('-').map(Number);
       const dateObj = new Date(y, m - 1, d);
-      let dayTitle = dateObj.toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-      if (dKey === todayKey) dayTitle = `Heute · ${dayTitle}`;
+      let dayTitle = dateObj.toLocaleDateString(locale(), { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+      if (dKey === todayKey) dayTitle = `${L('Heute', 'Today')} · ${dayTitle}`;
       return { dateKey: dKey, title: dayTitle, items };
     });
   }, [filteredEvents, todayKey]);
@@ -2703,10 +2704,10 @@ export function BeraterCalendar() {
       {/* Top Heading */}
       <div className="broker-heading">
         <div>
-          <div className="eyebrow">Terminplaner</div>
-          <h1>Kalender</h1>
+          <div className="eyebrow">{L('Terminplaner', 'Scheduler')}</div>
+          <h1>{L('Kalender', 'Calendar')}</h1>
           <p className="lede">
-            Alle Beratungstermine und Wiedervorlagen im Überblick.
+            {L('Alle Beratungstermine und Wiedervorlagen im Überblick.', 'All advisory appointments and follow-ups at a glance.')}
           </p>
         </div>
         {fieldRep ? (
@@ -2726,14 +2727,14 @@ export function BeraterCalendar() {
               }
             }}
           >
-            {calendarLink?.syncStatus === 'connected' ? 'Google Kalender trennen' : 'Google Kalender verbinden'}
+            {calendarLink?.syncStatus === 'connected' ? L('Google Kalender trennen', 'Disconnect Google Calendar') : L('Google Kalender verbinden', 'Connect Google Calendar')}
           </button>
         ) : null}
       </div>
 
       {error ? <div className="broker-alert">{error}</div> : null}
       {energy && searchParams.get('calendar') === 'connected' ? (
-        <div className="broker-alert broker-alert--ok">Google Kalender ist verbunden. Ein Testtermin wurde angelegt.</div>
+        <div className="broker-alert broker-alert--ok">{L('Google Kalender ist verbunden. Ein Testtermin wurde angelegt.', 'Google Calendar is connected. A test appointment has been created.')}</div>
       ) : null}
 
       <div className="broker-gcal-header">
@@ -2744,13 +2745,13 @@ export function BeraterCalendar() {
               className="broker-gcal-today-btn"
               onClick={handleToday}
             >
-              Heute
+              {L('Heute', 'Today')}
             </button>
             <div className="broker-gcal-nav-arrows">
               <button
                 type="button"
                 className="broker-gcal-arrow-btn"
-                aria-label="Zurück"
+                aria-label={L('Zurück', 'Back')}
                 onClick={handlePrev}
               >
                 <ChevronLeft size={18} />
@@ -2758,7 +2759,7 @@ export function BeraterCalendar() {
               <button
                 type="button"
                 className="broker-gcal-arrow-btn"
-                aria-label="Weiter"
+                aria-label={L('Weiter', 'Next')}
                 onClick={handleNext}
               >
                 <ChevronRight size={18} />
@@ -2774,9 +2775,9 @@ export function BeraterCalendar() {
               <button
                 type="button"
                 className="broker-gcal-search-toggle"
-                aria-label="Termine durchsuchen"
+                aria-label={L('Termine durchsuchen', 'Search appointments')}
                 aria-expanded={searchExpanded}
-                title="Suchen"
+                title={L('Suchen', 'Search')}
                 onClick={() => {
                   setSearchOpen(true);
                   window.requestAnimationFrame(() => searchInputRef.current?.focus());
@@ -2788,8 +2789,8 @@ export function BeraterCalendar() {
                 ref={searchInputRef}
                 type="text"
                 className="broker-gcal-search-input"
-                placeholder="Lead oder Sparte…"
-                aria-label="Lead oder Sparte suchen"
+                placeholder={L('Lead oder Sparte…', 'Lead or line of business…')}
+                aria-label={L('Lead oder Sparte suchen', 'Search lead or line of business')}
                 tabIndex={searchExpanded ? 0 : -1}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -2808,7 +2809,7 @@ export function BeraterCalendar() {
                 <button
                   type="button"
                   className="broker-gcal-search-clear"
-                  aria-label="Suche leeren"
+                  aria-label={L('Suche leeren', 'Clear search')}
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => {
                     setSearchQuery('');
@@ -2820,7 +2821,7 @@ export function BeraterCalendar() {
               ) : null}
             </div>
 
-            <div className="broker-cal-view-modes" role="tablist" aria-label="Ansicht wählen">
+            <div className="broker-cal-view-modes" role="tablist" aria-label={L('Ansicht wählen', 'Choose view')}>
               <button
                 type="button"
                 role="tab"
@@ -2829,7 +2830,7 @@ export function BeraterCalendar() {
                 onClick={() => setViewMode('month')}
               >
                 <CalendarIcon size={14} />
-                <span>Monat</span>
+                <span>{L('Monat', 'Month')}</span>
               </button>
               <button
                 type="button"
@@ -2839,7 +2840,7 @@ export function BeraterCalendar() {
                 onClick={() => setViewMode('week')}
               >
                 <LayoutGrid size={14} />
-                <span>Woche</span>
+                <span>{L('Woche', 'Week')}</span>
               </button>
               <button
                 type="button"
@@ -2849,7 +2850,7 @@ export function BeraterCalendar() {
                 onClick={() => setViewMode('agenda')}
               >
                 <List size={14} />
-                <span>Agenda</span>
+                <span>{L('Agenda', 'Agenda')}</span>
               </button>
             </div>
           </div>
@@ -2861,14 +2862,14 @@ export function BeraterCalendar() {
         {loading ? (
           <div className="broker-cal-loading">
             <span className="broker-inline-loader" aria-hidden="true" />
-            <span>Lade Termine…</span>
+            <span>{L('Lade Termine…', 'Loading appointments…')}</span>
           </div>
         ) : viewMode === 'month' ? (
           /* Google Calendar Month View */
           <div className="broker-gcal-month">
             {/* Weekday Row */}
             <div className="broker-gcal-weekdays">
-              {['MO', 'DI', 'MI', 'DO', 'FR', 'SA', 'SO'].map((d) => (
+              {(L('MO|DI|MI|DO|FR|SA|SO', 'MON|TUE|WED|THU|FRI|SAT|SUN')).split('|').map((d) => (
                 <div key={d} className="broker-gcal-weekday-col">{d}</div>
               ))}
             </div>
@@ -2924,12 +2925,12 @@ export function BeraterCalendar() {
                             e.stopPropagation();
                             setDayModalEvents({
                               dateKey: cell.dateKey,
-                              title: cell.date.toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }),
+                              title: cell.date.toLocaleDateString(locale(), { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }),
                               events: dayEvents,
                             });
                           }}
                         >
-                          +{dayEvents.length - maxVisible} weitere
+                          +{dayEvents.length - maxVisible} {L('weitere', 'more')}
                         </button>
                       ) : null}
                     </div>
@@ -2989,7 +2990,7 @@ export function BeraterCalendar() {
                   <div className="broker-cal-agenda-group-title">
                     <span className="broker-cal-group-dot" />
                     <strong>{group.title}</strong>
-                    <span className="broker-cal-group-count">{group.items.length} Termin(e)</span>
+                    <span className="broker-cal-group-count">{L(`${group.items.length} Termin(e)`, `${group.items.length} ${group.items.length === 1 ? 'appointment' : 'appointments'}`)}</span>
                   </div>
                   <div className="broker-cal-agenda-cards">
                     {group.items.map((ev) => (
@@ -3017,12 +3018,12 @@ export function BeraterCalendar() {
                               <span className="broker-cal-lead-link">{ev.leadName}</span>
                               <div className="broker-cal-lead-meta">
                                 <span className={`broker-badge-pill is-${ev.kind}`}>
-                                  {ev.kind === 'termin' ? 'Beratungstermin' : 'Wiedervorlage'}
+                                  {ev.kind === 'termin' ? L('Beratungstermin', 'Advisory appointment') : L('Wiedervorlage', 'Follow-up')}
                                 </span>
                                 <span className="broker-cal-product-tag">{ev.product}</span>
                                 {ev.overdue ? (
                                   <span className="broker-cal-overdue-tag">
-                                    <AlertCircle size={12} /> Überfällig
+                                    <AlertCircle size={12} /> {L('Überfällig', 'Overdue')}
                                   </span>
                                 ) : null}
                               </div>
@@ -3033,7 +3034,7 @@ export function BeraterCalendar() {
                         <div className="broker-cal-agenda-card-cta" onClick={(e) => e.stopPropagation()}>
                           {ev.phone ? (
                             <a href={`tel:${ev.phone}`} className="btn btn-sm btn-ghost btn-icon-text">
-                              <Phone size={14} /> <span>Anrufen</span>
+                              <Phone size={14} /> <span>{L('Anrufen', 'Call')}</span>
                             </a>
                           ) : null}
                           <button
@@ -3041,14 +3042,14 @@ export function BeraterCalendar() {
                             className="btn btn-sm btn-ghost btn-icon-text"
                             onClick={() => setScheduleTarget({ lead: ev.lead, kind: ev.kind })}
                           >
-                            <CalendarIcon size={14} /> <span>Verschieben</span>
+                            <CalendarIcon size={14} /> <span>{L('Verschieben', 'Reschedule')}</span>
                           </button>
                           <button
                             type="button"
                             className="btn btn-sm btn-primary btn-icon-text"
                             onClick={() => navigate(`/dashboard/leads/${ev.lead.id}`, { state: { from: location.pathname + location.search } })}
                           >
-                            <ArrowRight size={14} /> <span>Lead öffnen</span>
+                            <ArrowRight size={14} /> <span>{L('Lead öffnen', 'Open lead')}</span>
                           </button>
                         </div>
                       </div>
@@ -3058,8 +3059,8 @@ export function BeraterCalendar() {
               ))
             ) : (
               <div className="broker-empty">
-                <strong>Keine anstehenden Termine gefunden</strong>
-                <p>Passen Sie die Suche oder Filter an, oder legen Sie Termine in einem Lead an.</p>
+                <strong>{L('Keine anstehenden Termine gefunden', 'No upcoming appointments found')}</strong>
+                <p>{L('Passen Sie die Suche oder Filter an, oder legen Sie Termine in einem Lead an.', 'Adjust the search or filters, or create appointments in a lead.')}</p>
               </div>
             )}
           </div>
@@ -3069,13 +3070,13 @@ export function BeraterCalendar() {
       {/* Google Calendar Event Detail Modal */}
       {selectedEvent ? (
         <div className="broker-modal" role="dialog" aria-modal="true" aria-labelledby="gcal-event-title">
-          <button type="button" className="broker-modal__backdrop" aria-label="Schließen" onClick={() => setSelectedEvent(null)} />
+          <button type="button" className="broker-modal__backdrop" aria-label={L('Schließen', 'Close')} onClick={() => setSelectedEvent(null)} />
           <div className="broker-modal__panel broker-gcal-detail-modal">
             <div className="broker-modal__top">
               <span className={`broker-badge-pill is-${selectedEvent.kind}`}>
-                {selectedEvent.kind === 'termin' ? 'Beratungstermin' : 'Wiedervorlage'}
+                {selectedEvent.kind === 'termin' ? L('Beratungstermin', 'Advisory appointment') : L('Wiedervorlage', 'Follow-up')}
               </span>
-              <button type="button" className="broker-modal__close" aria-label="Schließen" onClick={() => setSelectedEvent(null)}>
+              <button type="button" className="broker-modal__close" aria-label={L('Schließen', 'Close')} onClick={() => setSelectedEvent(null)}>
                 <X size={18} />
               </button>
             </div>
@@ -3105,7 +3106,7 @@ export function BeraterCalendar() {
                       <a href={`tel:${selectedEvent.phone}`} className="broker-gcal-contact-link">
                         {selectedEvent.phone}
                       </a>
-                      <small>Telefonnummer (Klick zum Anrufen)</small>
+                      <small>{L('Telefonnummer (Klick zum Anrufen)', 'Phone number (click to call)')}</small>
                     </div>
                   </div>
                 ) : null}
@@ -3117,7 +3118,7 @@ export function BeraterCalendar() {
                       <a href={`mailto:${selectedEvent.email}`} className="broker-gcal-contact-link">
                         {selectedEvent.email}
                       </a>
-                      <small>E-Mail-Adresse</small>
+                      <small>{L('E-Mail-Adresse', 'E-mail address')}</small>
                     </div>
                   </div>
                 ) : null}
@@ -3126,7 +3127,7 @@ export function BeraterCalendar() {
               <div className="broker-gcal-modal-actions">
                 {selectedEvent.phone ? (
                   <a href={`tel:${selectedEvent.phone}`} className="btn btn-outline btn-sm">
-                    <Phone size={13} /> Anrufen
+                    <Phone size={13} /> {L('Anrufen', 'Call')}
                   </a>
                 ) : null}
                 <button
@@ -3137,14 +3138,14 @@ export function BeraterCalendar() {
                     setSelectedEvent(null);
                   }}
                 >
-                  Termin ändern
+                  {L('Termin ändern', 'Change appointment')}
                 </button>
                 <button
                   type="button"
                   className="btn btn-primary btn-sm"
                   onClick={() => navigate(`/dashboard/leads/${selectedEvent.lead.id}`, { state: { from: location.pathname + location.search } })}
                 >
-                  Lead öffnen
+                  {L('Lead öffnen', 'Open lead')}
                   <ArrowRight size={13} />
                 </button>
               </div>
@@ -3156,11 +3157,11 @@ export function BeraterCalendar() {
       {/* Day Events Overview Modal (triggered by +N weitere) */}
       {dayModalEvents ? (
         <div className="broker-modal" role="dialog" aria-modal="true">
-          <button type="button" className="broker-modal__backdrop" aria-label="Schließen" onClick={() => setDayModalEvents(null)} />
+          <button type="button" className="broker-modal__backdrop" aria-label={L('Schließen', 'Close')} onClick={() => setDayModalEvents(null)} />
           <div className="broker-modal__panel broker-gcal-day-modal">
             <div className="broker-modal__top">
               <h2>{dayModalEvents.title}</h2>
-              <button type="button" className="broker-modal__close" aria-label="Schließen" onClick={() => setDayModalEvents(null)}>
+              <button type="button" className="broker-modal__close" aria-label={L('Schließen', 'Close')} onClick={() => setDayModalEvents(null)}>
                 <X size={18} />
               </button>
             </div>
@@ -3209,9 +3210,9 @@ export function BeraterAcademy() {
     <div className="broker-page">
       <div className="broker-heading">
         <div>
-          <div className="eyebrow">Lernen</div>
-          <h1>Akademie</h1>
-          <p className="lede">Schulungen, Videos und Unterlagen für Ihren Bestand — in Kürze.</p>
+          <div className="eyebrow">{L('Lernen', 'Learning')}</div>
+          <h1>{L('Akademie', 'Academy')}</h1>
+          <p className="lede">{L('Schulungen, Videos und Unterlagen für Ihren Bestand — in Kürze.', 'Training, videos and materials for your portfolio — coming soon.')}</p>
         </div>
       </div>
       <section className="broker-panel broker-coming-soon">
@@ -3219,8 +3220,8 @@ export function BeraterAcademy() {
           <GraduationCap size={28} strokeWidth={1.8} />
         </span>
         <em>Coming soon</em>
-        <strong>Akademie folgt in Kürze</strong>
-        <p>Dieser Bereich wird vorbereitet. Sobald Inhalte bereitstehen, finden Sie sie hier.</p>
+        <strong>{L('Akademie folgt in Kürze', 'Academy coming soon')}</strong>
+        <p>{L('Dieser Bereich wird vorbereitet. Sobald Inhalte bereitstehen, finden Sie sie hier.', 'This section is being prepared. As soon as content is available, you will find it here.')}</p>
       </section>
     </div>
   );
@@ -3246,16 +3247,16 @@ export function BeraterSupport() {
 
   const faqs = [
     {
-      q: 'Wie schnell antwortet der Support?',
-      a: 'Werktags in der Regel innerhalb eines Arbeitstages. Dringende Anfragen zu laufenden Terminen behandeln wir bevorzugt.',
+      q: L('Wie schnell antwortet der Support?', 'How quickly does support reply?'),
+      a: L('Werktags in der Regel innerhalb eines Arbeitstages. Dringende Anfragen zu laufenden Terminen behandeln wir bevorzugt.', 'On weekdays, usually within one business day. We prioritise urgent requests about ongoing appointments.'),
     },
     {
-      q: 'Lead ungültig oder falsch?',
-      a: 'Reklamationen zu einzelnen Leads bitte direkt im Lead unter „Reklamation“ einreichen — inkl. Nachweis. Der Support hier ist für Portal, Konto und Abrechnung.',
+      q: L('Lead ungültig oder falsch?', 'Lead invalid or incorrect?'),
+      a: L('Reklamationen zu einzelnen Leads bitte direkt im Lead unter „Reklamation“ einreichen — inkl. Nachweis. Der Support hier ist für Portal, Konto und Abrechnung.', 'Please submit complaints about individual leads directly in the lead under “Complaint” — including proof. Support here is for the portal, your account and billing.'),
     },
     {
-      q: 'Rechnung oder Paket',
-      a: 'Unter Zahlungen finden Sie alle Ausgaben und Rechnungen. Für Korrekturen senden Sie uns die Rechnungsnummer mit.',
+      q: L('Rechnung oder Paket', 'Invoice or package'),
+      a: L('Unter Zahlungen finden Sie alle Ausgaben und Rechnungen. Für Korrekturen senden Sie uns die Rechnungsnummer mit.', 'Under Payments you will find all expenses and invoices. For corrections, please include the invoice number.'),
     },
   ];
 
@@ -3275,7 +3276,7 @@ export function BeraterSupport() {
 
     const room = SUPPORT_ATTACH_MAX - files.length;
     if (room <= 0) {
-      setError('Maximal 3 Dateien.');
+      setError(L('Maximal 3 Dateien.', 'Maximum 3 files.'));
       return;
     }
 
@@ -3295,10 +3296,10 @@ export function BeraterSupport() {
         })),
       ]);
       setError(incoming.length > room
-        ? 'Maximal 3 Dateien — überzählige wurden nicht hinzugefügt.'
+        ? L('Maximal 3 Dateien — überzählige wurden nicht hinzugefügt.', 'Maximum 3 files — extra files were not added.')
         : '');
     } catch (err) {
-      setError(err.message || 'Datei konnte nicht gelesen werden.');
+      setError(err.message || L('Datei konnte nicht gelesen werden.', 'The file could not be read.'));
     }
   }
 
@@ -3312,7 +3313,7 @@ export function BeraterSupport() {
     setSent(false);
 
     if (!form.subject.trim() || form.message.trim().length < 20) {
-      setError('Bitte geben Sie einen Betreff und eine Nachricht mit mindestens 20 Zeichen an.');
+      setError(L('Bitte geben Sie einen Betreff und eine Nachricht mit mindestens 20 Zeichen an.', 'Please enter a subject and a message of at least 20 characters.'));
       return;
     }
 
@@ -3349,15 +3350,15 @@ export function BeraterSupport() {
 
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(data.error || 'Nachricht konnte nicht gesendet werden.');
+        throw new Error(data.error || L('Nachricht konnte nicht gesendet werden.', 'The message could not be sent.'));
       }
 
       setSent(true);
       setFiles([]);
       setForm((prev) => ({ ...prev, subject: '', message: '', leadRef: '' }));
-      showToast('Ihre Nachricht wurde gesendet.');
+      showToast(L('Ihre Nachricht wurde gesendet.', 'Your message has been sent.'));
     } catch (err) {
-      setError(err.message || 'Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.');
+      setError(err.message || L('Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.', 'An error occurred. Please try again.'));
     } finally {
       setSending(false);
     }
@@ -3370,8 +3371,8 @@ export function BeraterSupport() {
       <div className="broker-heading">
         <div>
           <div className="eyebrow">Support</div>
-          <h1>Hilfe & <em>Kontakt</em></h1>
-          <p className="lede">Fragen zum Bestand, zur Abrechnung oder zum Konto — wir antworten werktags.</p>
+          <h1>{L('Hilfe & ', 'Help & ')}<em>{L('Kontakt', 'contact')}</em></h1>
+          <p className="lede">{L('Fragen zum Bestand, zur Abrechnung oder zum Konto — wir antworten werktags.', 'Questions about your portfolio, billing or account — we reply on weekdays.')}</p>
         </div>
       </div>
 
@@ -3379,10 +3380,10 @@ export function BeraterSupport() {
         <section className="broker-panel broker-support-main">
           <div className="broker-panel-header">
             <div>
-              <h2>Nachricht an VANTARO</h2>
-              <p>Anliegen beschreiben — wir erhalten Ihre Kontodaten automatisch.</p>
+              <h2>{L('Nachricht an VANTARO', 'Message to VANTARO')}</h2>
+              <p>{L('Anliegen beschreiben — wir erhalten Ihre Kontodaten automatisch.', 'Describe your request — we receive your account details automatically.')}</p>
             </div>
-            <div className="broker-support-priority" role="radiogroup" aria-label="Priorität">
+            <div className="broker-support-priority" role="radiogroup" aria-label={L('Priorität', 'Priority')}>
               <button
                 type="button"
                 role="radio"
@@ -3391,7 +3392,7 @@ export function BeraterSupport() {
                 disabled={sending}
                 onClick={() => updateField('priority', 'normal')}
               >
-                Normal
+                {L('Normal', 'Normal')}
               </button>
               <button
                 type="button"
@@ -3402,7 +3403,7 @@ export function BeraterSupport() {
                 onClick={() => updateField('priority', 'urgent')}
               >
                 <Flag size={14} />
-                Dringend
+                {L('Dringend', 'Urgent')}
               </button>
             </div>
           </div>
@@ -3413,8 +3414,8 @@ export function BeraterSupport() {
                   <CheckCircle2 size={22} />
                 </span>
                 <div>
-                  <strong>Anfrage gesendet</strong>
-                  <p>Wir haben Ihre Nachricht erhalten und eine Bestätigung an {user?.email} geschickt.</p>
+                  <strong>{L('Anfrage gesendet', 'Request sent')}</strong>
+                  <p>{L('Wir haben Ihre Nachricht erhalten und eine Bestätigung an ', 'We have received your message and sent a confirmation to ')}{user?.email}{L(' geschickt.', '.')}</p>
                 </div>
               </div>
             ) : null}
@@ -3429,42 +3430,42 @@ export function BeraterSupport() {
 
               <div className="broker-form-grid">
                 <label className="is-full">
-                  Betreff
+                  {L('Betreff', 'Subject')}
                   <input
                     value={form.subject}
                     onChange={(event) => updateField('subject', event.target.value)}
-                    placeholder="z. B. Rechnung vom März oder Termin-Erinnerung"
+                    placeholder={L('z. B. Rechnung vom März oder Termin-Erinnerung', 'e.g. March invoice or appointment reminder')}
                     maxLength={140}
                     disabled={sending}
                     required
                   />
                 </label>
                 <label>
-                  Rückrufnummer
+                  {L('Rückrufnummer', 'Callback number')}
                   <input
                     type="tel"
                     value={form.phone}
                     onChange={(event) => updateField('phone', event.target.value)}
-                    placeholder="Optional"
+                    placeholder={L('Optional', 'Optional')}
                     disabled={sending}
                   />
                 </label>
                 <label>
-                  Lead-Bezug
+                  {L('Lead-Bezug', 'Related lead')}
                   <input
                     value={form.leadRef}
                     onChange={(event) => updateField('leadRef', event.target.value)}
-                    placeholder="Name oder ID, optional"
+                    placeholder={L('Name oder ID, optional', 'Name or ID, optional')}
                     disabled={sending}
                   />
                 </label>
                 <label className="is-full broker-support-message-field">
-                  Nachricht
+                  {L('Nachricht', 'Message')}
                   <textarea
                     className="broker-support-message"
                     value={form.message}
                     onChange={(event) => updateField('message', event.target.value)}
-                    placeholder="Was ist passiert, was erwarten Sie, und seit wann besteht das Thema?"
+                    placeholder={L('Was ist passiert, was erwarten Sie, und seit wann besteht das Thema?', 'What happened, what do you expect, and since when has this been an issue?')}
                     rows={5}
                     maxLength={4000}
                     disabled={sending}
@@ -3472,9 +3473,9 @@ export function BeraterSupport() {
                   />
                   <span className="broker-support-meta">
                     <span className={`broker-support-count${messageLen < 20 ? ' is-short' : ''}`}>
-                      {messageLen} / 4000 · mindestens 20 Zeichen
+                      {messageLen} / 4000 · {L('mindestens 20 Zeichen', 'at least 20 characters')}
                     </span>
-                    <span>Antwort an {user?.email || 'Ihre Konto-E-Mail'}</span>
+                    <span>{L('Antwort an', 'Reply to')} {user?.email || L('Ihre Konto-E-Mail', 'your account e-mail')}</span>
                   </span>
                 </label>
               </div>
@@ -3498,8 +3499,8 @@ export function BeraterSupport() {
                   <label className="broker-support-drop">
                     <Paperclip size={16} aria-hidden="true" />
                     <span>
-                      <strong>Anhang hinzufügen{files.length ? ` (${files.length}/${SUPPORT_ATTACH_MAX})` : ''}</strong>
-                      <small>PDF, JPG, PNG, WebP · max. 3 · 1,2 MB je Datei</small>
+                      <strong>{L('Anhang hinzufügen', 'Add attachment')}{files.length ? ` (${files.length}/${SUPPORT_ATTACH_MAX})` : ''}</strong>
+                      <small>{L('PDF, JPG, PNG, WebP · max. 3 · 1,2 MB je Datei', 'PDF, JPG, PNG, WebP · max. 3 · 1.2 MB per file')}</small>
                     </span>
                     <input
                       type="file"
@@ -3514,10 +3515,10 @@ export function BeraterSupport() {
                   </label>
                 </div>
                 <button type="submit" className="btn btn-primary" disabled={sending}>
-                  {sending ? 'Wird gesendet…' : (
+                  {sending ? L('Wird gesendet…', 'Sending…') : (
                     <>
                       <Send size={16} />
-                      Nachricht senden
+                      {L('Nachricht senden', 'Send message')}
                     </>
                   )}
                 </button>
@@ -3539,7 +3540,7 @@ export function BeraterSupport() {
                         type="button"
                         onClick={() => removeSupportFile(file.id)}
                         disabled={sending}
-                        aria-label={`${file.name} entfernen`}
+                        aria-label={L(`${file.name} entfernen`, `Remove ${file.name}`)}
                       >
                         <X size={12} />
                       </button>
@@ -3555,21 +3556,21 @@ export function BeraterSupport() {
           <section className="broker-panel">
             <div className="broker-panel-header">
               <div>
-                <h2>Erreichbarkeit</h2>
-                <p>Montag bis Freitag, außer Feiertage.</p>
+                <h2>{L('Erreichbarkeit', 'Availability')}</h2>
+                <p>{L('Montag bis Freitag, außer Feiertage.', 'Monday to Friday, except public holidays.')}</p>
               </div>
             </div>
             <div className="broker-support-hours">
               <div className="broker-support-hours-item">
-                <strong>Zeiten</strong>
-                <span>09:00 – 17:00 Uhr</span>
+                <strong>{L('Zeiten', 'Hours')}</strong>
+                <span>{L('09:00 – 17:00 Uhr', '09:00 – 17:00 (CET)')}</span>
               </div>
               <a className="broker-support-card" href="mailto:info@vantaro.io">
                 <span className="broker-support-icon" aria-hidden="true">
                   <Mail size={18} />
                 </span>
                 <div>
-                  <strong>E-Mail</strong>
+                  <strong>{L('E-Mail', 'E-mail')}</strong>
                   <span>info@vantaro.io</span>
                 </div>
               </a>
@@ -3579,7 +3580,7 @@ export function BeraterSupport() {
           <section className="broker-panel">
             <div className="broker-panel-header">
               <div>
-                <h2>Häufige Fragen</h2>
+                <h2>{L('Häufige Fragen', 'Frequently asked questions')}</h2>
               </div>
             </div>
             <div className="broker-faq-list">
@@ -3651,7 +3652,7 @@ export function BeraterLeadDetail() {
     try {
       const payload = await updateLead(lead.id, { brokerNotes: notes });
       setLead((current) => ({ ...current, ...payload.lead, complaint: current?.complaint }));
-      showToast('Notizen gespeichert.');
+      showToast(L('Notizen gespeichert.', 'Notes saved.'));
     } catch (err) {
       setError(err.message);
     } finally {
@@ -3688,7 +3689,7 @@ export function BeraterLeadDetail() {
     setError('');
     try {
       await persistContact(statusId);
-      showToast('Status gespeichert.');
+      showToast(L('Status gespeichert.', 'Status saved.'));
     } catch (err) {
       setError(err.message);
     } finally {
@@ -3709,8 +3710,8 @@ export function BeraterLeadDetail() {
       setScheduleOpen(false);
       showToast(
         statusId === 'termin'
-          ? 'Termin gespeichert.'
-          : 'Wiedervorlage gespeichert. Wir erinnern Sie per E-Mail.',
+          ? L('Termin gespeichert.', 'Appointment saved.')
+          : L('Wiedervorlage gespeichert. Wir erinnern Sie per E-Mail.', 'Follow-up saved. We will remind you by e-mail.'),
       );
     } catch (err) {
       setError(err.message);
@@ -3735,8 +3736,8 @@ export function BeraterLeadDetail() {
       setOutcomeOpen(false);
       showToast(
         outcomeId === 'erfolgreich'
-          ? 'Lead als erfolgreich gespeichert.'
-          : 'Lead als nicht erfolgreich gespeichert.',
+          ? L('Lead als erfolgreich gespeichert.', 'Lead saved as successful.')
+          : L('Lead als nicht erfolgreich gespeichert.', 'Lead saved as not successful.'),
       );
     } catch (err) {
       setError(err.message);
@@ -3754,7 +3755,7 @@ export function BeraterLeadDetail() {
   }
 
   if (loading) {
-    return <BootScreen caption="Lead wird geladen" />;
+    return <BootScreen caption={L('Lead wird geladen', 'Loading lead')} />;
   }
 
   if (!lead) {
@@ -3797,19 +3798,19 @@ export function BeraterLeadDetail() {
       {error ? <div className="broker-alert">{error}</div> : null}
       {isComplaintBlockedLead(lead) ? (
         <div className="broker-alert broker-alert--blocked">
-          {creditedComplaintBeraterNote(lead.complaint) || 'Dieser Lead ist nach der Reklamation gesperrt.'}
+          {creditedComplaintBeraterNote(lead.complaint) || L('Dieser Lead ist nach der Reklamation gesperrt.', 'This lead is locked following the complaint.')}
         </div>
       ) : null}
 
       <div className="broker-heading broker-detail-heading">
         <span className="broker-detail-avatar" aria-hidden="true">{leadInitials(lead)}</span>
         <div className="broker-detail-heading-main">
-          <div className="eyebrow">{energy && lead.deliveryType === 'appointment' ? 'Ihr Termin' : 'Ihr Gespräch'}</div>
-          <h1>{view.name || 'Ohne Namen'}</h1>
+          <div className="eyebrow">{energy && lead.deliveryType === 'appointment' ? L('Ihr Termin', 'Your appointment') : L('Ihr Gespräch', 'Your conversation')}</div>
+          <h1>{view.name || L('Ohne Namen', 'No name')}</h1>
           <p className="lede">
-            {[energy ? view.product : '', hasAddress ? view.address : '', distance ? `${distance} entfernt` : '']
+            {[energy ? view.product : '', hasAddress ? view.address : '', distance ? L(`${distance} entfernt`, `${distance} away`) : '']
               .filter(Boolean)
-              .join(' · ') || 'Keine Adresse hinterlegt'}
+              .join(' · ') || L('Keine Adresse hinterlegt', 'No address provided')}
           </p>
         </div>
         <LeadStatusDropdown
@@ -3823,28 +3824,28 @@ export function BeraterLeadDetail() {
 
       <div className="broker-detail-actions">
         {phoneHref ? (
-          <CopyableAction value={lead.phone} label="Telefonnummer" onCopied={showToast}>
+          <CopyableAction value={lead.phone} label={L('Telefonnummer', 'Phone number')} onCopied={showToast}>
             <a className="btn btn-primary" href={phoneHref}>
               <Phone size={16} aria-hidden="true" />
-              Anrufen
+              {L('Anrufen', 'Call')}
             </a>
           </CopyableAction>
         ) : (
-          <span className="broker-detail-action-missing">Keine Telefonnummer</span>
+          <span className="broker-detail-action-missing">{L('Keine Telefonnummer', 'No phone number')}</span>
         )}
         {lead.email ? (
-          <CopyableAction value={lead.email} label="E-Mail-Adresse" onCopied={showToast}>
+          <CopyableAction value={lead.email} label={L('E-Mail-Adresse', 'E-mail address')} onCopied={showToast}>
             <a className="btn btn-outline" href={`mailto:${lead.email}`}>
               <Mail size={16} aria-hidden="true" />
-              E-Mail schreiben
+              {L('E-Mail schreiben', 'Write e-mail')}
             </a>
           </CopyableAction>
         ) : null}
         {mapsHref ? (
-          <CopyableAction value={view.address} label="Adresse" onCopied={showToast}>
+          <CopyableAction value={view.address} label={L('Adresse', 'Address')} onCopied={showToast}>
             <a className="btn btn-outline" href={mapsHref} target="_blank" rel="noreferrer">
               <MapPin size={16} aria-hidden="true" />
-              Navigation
+              {L('Navigation', 'Directions')}
             </a>
           </CopyableAction>
         ) : null}
@@ -3862,18 +3863,18 @@ export function BeraterLeadDetail() {
                     <User size={18} />
                   </span>
                   <div>
-                    <h2>Zur Person</h2>
-                    <p>Alter und berufliche Situation</p>
+                    <h2>{L('Zur Person', 'About the person')}</h2>
+                    <p>{L('Alter und berufliche Situation', 'Age and occupation')}</p>
                   </div>
                 </div>
                 <div className="broker-detail-facts">
-                  <DetailFact label="Alter">
+                  <DetailFact label={L('Alter', 'Age')}>
                     {brief.age || null}
                   </DetailFact>
-                  <DetailFact label="Geburtsdatum">
+                  <DetailFact label={L('Geburtsdatum', 'Date of birth')}>
                     {formatLeadDate(lead.dateOfBirth) !== '—' ? formatLeadDate(lead.dateOfBirth) : null}
                   </DetailFact>
-                  <DetailFact label="Beruf / Situation" wide>
+                  <DetailFact label={L('Beruf / Situation', 'Occupation / situation')} wide>
                     {employment || null}
                   </DetailFact>
                 </div>
@@ -3885,27 +3886,27 @@ export function BeraterLeadDetail() {
                     <Shield size={18} />
                   </span>
                   <div>
-                    <h2>Versicherung & Anliegen</h2>
-                    <p>Worum es im Gespräch geht</p>
+                    <h2>{L('Versicherung & Anliegen', 'Insurance & needs')}</h2>
+                    <p>{L('Worum es im Gespräch geht', 'What the conversation is about')}</p>
                   </div>
                 </div>
                 <div className="broker-detail-facts">
-                  <DetailFact label="Anliegen" wide>
+                  <DetailFact label={L('Anliegen', 'Needs')} wide>
                     {brief.concerns || listLabels(lead.mainConcerns, 'concern')}
                   </DetailFact>
-                  <DetailFact label="Aktuelle Gesellschaft">
+                  <DetailFact label={L('Aktuelle Gesellschaft', 'Current insurer')}>
                     {brief.insurer}
                   </DetailFact>
-                  <DetailFact label="Beitrag / Monat">
+                  <DetailFact label={L('Beitrag / Monat', 'Premium / month')}>
                     {brief.premium}
                   </DetailFact>
-                  <DetailFact label="Versicherungsstatus">
+                  <DetailFact label={L('Versicherungsstatus', 'Insurance status')}>
                     {brief.insurance}
                   </DetailFact>
-                  <DetailFact label="Personenkreis">
+                  <DetailFact label={L('Personenkreis', 'Persons covered')}>
                     {brief.coverage}
                   </DetailFact>
-                  <DetailFact label="Produkt" wide>
+                  <DetailFact label={L('Produkt', 'Product')} wide>
                     {view.product}
                   </DetailFact>
                 </div>
@@ -3920,12 +3921,12 @@ export function BeraterLeadDetail() {
                   <FileText size={18} />
                 </span>
                 <div>
-                  <h2>Hinweis zum Lead</h2>
-                  <p>Vom Bestand — vor dem Anruf lesen</p>
+                  <h2>{L('Hinweis zum Lead', 'Note on the lead')}</h2>
+                  <p>{L('Vom Bestand — vor dem Anruf lesen', 'From the original record — read before calling')}</p>
                 </div>
               </div>
               <div className="broker-detail-facts">
-                <DetailFact label="Hinweis" wide>
+                <DetailFact label={L('Hinweis', 'Note')} wide>
                   {lead.notes || null}
                 </DetailFact>
               </div>
@@ -3970,11 +3971,11 @@ export function BeraterLeadDetail() {
                   {outcome === 'fehlgeschlagen' ? <CircleX size={18} /> : <CircleCheck size={18} />}
                 </span>
                 <div>
-                  <h3>Abschluss</h3>
+                  <h3>{L('Abschluss', 'Closed deal')}</h3>
                   <p>
                     {outcome
                       ? closeOutcomeLabel(outcome)
-                      : 'Bitte wählen, ob der Lead Kunde wurde oder nicht.'}
+                      : L('Bitte wählen, ob der Lead Kunde wurde oder nicht.', 'Please choose whether the lead became a customer or not.')}
                   </p>
                 </div>
               </div>
@@ -3987,7 +3988,7 @@ export function BeraterLeadDetail() {
                   setOutcomeOpen(true);
                 }}
               >
-                {outcome ? 'Ergebnis ändern' : 'Ergebnis wählen'}
+                {outcome ? L('Ergebnis ändern', 'Change outcome') : L('Ergebnis wählen', 'Choose outcome')}
               </button>
             </div>
           ) : null}
@@ -3998,15 +3999,15 @@ export function BeraterLeadDetail() {
                 <StickyNote size={18} />
               </span>
               <div>
-                <h2>Ihre Notizen</h2>
-                <p>Zum Gespräch — nicht die Reklamation</p>
+                <h2>{L('Ihre Notizen', 'Your notes')}</h2>
+                <p>{L('Zum Gespräch — nicht die Reklamation', 'About the conversation — not the complaint')}</p>
               </div>
             </div>
             <textarea
               className="broker-detail-notes"
               value={notes}
               onChange={(event) => setNotes(event.target.value)}
-              placeholder="z. B. Rückruf vereinbart, offene Fragen…"
+              placeholder={L('z. B. Rückruf vereinbart, offene Fragen…', 'e.g. callback arranged, open questions…')}
               rows={5}
               disabled={saving || notesLocked}
             />
@@ -4018,13 +4019,13 @@ export function BeraterLeadDetail() {
                 disabled={saving || notesLocked || !notesDirty}
               >
                 <Save size={16} aria-hidden="true" />
-                {saving ? 'Wird gespeichert…' : 'Notiz speichern'}
+                {saving ? L('Wird gespeichert…', 'Saving…') : L('Notiz speichern', 'Save note')}
               </button>
             </div>
             <p className="broker-detail-notes-hint">
               {notesLocked
-                ? 'Dieser Lead ist nach der Reklamation gesperrt und kann nicht mehr bearbeitet werden.'
-                : 'Persönliche Gesprächsnotiz zu diesem Lead. Eine Reklamation senden Sie darunter extra.'}
+                ? L('Dieser Lead ist nach der Reklamation gesperrt und kann nicht mehr bearbeitet werden.', 'This lead is locked following the complaint and can no longer be edited.')
+                : L('Persönliche Gesprächsnotiz zu diesem Lead. Eine Reklamation senden Sie darunter extra.', 'Personal conversation note for this lead. Submit a complaint separately below.')}
             </p>
           </div>
 
@@ -4034,7 +4035,7 @@ export function BeraterLeadDetail() {
             contactStatus={status}
             onReported={() => {
               load().catch((err) => setError(err.message));
-              showToast('Reklamation gesendet. Der Lead liegt jetzt unter „Reklamiert“.');
+              showToast(L('Reklamation gesendet. Der Lead liegt jetzt unter „Reklamiert“.', 'Complaint sent. The lead is now under “Under complaint”.'));
             }}
           />
         </aside>
@@ -4109,13 +4110,13 @@ export function BeraterPayments() {
     if (!payment) return;
 
     if (payment === 'success') {
-      setNotice('Zahlung erfolgreich. Ihre Lead-Anforderung wurde angelegt.');
+      setNotice(L('Zahlung erfolgreich. Ihre Lead-Anforderung wurde angelegt.', 'Payment successful. Your lead request has been created.'));
       setError('');
     } else if (payment === 'failed') {
-      setError(params.get('error') || 'Zahlung fehlgeschlagen oder abgebrochen.');
+      setError(params.get('error') || L('Zahlung fehlgeschlagen oder abgebrochen.', 'Payment failed or was cancelled.'));
       setNotice('');
     } else if (payment === 'pending') {
-      setNotice('Zahlung noch nicht abgeschlossen. Der Status wird aktualisiert, sobald die Bank bestätigt.');
+      setNotice(L('Zahlung noch nicht abgeschlossen. Der Status wird aktualisiert, sobald die Bank bestätigt.', 'Payment not yet completed. The status will be updated as soon as the bank confirms.'));
       setError('');
     }
 
@@ -4172,7 +4173,7 @@ export function BeraterPayments() {
         window.location.assign(result.redirectUrl);
         return;
       }
-      throw new Error('Zahlungsseite der Bank konnte nicht geöffnet werden.');
+      throw new Error(L('Zahlungsseite der Bank konnte nicht geöffnet werden.', 'The bank payment page could not be opened.'));
     } catch (err) {
       setError(err.message);
       setPaying(false);
@@ -4187,11 +4188,11 @@ export function BeraterPayments() {
       const result = await syncMyPayment(paymentId);
       await loadBilling();
       if (result.outcome === 'paid') {
-        setNotice('Zahlung bestätigt. Ihre Lead-Anforderung wurde angelegt.');
+        setNotice(L('Zahlung bestätigt. Ihre Lead-Anforderung wurde angelegt.', 'Payment confirmed. Your lead request has been created.'));
       } else if (result.outcome === 'failed') {
-        setError('Zahlung wurde von der Bank abgelehnt oder abgebrochen.');
+        setError(L('Zahlung wurde von der Bank abgelehnt oder abgebrochen.', 'The payment was declined by the bank or cancelled.'));
       } else {
-        setNotice('Zahlung ist bei der Bank noch offen. Bitte später erneut prüfen.');
+        setNotice(L('Zahlung ist bei der Bank noch offen. Bitte später erneut prüfen.', 'The payment is still pending at the bank. Please check again later.'));
       }
     } catch (err) {
       setError(err.message);
@@ -4207,7 +4208,7 @@ export function BeraterPayments() {
     try {
       await action(paymentId);
     } catch (err) {
-      setError(err.message || 'Rechnung konnte nicht geladen werden.');
+      setError(err.message || L('Rechnung konnte nicht geladen werden.', 'The invoice could not be loaded.'));
     } finally {
       setInvoiceBusyId('');
     }
@@ -4218,10 +4219,10 @@ export function BeraterPayments() {
       {/* Header */}
       <div className="broker-heading broker-billing-heading">
         <div>
-          <div className="eyebrow">Abrechnung</div>
-          <h1>Pakete &amp; Guthaben</h1>
+          <div className="eyebrow">{L('Abrechnung', 'Billing')}</div>
+          <h1>{L('Pakete & Guthaben', 'Packages & balance')}</h1>
           <p className="lede">
-            Laden Sie Ihr Lead-Kontingent nach Bedarf auf. Die Zahlung erfolgt über die ProCredit Bank.
+            {L('Laden Sie Ihr Lead-Kontingent nach Bedarf auf. Die Zahlung erfolgt über die ProCredit Bank.', 'Top up your lead quota as needed. Payment is processed by ProCredit Bank.')}
           </p>
         </div>
       </div>
@@ -4229,25 +4230,25 @@ export function BeraterPayments() {
       {/* Unified Compact Status Bar */}
       <div className="broker-panel broker-simple-status-bar">
         <div className="broker-status-stat">
-          <span className="broker-stat-label">Verfügbares Kontingent</span>
+          <span className="broker-stat-label">{L('Verfügbares Kontingent', 'Available quota')}</span>
           <div className="broker-stat-val">
-            <strong>{leadsRemaining} Leads</strong>
-            <small>({leadsUsed} zugewiesen von {leadQuota} gebucht)</small>
+            <strong>{L(`${leadsRemaining} Leads`, `${leadsRemaining} ${leadsRemaining === 1 ? 'lead' : 'leads'}`)}</strong>
+            <small>{L(`(${leadsUsed} zugewiesen von ${leadQuota} gebucht)`, `(${leadsUsed} assigned of ${leadQuota} booked)`)}</small>
           </div>
         </div>
         <div className="broker-status-divider" />
         <div className="broker-status-stat">
-          <span className="broker-stat-label">Aktives Paket</span>
+          <span className="broker-stat-label">{L('Aktives Paket', 'Active package')}</span>
           <div className="broker-stat-val">
-            <strong>{activePackage?.label || 'Kein Paket gewählt'}</strong>
+            <strong>{activePackage?.label || L('Kein Paket gewählt', 'No package selected')}</strong>
           </div>
         </div>
         <div className="broker-status-divider" />
         <div className="broker-status-stat broker-status-stat--link">
-          <span className="broker-stat-label">Rechnungsadresse</span>
+          <span className="broker-stat-label">{L('Rechnungsadresse', 'Billing address')}</span>
           <Link to="/dashboard/unternehmen" state={{ from: '/dashboard/paket' }} className="broker-status-action">
             <Building2 size={15} aria-hidden="true" />
-            <span>Bearbeiten</span>
+            <span>{L('Bearbeiten', 'Edit')}</span>
             <ArrowRight size={14} aria-hidden="true" />
           </Link>
         </div>
@@ -4286,7 +4287,7 @@ export function BeraterPayments() {
               <div className="broker-simple-pkg-header">
                 <div>
                   <span className="broker-simple-scope-tag">
-                    {pkg.scope === 'regional' ? 'Regional' : 'Deutschlandweit'}
+                    {pkg.scope === 'regional' ? L('Regional', 'Regional') : L('Deutschlandweit', 'Germany-wide')}
                   </span>
                   <h3>{pkg.title}</h3>
                 </div>
@@ -4294,10 +4295,10 @@ export function BeraterPayments() {
                   {/* Total for the selected quantity; updates with the stepper. */}
                   {discounted ? <s>{formatEuroExact(quote.listCents)}</s> : null}
                   <strong>{formatEuroExact(quote.netCents)}</strong>
-                  <small>für {qty} Leads · {formatEuroExact(units.netUnit)} / Lead</small>
+                  <small>{L(`für ${qty} Leads`, `for ${qty} leads`)} · {formatEuroExact(units.netUnit)} / {L('Lead', 'lead')}</small>
                   {quote.standing ? (
                     <em className="broker-disc-badge">
-                      Ihre Konditionen
+                      {L('Ihre Konditionen', 'Your terms')}
                       {quote.standing.discount?.expiresAt
                         ? ` · ${remainingTimeLabel(quote.standing.discount.expiresAt)}`
                         : ''}
@@ -4311,17 +4312,17 @@ export function BeraterPayments() {
                 offers={offers}
                 selectedId={selectedOffer}
                 onChange={(id) => setOneTimePick(id ? { id, key: pkg.id } : { id: '', key: '' })}
-                unitLabel="Lead"
+                unitLabel={L('Lead', 'lead')}
               />
 
               <div className="broker-simple-stepper-row">
-                <span className="broker-simple-row-label">Lead-Menge (ab 10)</span>
+                <span className="broker-simple-row-label">{L('Lead-Menge (ab 10)', 'Number of leads (min. 10)')}</span>
                 <div className="broker-qty-controls">
                   <button
                     type="button"
                     onClick={() => setQty(pkg.id, qty - leadStep)}
                     disabled={qty <= minLeads}
-                    aria-label="Weniger"
+                    aria-label={L('Weniger', 'Fewer')}
                   >
                     −
                   </button>
@@ -4335,7 +4336,7 @@ export function BeraterPayments() {
                   <button
                     type="button"
                     onClick={() => setQty(pkg.id, qty + leadStep)}
-                    aria-label="Mehr"
+                    aria-label={L('Mehr', 'More')}
                   >
                     +
                   </button>
@@ -4343,7 +4344,7 @@ export function BeraterPayments() {
               </div>
 
               <div className="broker-simple-sum-row">
-                <span>Gesamt ({qty} × {formatEuroExact(pkg.packCents)}, nicht im Inland steuerbare Leistung, ohne MwSt.)</span>
+                <span>{L('Gesamt', 'Total')} ({qty} × {formatEuroExact(pkg.packCents)}, {L('nicht im Inland steuerbare Leistung, ohne MwSt.', 'service not taxable in Germany, excl. VAT')})</span>
                 <strong>
                   {discounted ? <s>{formatEuroExact(quote.listCents)}</s> : null}
                   {discounted ? ' ' : null}
@@ -4362,7 +4363,7 @@ export function BeraterPayments() {
                     setCheckout({ packageId: pkg.id, qty });
                   }}
                 >
-                  <CreditCard size={15} /> Leads buchen
+                  <CreditCard size={15} /> {L('Leads buchen', 'Book leads')}
                 </button>
                 {!active ? (
                   <button
@@ -4370,11 +4371,11 @@ export function BeraterPayments() {
                     className="btn btn-outline"
                     onClick={() => selectPackage(pkg.id)}
                   >
-                    Als Standard merken
+                    {L('Als Standard merken', 'Set as default')}
                   </button>
                 ) : (
                   <span className="broker-simple-active-badge">
-                    <Check size={13} /> Aktiver Standard
+                    <Check size={13} /> {L('Aktiver Standard', 'Active default')}
                   </span>
                 )}
               </div>
@@ -4389,7 +4390,7 @@ export function BeraterPayments() {
           productLabel={checkoutPkg.label}
           productTitle={checkoutPkg.title}
           quantity={checkoutQty}
-          unitPlural="Leads"
+          unitPlural={L('Leads', 'leads')}
           listCents={checkoutQuote?.listCents ?? checkoutList}
           netCents={checkoutNet}
           discountLines={checkoutQuote?.lines || []}
@@ -4398,7 +4399,7 @@ export function BeraterPayments() {
               offers={checkoutOffers}
               selectedId={checkoutUseId}
               onChange={(id) => setOneTimePick(id ? { id, key: checkoutPkg.id } : { id: '', key: '' })}
-              unitLabel="Lead"
+              unitLabel={L('Lead', 'lead')}
               compact
             />
           )}
@@ -4415,11 +4416,11 @@ export function BeraterPayments() {
       <section className="broker-panel broker-invoice-panel">
         <div className="broker-panel-header">
           <div>
-            <h2>Rechnungen</h2>
-            <p>Übersicht Ihrer bisherigen Zahlungen</p>
+            <h2>{L('Rechnungen', 'Invoices')}</h2>
+            <p>{L('Übersicht Ihrer bisherigen Zahlungen', 'Overview of your previous payments')}</p>
           </div>
           <Link to="/dashboard/zahlung" state={{ from: '/dashboard/paket' }} className="broker-pipeline-open">
-            <span>Alle Zahlungen</span>
+            <span>{L('Alle Zahlungen', 'All payments')}</span>
             <ArrowRight size={14} strokeWidth={2.25} aria-hidden="true" />
           </Link>
         </div>
@@ -4429,13 +4430,13 @@ export function BeraterPayments() {
             <table className="broker-invoice-table">
               <thead>
                 <tr>
-                  <th>Rechnung</th>
-                  <th>Datum</th>
-                  <th>Paket</th>
-                  <th>Zahlung</th>
-                  <th>Status</th>
-                  <th style={{ textAlign: 'right' }}>Betrag</th>
-                  <th className="broker-invoice-actions-col">Aktion</th>
+                  <th>{L('Rechnung', 'Invoice')}</th>
+                  <th>{L('Datum', 'Date')}</th>
+                  <th>{L('Paket', 'Package')}</th>
+                  <th>{L('Zahlung', 'Payment')}</th>
+                  <th>{L('Status', 'Status')}</th>
+                  <th style={{ textAlign: 'right' }}>{L('Betrag', 'Amount')}</th>
+                  <th className="broker-invoice-actions-col">{L('Aktion', 'Action')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -4455,14 +4456,14 @@ export function BeraterPayments() {
                     <td>{formatDateTime(invoice.paidAt || invoice.createdAt)}</td>
                     <td>
                       <strong>{invoice.packageLabel}</strong>
-                      <small>{invoice.leadCount} Leads</small>
+                      <small>{L(`${invoice.leadCount} Leads`, `${invoice.leadCount} leads`)}</small>
                     </td>
                     <td>
                       <span>{formatCardMask(invoice)}</span>
                     </td>
                     <td>
                       <span className={`broker-invoice-status ${invoice.status === 'paid' ? 'is-paid' : 'is-unpaid'}`}>
-                        {invoice.status === 'paid' ? 'Bezahlt' : paymentStatusLabel(invoice.status)}
+                        {invoice.status === 'paid' ? L('Bezahlt', 'Paid') : paymentStatusLabel(invoice.status)}
                       </span>
                       {invoice.status === 'pending' ? (
                         <button
@@ -4472,14 +4473,14 @@ export function BeraterPayments() {
                           disabled={Boolean(syncingId)}
                           onClick={() => handleSyncPending(invoice.id)}
                         >
-                          {syncingId === invoice.id ? 'Prüfe…' : 'Status prüfen'}
+                          {syncingId === invoice.id ? L('Prüfe…', 'Checking…') : L('Status prüfen', 'Check status')}
                         </button>
                       ) : null}
                     </td>
                     <td style={{ textAlign: 'right' }}>
                       <strong className="broker-inv-amount">{formatEuroExact(invoice.netCents || invoice.grossCents)}</strong>
                       {invoice.discountCents > 0 ? (
-                        <small>inkl. Rabatt · {formatEuroExact(invoice.listCents)}</small>
+                        <small>{L('inkl. Rabatt', 'incl. discount')} · {formatEuroExact(invoice.listCents)}</small>
                       ) : null}
                     </td>
                     <td>
@@ -4487,8 +4488,8 @@ export function BeraterPayments() {
                         <button
                           type="button"
                           className="broker-invoice-action"
-                          title="Rechnung öffnen"
-                          aria-label={`Rechnung ${invoice.invoiceNumber} öffnen`}
+                          title={L('Rechnung öffnen', 'Open invoice')}
+                          aria-label={L(`Rechnung ${invoice.invoiceNumber} öffnen`, `Open invoice ${invoice.invoiceNumber}`)}
                           disabled={Boolean(invoiceBusyId)}
                           onClick={() => runInvoiceAction(invoice.id, openPaymentInvoice)}
                         >
@@ -4497,8 +4498,8 @@ export function BeraterPayments() {
                         <button
                           type="button"
                           className="broker-invoice-action"
-                          title="Rechnung herunterladen"
-                          aria-label={`Rechnung ${invoice.invoiceNumber} herunterladen`}
+                          title={L('Rechnung herunterladen', 'Download invoice')}
+                          aria-label={L(`Rechnung ${invoice.invoiceNumber} herunterladen`, `Download invoice ${invoice.invoiceNumber}`)}
                           disabled={Boolean(invoiceBusyId)}
                           onClick={() => runInvoiceAction(invoice.id, downloadPaymentInvoice)}
                         >
@@ -4513,7 +4514,7 @@ export function BeraterPayments() {
           </div>
         ) : (
           <div className="broker-empty">
-            <p>Noch keine Rechnungen vorhanden.</p>
+            <p>{L('Noch keine Rechnungen vorhanden.', 'No invoices yet.')}</p>
           </div>
         )}
       </section>
@@ -4542,14 +4543,14 @@ function ProfileNav({ active }) {
   const countFor = (id) => gaps.filter((gap) => gap.nav === id).length;
   const hrefFor = (id, fallback) => gaps.find((gap) => gap.nav === id)?.to || fallback;
   const links = [
-    { id: 'profil', to: hrefFor('profil', '/dashboard/profil'), label: 'Profil', icon: User },
-    { id: 'unternehmen', to: hrefFor('unternehmen', '/dashboard/unternehmen'), label: 'Unternehmen', icon: Building2 },
-    { id: 'sicherheit', to: '/dashboard/sicherheit', label: 'Sicherheit', icon: Shield },
-    { id: 'einstellungen', to: '/dashboard/einstellungen', label: 'Einstellungen', icon: Settings },
+    { id: 'profil', to: hrefFor('profil', '/dashboard/profil'), label: L('Profil', 'Profile'), icon: User },
+    { id: 'unternehmen', to: hrefFor('unternehmen', '/dashboard/unternehmen'), label: L('Unternehmen', 'Company'), icon: Building2 },
+    { id: 'sicherheit', to: '/dashboard/sicherheit', label: L('Sicherheit', 'Security'), icon: Shield },
+    { id: 'einstellungen', to: '/dashboard/einstellungen', label: L('Einstellungen', 'Settings'), icon: Settings },
   ];
 
   return (
-    <nav className="broker-profile-nav" aria-label="Einstellungen">
+    <nav className="broker-profile-nav" aria-label={L('Einstellungen', 'Settings')}>
       {links.map((link) => {
         const Icon = link.icon;
         const count = countFor(link.id);
@@ -4562,7 +4563,7 @@ function ProfileNav({ active }) {
             <Icon size={16} strokeWidth={2} />
             {link.label}
             {count > 0 ? (
-              <span className="broker-setup-count" aria-label={`${count} Angaben fehlen`}>{count}</span>
+              <span className="broker-setup-count" aria-label={L(`${count} Angaben fehlen`, `${count} ${count === 1 ? 'detail' : 'details'} missing`)}>{count}</span>
             ) : null}
           </Link>
         );
@@ -4573,7 +4574,7 @@ function ProfileNav({ active }) {
         onClick={() => logout()}
       >
         <LogOut size={16} strokeWidth={2} />
-        Abmelden
+        {L('Abmelden', 'Log out')}
       </button>
       <ThemeMode variant="nav" />
     </nav>
@@ -4586,7 +4587,7 @@ function SettingsShell({ active, title, lede, children, backButton }) {
       {backButton}
       <div className="broker-heading broker-heading--settings">
         <div>
-          <div className="eyebrow">Konto & Einstellungen</div>
+          <div className="eyebrow">{L('Konto & Einstellungen', 'Account & settings')}</div>
           <h1>{title}</h1>
           <p className="lede">{lede}</p>
         </div>
@@ -4622,16 +4623,16 @@ function companyForm(user) {
 }
 
 const LEGAL_FORM_META = {
-  GmbH: 'Gesellschaft mit beschränkter Haftung',
-  'UG (haftungsbeschränkt)': 'Unternehmergesellschaft',
-  AG: 'Aktiengesellschaft',
-  'e.K.': 'Eingetragener Kaufmann / Kauffrau',
-  GbR: 'Gesellschaft bürgerlichen Rechts',
-  OHG: 'Offene Handelsgesellschaft',
-  KG: 'Kommanditgesellschaft',
-  PartG: 'Partnerschaftsgesellschaft',
-  'Freiberufler / Einzelunternehmen': 'Selbstständig ohne Gesellschaft',
-  Sonstige: 'Andere Rechtsform',
+  GmbH: L('Gesellschaft mit beschränkter Haftung', 'Limited liability company'),
+  'UG (haftungsbeschränkt)': L('Unternehmergesellschaft', 'Mini limited liability company'),
+  AG: L('Aktiengesellschaft', 'Stock corporation'),
+  'e.K.': L('Eingetragener Kaufmann / Kauffrau', 'Registered sole trader'),
+  GbR: L('Gesellschaft bürgerlichen Rechts', 'Civil-law partnership'),
+  OHG: L('Offene Handelsgesellschaft', 'General partnership'),
+  KG: L('Kommanditgesellschaft', 'Limited partnership'),
+  PartG: L('Partnerschaftsgesellschaft', 'Professional partnership'),
+  'Freiberufler / Einzelunternehmen': L('Selbstständig ohne Gesellschaft', 'Self-employed without a company'),
+  Sonstige: L('Andere Rechtsform', 'Other legal form'),
 };
 
 function FieldLabel({ children, required = false }) {
@@ -4685,14 +4686,14 @@ function LegalFormSelect({ value, onChange, disabled, required }) {
               <small>{LEGAL_FORM_META[selected]}</small>
             </>
           ) : (
-            <span className="broker-legal-select__placeholder">Bitte wählen</span>
+            <span className="broker-legal-select__placeholder">{L('Bitte wählen', 'Please choose')}</span>
           )}
         </span>
         <ChevronDown size={18} strokeWidth={2} aria-hidden="true" />
       </button>
 
       {open ? (
-        <ul className="broker-legal-select__menu" role="listbox" aria-label="Rechtsform">
+        <ul className="broker-legal-select__menu" role="listbox" aria-label={L('Rechtsform', 'Legal form')}>
           {LEGAL_FORMS.map((formName) => {
             const isActive = formName === selected;
             return (
@@ -4726,7 +4727,7 @@ function PasswordToggle({ show, onToggle }) {
       type="button"
       className="password-toggle"
       onClick={onToggle}
-      aria-label={show ? 'Passwort verbergen' : 'Passwort anzeigen'}
+      aria-label={show ? L('Passwort verbergen', 'Hide password') : L('Passwort anzeigen', 'Show password')}
     >
       {show ? <EyeOff size={18} strokeWidth={2} /> : <Eye size={18} strokeWidth={2} />}
     </button>
@@ -4776,7 +4777,7 @@ function ChangePasswordModal({ open, onClose }) {
     event.preventDefault();
     setError('');
     if (!currentPassword) {
-      setError('Bitte geben Sie Ihr aktuelles Passwort ein.');
+      setError(L('Bitte geben Sie Ihr aktuelles Passwort ein.', 'Please enter your current password.'));
       return;
     }
     const passwordError = validatePassword(password);
@@ -4785,13 +4786,13 @@ function ChangePasswordModal({ open, onClose }) {
       return;
     }
     if (password !== confirmPassword) {
-      setError('Die Passwörter stimmen nicht überein.');
+      setError(L('Die Passwörter stimmen nicht überein.', 'The passwords do not match.'));
       return;
     }
     setSaving(true);
     try {
       await changePassword({ currentPassword, password });
-      showToast('Passwort wurde geändert');
+      showToast(L('Passwort wurde geändert', 'Password changed'));
       onClose();
     } catch (err) {
       setError(err.message);
@@ -4802,14 +4803,14 @@ function ChangePasswordModal({ open, onClose }) {
 
   return (
     <div className="broker-modal" role="dialog" aria-modal="true" aria-labelledby="pw-modal-title">
-      <button type="button" className="broker-modal__backdrop" aria-label="Schließen" onClick={onClose} />
+      <button type="button" className="broker-modal__backdrop" aria-label={L('Schließen', 'Close')} onClick={onClose} />
       <form className="broker-modal__panel broker-pw-modal" onSubmit={submit}>
         <div className="broker-pw-modal__head">
           <div>
-            <h2 id="pw-modal-title">Passwort ändern</h2>
-            <p>Geben Sie Ihr aktuelles Passwort ein und wählen Sie ein neues.</p>
+            <h2 id="pw-modal-title">{L('Passwort ändern', 'Change password')}</h2>
+            <p>{L('Geben Sie Ihr aktuelles Passwort ein und wählen Sie ein neues.', 'Enter your current password and choose a new one.')}</p>
           </div>
-          <button type="button" className="broker-pw-modal__close" onClick={onClose} aria-label="Schließen">
+          <button type="button" className="broker-pw-modal__close" onClick={onClose} aria-label={L('Schließen', 'Close')}>
             <X size={18} strokeWidth={2} />
           </button>
         </div>
@@ -4818,7 +4819,7 @@ function ChangePasswordModal({ open, onClose }) {
           {error ? <div className="broker-alert">{error}</div> : null}
 
           <label className="broker-pw-field">
-            <span>Aktuelles Passwort</span>
+            <span>{L('Aktuelles Passwort', 'Current password')}</span>
             <div className="password-input-wrapper">
               <input
                 type={showCurrent ? 'text' : 'password'}
@@ -4833,7 +4834,7 @@ function ChangePasswordModal({ open, onClose }) {
           </label>
 
           <label className="broker-pw-field">
-            <span>Neues Passwort</span>
+            <span>{L('Neues Passwort', 'New password')}</span>
             <div className="password-input-wrapper has-actions">
               <input
                 type={showNew ? 'text' : 'password'}
@@ -4849,19 +4850,19 @@ function ChangePasswordModal({ open, onClose }) {
                   className="password-action"
                   onClick={fillGenerated}
                   disabled={saving}
-                  aria-label="Passwort generieren"
-                  title="Passwort generieren"
+                  aria-label={L('Passwort generieren', 'Generate password')}
+                  title={L('Passwort generieren', 'Generate password')}
                 >
                   <Wand2 size={18} strokeWidth={2} />
                 </button>
                 <PasswordToggle show={showNew} onToggle={() => setShowNew((value) => !value)} />
               </div>
             </div>
-            <small className="broker-pw-hint">Mindestens 8 Zeichen.</small>
+            <small className="broker-pw-hint">{L('Mindestens 8 Zeichen.', 'At least 8 characters.')}</small>
           </label>
 
           <label className="broker-pw-field">
-            <span>Passwort bestätigen</span>
+            <span>{L('Passwort bestätigen', 'Confirm password')}</span>
             <div className="password-input-wrapper">
               <input
                 type={showConfirm ? 'text' : 'password'}
@@ -4878,10 +4879,10 @@ function ChangePasswordModal({ open, onClose }) {
 
         <div className="broker-pw-modal__footer">
           <button type="button" className="broker-pw-btn broker-pw-btn--ghost" onClick={onClose} disabled={saving}>
-            Abbrechen
+            {L('Abbrechen', 'Cancel')}
           </button>
           <button type="submit" className="broker-pw-btn broker-pw-btn--primary" disabled={saving}>
-            {saving ? 'Wird gespeichert⬦' : 'Passwort ändern'}
+            {saving ? L('Wird gespeichert⬦', 'Saving…') : L('Passwort ändern', 'Change password')}
           </button>
         </div>
       </form>
@@ -4920,29 +4921,29 @@ export function BeraterProfile() {
   const infoGroups = [
     {
       id: 'person',
-      title: 'Person',
+      title: L('Person', 'Person'),
       icon: User,
       items: [
-        { id: 'firstName', label: 'Vorname', value: user?.firstName },
-        { id: 'lastName', label: 'Nachname', value: user?.lastName },
+        { id: 'firstName', label: L('Vorname', 'First name'), value: user?.firstName },
+        { id: 'lastName', label: L('Nachname', 'Last name'), value: user?.lastName },
       ],
     },
     {
       id: 'contact',
-      title: 'Kontakt',
+      title: L('Kontakt', 'Contact'),
       icon: Phone,
       items: [
-        { id: 'phone', label: 'Telefonnummer', value: phoneShown },
-        { id: 'email', label: 'E-Mail-Adresse', value: user?.email, locked: true },
+        { id: 'phone', label: L('Telefonnummer', 'Phone number'), value: phoneShown },
+        { id: 'email', label: L('E-Mail-Adresse', 'E-mail address'), value: user?.email, locked: true },
       ],
     },
     {
       id: 'account',
-      title: 'Konto',
+      title: L('Konto', 'Account'),
       icon: BadgeCheck,
       items: [
-        { id: 'customerNumber', label: 'Kundennummer', value: user?.customerNumber, locked: true, mono: true },
-        { id: 'company', label: 'Unternehmen', value: company, to: '/dashboard/unternehmen' },
+        { id: 'customerNumber', label: L('Kundennummer', 'Customer number'), value: user?.customerNumber, locked: true, mono: true },
+        { id: 'company', label: L('Unternehmen', 'Company'), value: company, to: '/dashboard/unternehmen' },
       ],
     },
   ];
@@ -4961,7 +4962,7 @@ export function BeraterProfile() {
     setAvatarSaving(true);
     try {
       await updateProfile({ avatarUrl });
-      showToast(avatarUrl ? 'Profilbild gespeichert' : 'Profilbild entfernt');
+      showToast(avatarUrl ? L('Profilbild gespeichert', 'Profile picture saved') : L('Profilbild entfernt', 'Profile picture removed'));
     } catch (err) {
       setError(err.message);
     } finally {
@@ -5002,15 +5003,15 @@ export function BeraterProfile() {
     setError('');
     setPhoneError('');
     if (!form.firstName.trim() || form.firstName.trim().length < 2) {
-      setError('Bitte geben Sie Ihren Vornamen an.');
+      setError(L('Bitte geben Sie Ihren Vornamen an.', 'Please enter your first name.'));
       return;
     }
     if (!form.lastName.trim() || form.lastName.trim().length < 2) {
-      setError('Bitte geben Sie Ihren Nachnamen an.');
+      setError(L('Bitte geben Sie Ihren Nachnamen an.', 'Please enter your last name.'));
       return;
     }
     if (!isValidMobile(form.phone)) {
-      setPhoneError('Bitte geben Sie eine gültige Telefonnummer an.');
+      setPhoneError(L('Bitte geben Sie eine gültige Telefonnummer an.', 'Please enter a valid phone number.'));
       return;
     }
     setSaving(true);
@@ -5021,7 +5022,7 @@ export function BeraterProfile() {
         phone: form.phone,
       });
       setEditing(false);
-      showToast('Persönliche Daten gespeichert');
+      showToast(L('Persönliche Daten gespeichert', 'Personal details saved'));
     } catch (err) {
       setError(err.message);
     } finally {
@@ -5032,13 +5033,13 @@ export function BeraterProfile() {
   return (
     <SettingsShell
       active="profil"
-      title="Profil"
-      lede="So erscheinen Sie im Portal — Bild, Name und Erreichbarkeit."
+      title={L('Profil', 'Profile')}
+      lede={L('So erscheinen Sie im Portal — Bild, Name und Erreichbarkeit.', 'How you appear in the portal — picture, name and contact details.')}
     >
       <div className="broker-panel broker-settings broker-settings--wide broker-settings--profile">
         {error && <div className="broker-alert">{error}</div>}
 
-        <section className="broker-profile-card" id="foto" aria-label="Profilbild">
+        <section className="broker-profile-card" id="foto" aria-label={L('Profilbild', 'Profile picture')}>
           <div className="broker-profile-card__cover" aria-hidden="true" />
           <div className="broker-profile-card__body">
             <div className="broker-profile-card__avatar">
@@ -5051,8 +5052,8 @@ export function BeraterProfile() {
                   className="broker-profile-card__avatar-btn"
                   onClick={openAvatarPicker}
                   disabled={avatarSaving}
-                  aria-label={shownAvatar ? 'Profilbild ändern' : 'Profilbild hochladen'}
-                  title={shownAvatar ? 'Profilbild ändern' : 'Profilbild hochladen'}
+                  aria-label={shownAvatar ? L('Profilbild ändern', 'Change profile picture') : L('Profilbild hochladen', 'Upload profile picture')}
+                  title={shownAvatar ? L('Profilbild ändern', 'Change profile picture') : L('Profilbild hochladen', 'Upload profile picture')}
                 >
                   <Camera size={15} strokeWidth={2.2} />
                 </button>
@@ -5062,8 +5063,8 @@ export function BeraterProfile() {
                     className="broker-profile-card__avatar-btn is-danger"
                     onClick={() => saveAvatar('')}
                     disabled={avatarSaving}
-                    aria-label="Profilbild entfernen"
-                    title="Profilbild entfernen"
+                    aria-label={L('Profilbild entfernen', 'Remove profile picture')}
+                    title={L('Profilbild entfernen', 'Remove profile picture')}
                   >
                     <Trash2 size={15} strokeWidth={2.2} />
                   </button>
@@ -5081,7 +5082,7 @@ export function BeraterProfile() {
             </div>
 
             <div className="broker-profile-card__identity">
-              <span className="broker-profile-card__kicker">Mein Profil</span>
+              <span className="broker-profile-card__kicker">{L('Mein Profil', 'My profile')}</span>
               <h2 className="broker-profile-card__name">{fullName}</h2>
               {user?.email ? (
                 <p className="broker-profile-card__email">
@@ -5093,7 +5094,7 @@ export function BeraterProfile() {
                 {user?.customerNumber ? (
                   <span className="broker-profile-chip">
                     <BadgeCheck size={13} strokeWidth={2.2} aria-hidden="true" />
-                    Kd.-Nr. {user.customerNumber}
+                    {L('Kd.-Nr.', 'Cust. no.')} {user.customerNumber}
                   </span>
                 ) : null}
                 {company ? (
@@ -5106,7 +5107,7 @@ export function BeraterProfile() {
                   {personalComplete
                     ? <CheckCircle2 size={13} strokeWidth={2.2} aria-hidden="true" />
                     : <AlertCircle size={13} strokeWidth={2.2} aria-hidden="true" />}
-                  {personalComplete ? 'Profil vollständig' : 'Angaben fehlen'}
+                  {personalComplete ? L('Profil vollständig', 'Profile complete') : L('Angaben fehlen', 'Details missing')}
                 </span>
               </div>
             </div>
@@ -5119,8 +5120,8 @@ export function BeraterProfile() {
               <User size={16} strokeWidth={2.2} />
             </span>
             <div className="broker-settings-section__heading">
-              <h3>Persönliche Angaben</h3>
-              <p>Name und Telefon für Vertrag, Rückfragen und die Anzeige in Ihrem Konto.</p>
+              <h3>{L('Persönliche Angaben', 'Personal details')}</h3>
+              <p>{L('Name und Telefon für Vertrag, Rückfragen und die Anzeige in Ihrem Konto.', 'Name and phone for the contract, queries and display in your account.')}</p>
             </div>
             {!editing ? (
               <button
@@ -5129,7 +5130,7 @@ export function BeraterProfile() {
                 onClick={startEditing}
               >
                 <Pencil size={15} strokeWidth={2.2} aria-hidden="true" />
-                Bearbeiten
+                {L('Bearbeiten', 'Edit')}
               </button>
             ) : null}
           </header>
@@ -5152,7 +5153,7 @@ export function BeraterProfile() {
                           <dt>
                             {item.label}
                             {item.locked ? (
-                              <Lock size={11} strokeWidth={2.4} aria-label="Kann nicht geändert werden" />
+                              <Lock size={11} strokeWidth={2.4} aria-label={L('Kann nicht geändert werden', 'Cannot be changed')} />
                             ) : null}
                           </dt>
                           <dd>
@@ -5163,11 +5164,11 @@ export function BeraterProfile() {
                                 item.mono ? 'is-mono' : '',
                               ].filter(Boolean).join(' ')}
                             >
-                              {item.value || 'Nicht hinterlegt'}
+                              {item.value || L('Nicht hinterlegt', 'Not provided')}
                             </span>
                             {item.to ? (
                               <Link to={item.to} className="broker-profile-info__link">
-                                Ändern
+                                {L('Ändern', 'Change')}
                                 <ChevronRight size={14} strokeWidth={2.2} aria-hidden="true" />
                               </Link>
                             ) : null}
@@ -5183,7 +5184,7 @@ export function BeraterProfile() {
             <form className="broker-profile-info__form" onSubmit={save}>
               <div className="broker-form-grid">
                 <label>
-                  <FieldLabel required>Vorname</FieldLabel>
+                  <FieldLabel required>{L('Vorname', 'First name')}</FieldLabel>
                   <input
                     name="firstName"
                     value={form.firstName}
@@ -5195,7 +5196,7 @@ export function BeraterProfile() {
                   />
                 </label>
                 <label>
-                  <FieldLabel required>Nachname</FieldLabel>
+                  <FieldLabel required>{L('Nachname', 'Last name')}</FieldLabel>
                   <input
                     name="lastName"
                     value={form.lastName}
@@ -5206,11 +5207,11 @@ export function BeraterProfile() {
                   />
                 </label>
                 <label className="is-full">
-                  <FieldLabel>E-Mail-Adresse</FieldLabel>
+                  <FieldLabel>{L('E-Mail-Adresse', 'E-mail address')}</FieldLabel>
                   <input type="email" value={user?.email || ''} autoComplete="email" disabled />
                 </label>
                 <label className="is-full">
-                  <FieldLabel required>Telefonnummer</FieldLabel>
+                  <FieldLabel required>{L('Telefonnummer', 'Phone number')}</FieldLabel>
                   <PhoneField
                     id="profile-phone"
                     value={form.phone}
@@ -5226,7 +5227,7 @@ export function BeraterProfile() {
                 </label>
               </div>
               <div className="broker-profile-info__actions">
-                <p className="broker-settings-actions__hint">Änderungen gelten sofort nach dem Speichern in Ihrem Konto.</p>
+                <p className="broker-settings-actions__hint">{L('Änderungen gelten sofort nach dem Speichern in Ihrem Konto.', 'Changes apply to your account immediately after saving.')}</p>
                 <div className="broker-profile-card__btns">
                   <button
                     type="button"
@@ -5234,11 +5235,11 @@ export function BeraterProfile() {
                     onClick={cancelEditing}
                     disabled={saving}
                   >
-                    Abbrechen
+                    {L('Abbrechen', 'Cancel')}
                   </button>
                   <button type="submit" className="broker-profile-btn broker-profile-btn--primary" disabled={saving}>
                     <Save size={15} strokeWidth={2.2} aria-hidden="true" />
-                    {saving ? 'Wird gespeichert…' : 'Speichern'}
+                    {saving ? L('Wird gespeichert…', 'Saving…') : L('Speichern', 'Save')}
                   </button>
                 </div>
               </div>
@@ -5315,10 +5316,10 @@ export function BeraterCompany() {
         .catch((err) => {
           if (cancelled) return;
           if (didGoogleMapsAuthFail()) {
-            setMapNotice('Kartensuche vorübergehend nicht verfügbar — Adresse bitte manuell eintragen.');
+            setMapNotice(L('Kartensuche vorübergehend nicht verfügbar — Adresse bitte manuell eintragen.', 'Map search temporarily unavailable — please enter the address manually.'));
             return;
           }
-          setMapNotice(err?.message || 'Adresssuche fehlgeschlagen.');
+          setMapNotice(err?.message || L('Adresssuche fehlgeschlagen.', 'Address search failed.'));
         });
     }, 450);
 
@@ -5343,22 +5344,22 @@ export function BeraterCompany() {
 
   const handleMapPick = async ({ lat, lng }) => {
     if (!isInGermany(lat, lng)) {
-      setMapNotice('Nur Standorte in Deutschland — Österreich ist nicht erlaubt.');
+      setMapNotice(L('Nur Standorte in Deutschland — Österreich ist nicht erlaubt.', 'Only locations in Germany — Austria is not allowed.'));
       return;
     }
 
     const previousPin = mapPin;
-    setMapNotice('Adresse wird ermittelt⬦');
+    setMapNotice(L('Adresse wird ermittelt⬦', 'Determining address…'));
 
     try {
       const place = await reverseGeocode(lat, lng);
       if (!place) {
-        setMapNotice('Keine Adresse an diesem Punkt gefunden.');
+        setMapNotice(L('Keine Adresse an diesem Punkt gefunden.', 'No address found at this point.'));
         return;
       }
       if (!place.inGermany) {
         setMapPin(previousPin);
-        setMapNotice('Nur Standorte in Deutschland — Österreich und andere Länder sind nicht erlaubt.');
+        setMapNotice(L('Nur Standorte in Deutschland — Österreich und andere Länder sind nicht erlaubt.', 'Only locations in Germany — Austria and other countries are not allowed.'));
         return;
       }
       applyPlaceToForm(place);
@@ -5366,10 +5367,10 @@ export function BeraterCompany() {
     } catch (err) {
       setMapPin(previousPin);
       if (didGoogleMapsAuthFail()) {
-        setMapNotice('Kartensuche vorübergehend nicht verfügbar — Adresse bitte manuell eintragen.');
+        setMapNotice(L('Kartensuche vorübergehend nicht verfügbar — Adresse bitte manuell eintragen.', 'Map search temporarily unavailable — please enter the address manually.'));
         return;
       }
-      setMapNotice(err?.message || 'Adresssuche fehlgeschlagen.');
+      setMapNotice(err?.message || L('Adresssuche fehlgeschlagen.', 'Address search failed.'));
     }
   };
 
@@ -5383,22 +5384,22 @@ export function BeraterCompany() {
     setError('');
 
     if (needsPhone) {
-      setError('Bitte hinterlegen Sie zuerst Ihre Telefonnummer unter Profil.');
+      setError(L('Bitte hinterlegen Sie zuerst Ihre Telefonnummer unter Profil.', 'Please first add your phone number under Profile.'));
       return;
     }
     if (!form.company.trim() || !form.legalForm) {
-      setError('Firmenname und Rechtsform sind erforderlich.');
+      setError(L('Firmenname und Rechtsform sind erforderlich.', 'Company name and legal form are required.'));
       return;
     }
     if (!form.businessStreet.trim() || !form.businessZip.trim() || !form.businessCity.trim()) {
-      setError('Bitte geben Sie die vollständige Geschäftsadresse an.');
+      setError(L('Bitte geben Sie die vollständige Geschäftsadresse an.', 'Please enter the complete business address.'));
       return;
     }
 
     setSaving(true);
     try {
       await updateProfile({ ...form, billingSame: true });
-      showToast('Unternehmensdaten gespeichert');
+      showToast(L('Unternehmensdaten gespeichert', 'Company details saved'));
     } catch (err) {
       setError(err.message);
     } finally {
@@ -5413,18 +5414,18 @@ export function BeraterCompany() {
       onClick={() => navigate('/dashboard/paket')}
     >
       <ArrowLeft size={16} aria-hidden="true" />
-      <span>Zurück zu Pakete & Guthaben</span>
+      <span>{L('Zurück zu Pakete & Guthaben', 'Back to packages & balance')}</span>
     </button>
   ) : null;
 
   return (
     <SettingsShell
       active="unternehmen"
-      title={<>Unterneh<em>men</em></>}
+      title={L(<>Unterneh<em>men</em></>, <>Com<em>pany</em></>)}
       lede={
         user?.onboardingComplete
-          ? 'Firma, Rechtsform und Adresse für Vertrag, Rechnung und Verifizierung.'
-          : 'Firma und Adresse ergänzen — danach ist Ihr Konto vollständig.'
+          ? L('Firma, Rechtsform und Adresse für Vertrag, Rechnung und Verifizierung.', 'Company, legal form and address for the contract, invoices and verification.')
+          : L('Firma und Adresse ergänzen — danach ist Ihr Konto vollständig.', 'Add your company and address — then your account is complete.')
       }
       backButton={backButton}
     >
@@ -5433,25 +5434,25 @@ export function BeraterCompany() {
 
         {needsPhone ? (
           <div className="broker-inline-hint">
-            <p>Telefonnummer fehlt noch im Profil — bitte zuerst ergänzen.</p>
+            <p>{L('Telefonnummer fehlt noch im Profil — bitte zuerst ergänzen.', 'Phone number is still missing in your profile — please add it first.')}</p>
             <Link to="/dashboard/profil#kontakt" className="broker-text-btn">
-              Zum Profil
+              {L('Zum Profil', 'Go to profile')}
             </Link>
           </div>
         ) : null}
 
         {setupIncomplete && !needsPhone ? (
           <div className="broker-inline-hint broker-setup-hint">
-            <p>Noch unvollständig — Firma, Rechtsform und Adresse speichern, dann ist Ihr Konto eingerichtet.</p>
-            <div className="broker-setup-progress" aria-label="Einrichtungsschritte">
+            <p>{L('Noch unvollständig — Firma, Rechtsform und Adresse speichern, dann ist Ihr Konto eingerichtet.', 'Still incomplete — save company, legal form and address and your account is set up.')}</p>
+            <div className="broker-setup-progress" aria-label={L('Einrichtungsschritte', 'Setup steps')}>
               <span className={firmDone ? 'is-done' : 'is-current'}>
                 <span>1</span>
-                Firma
+                {L('Firma', 'Company')}
               </span>
               <span aria-hidden="true" className={`broker-setup-progress__rail${firmDone ? ' is-done' : ''}`} />
               <span className={addressDone ? 'is-done' : firmDone ? 'is-current' : ''}>
                 <span>2</span>
-                Adresse
+                {L('Adresse', 'Address')}
               </span>
             </div>
           </div>
@@ -5468,31 +5469,31 @@ export function BeraterCompany() {
               </span>
             )}
             <div className="broker-settings-section__heading">
-              <h3>Firma</h3>
-              <p>Name und Rechtsform für Dokumente und Anzeige.</p>
+              <h3>{L('Firma', 'Company')}</h3>
+              <p>{L('Name und Rechtsform für Dokumente und Anzeige.', 'Name and legal form for documents and display.')}</p>
             </div>
             {user?.customerNumber ? (
               <p className="broker-customer-chip">
-                <span>Kundennummer</span>
+                <span>{L('Kundennummer', 'Customer number')}</span>
                 <strong>{user.customerNumber}</strong>
               </p>
             ) : null}
           </header>
           <div className="broker-form-grid">
             <label className={`is-full${highlightMissing && missingLive.includes('company') ? ' is-missing' : ''}`}>
-              <FieldLabel required>Firmenname</FieldLabel>
+              <FieldLabel required>{L('Firmenname', 'Company name')}</FieldLabel>
               <input
                 name="company"
                 value={form.company}
                 onChange={handleChange}
                 autoComplete="organization"
-                placeholder="z. B. Muster Finanzberatung"
+                placeholder={L('z. B. Muster Finanzberatung', 'e.g. Muster Financial Advisory')}
                 disabled={saving}
                 required
               />
             </label>
             <div className={`is-full broker-field${highlightMissing && missingLive.includes('legalForm') ? ' is-missing' : ''}`}>
-              <FieldLabel required>Rechtsform</FieldLabel>
+              <FieldLabel required>{L('Rechtsform', 'Legal form')}</FieldLabel>
               <LegalFormSelect
                 value={form.legalForm}
                 onChange={(legalForm) => setForm((prev) => ({ ...prev, legalForm }))}
@@ -5514,13 +5515,13 @@ export function BeraterCompany() {
               </span>
             )}
             <div className="broker-settings-section__heading">
-              <h3>Geschäftsadresse</h3>
-              <p>Sitz Ihres Unternehmens — Suche nutzen oder Pin auf der Karte setzen.</p>
+              <h3>{L('Geschäftsadresse', 'Business address')}</h3>
+              <p>{L('Sitz Ihres Unternehmens — Suche nutzen oder Pin auf der Karte setzen.', 'Your company’s registered office — use the search or drop a pin on the map.')}</p>
             </div>
           </header>
           <div className="broker-form-grid">
             <label className={`is-full${highlightMissing && missingLive.includes('address') ? ' is-missing' : ''}`}>
-              <FieldLabel required>Straße und Hausnummer</FieldLabel>
+              <FieldLabel required>{L('Straße und Hausnummer', 'Street and house number')}</FieldLabel>
               <AddressAutocomplete
                 name="businessStreet"
                 value={form.businessStreet}
@@ -5530,13 +5531,13 @@ export function BeraterCompany() {
                   setMapNotice('');
                 }}
                 autoComplete="street-address"
-                placeholder="z. B. Augsburg oder Straße, Hausnummer"
+                placeholder={L('z. B. Augsburg oder Straße, Hausnummer', 'e.g. Augsburg or street, house number')}
                 disabled={saving}
                 required
               />
             </label>
             <label className={highlightMissing && missingLive.includes('zip') ? 'is-missing' : undefined}>
-              <FieldLabel required>PLZ</FieldLabel>
+              <FieldLabel required>{L('PLZ', 'Postcode')}</FieldLabel>
               <input
                 name="businessZip"
                 value={form.businessZip}
@@ -5549,7 +5550,7 @@ export function BeraterCompany() {
               />
             </label>
             <label className={highlightMissing && missingLive.includes('city') ? 'is-missing' : undefined}>
-              <FieldLabel required>Ort</FieldLabel>
+              <FieldLabel required>{L('Ort', 'City')}</FieldLabel>
               <input
                 name="businessCity"
                 value={form.businessCity}
@@ -5581,13 +5582,13 @@ export function BeraterCompany() {
               <Globe size={16} strokeWidth={2.2} />
             </span>
             <div className="broker-settings-section__heading">
-              <h3>Webseite <span className="broker-optional">(Optional)</span></h3>
-              <p>Webseite Ihres Unternehmens — ohne https:// möglich.</p>
+              <h3>{L('Webseite', 'Website')} <span className="broker-optional">{L('(Optional)', '(optional)')}</span></h3>
+              <p>{L('Webseite Ihres Unternehmens — ohne https:// möglich.', 'Your company website — https:// is optional.')}</p>
             </div>
           </header>
           <div className="broker-form-grid">
             <label className="is-full">
-              <FieldLabel>Webseite</FieldLabel>
+              <FieldLabel>{L('Webseite', 'Website')}</FieldLabel>
               <input
                 name="website"
                 type="text"
@@ -5595,7 +5596,7 @@ export function BeraterCompany() {
                 value={form.website}
                 onChange={handleChange}
                 autoComplete="url"
-                placeholder="www.beispiel.de"
+                placeholder={L('www.beispiel.de', 'www.example.com')}
                 disabled={saving}
               />
             </label>
@@ -5604,7 +5605,7 @@ export function BeraterCompany() {
 
         <div className="broker-settings-actions">
           <button type="submit" className="btn btn-primary" disabled={saving}>
-            {saving ? 'Wird gespeichert⬦' : 'Unternehmen speichern'}
+            {saving ? L('Wird gespeichert⬦', 'Saving…') : L('Unternehmen speichern', 'Save company')}
           </button>
         </div>
       </form>
@@ -5618,8 +5619,8 @@ export function BeraterSecurity() {
   return (
     <SettingsShell
       active="sicherheit"
-      title={<>Sicher<em>heit</em></>}
-      lede="Passwort ändern — mit aktuellem Passwort und starken Regeln."
+      title={L(<>Sicher<em>heit</em></>, <>Secu<em>rity</em></>)}
+      lede={L('Passwort ändern — mit aktuellem Passwort und starken Regeln.', 'Change your password — with your current password and strong rules.')}
     >
       <section className="broker-panel broker-settings broker-settings--wide">
         <section className="broker-settings-section broker-settings-section--action">
@@ -5628,12 +5629,12 @@ export function BeraterSecurity() {
               <KeyRound size={16} strokeWidth={2.2} />
             </span>
             <div className="broker-settings-section__heading">
-              <h3>Passwort</h3>
-              <p>Mindestens 8 Zeichen, Groß- und Kleinbuchstaben, Zahl und Sonderzeichen.</p>
+              <h3>{L('Passwort', 'Password')}</h3>
+              <p>{L('Mindestens 8 Zeichen, Groß- und Kleinbuchstaben, Zahl und Sonderzeichen.', 'At least 8 characters, upper- and lower-case letters, a number and a special character.')}</p>
             </div>
           </header>
           <button type="button" className="btn btn-primary" onClick={() => setModalOpen(true)}>
-            Passwort ändern
+            {L('Passwort ändern', 'Change password')}
           </button>
         </section>
       </section>
@@ -5715,7 +5716,7 @@ export function BeraterSettings() {
       await updateProfile({ settings: next });
       return true;
     } catch (err) {
-      setError(err.message || 'Einstellungen konnten nicht gespeichert werden.');
+      setError(err.message || L('Einstellungen konnten nicht gespeichert werden.', 'Settings could not be saved.'));
       return false;
     } finally {
       setSaving(false);
@@ -5726,7 +5727,7 @@ export function BeraterSettings() {
     setBrowserNote('');
     if (next) {
       if (typeof Notification === 'undefined') {
-        setBrowserNote('Dieser Browser unterstützt keine Desktop-Benachrichtigungen.');
+        setBrowserNote(L('Dieser Browser unterstützt keine Desktop-Benachrichtigungen.', 'This browser does not support desktop notifications.'));
         return;
       }
       let permission = Notification.permission;
@@ -5734,13 +5735,13 @@ export function BeraterSettings() {
         permission = await Notification.requestPermission();
       }
       if (permission !== 'granted') {
-        setBrowserNote('Bitte Benachrichtigungen in den Browser-Einstellungen zulassen.');
+        setBrowserNote(L('Bitte Benachrichtigungen in den Browser-Einstellungen zulassen.', 'Please allow notifications in your browser settings.'));
         await applyPrefs({ browserAlerts: false });
         return;
       }
     }
     await applyPrefs({ browserAlerts: next });
-    if (next) showToast('Browser-Benachrichtigungen sind aktiv.');
+    if (next) showToast(L('Browser-Benachrichtigungen sind aktiv.', 'Browser notifications are active.'));
   }
 
   function toggleCookie(key, value) {
@@ -5751,8 +5752,8 @@ export function BeraterSettings() {
   return (
     <SettingsShell
       active="einstellungen"
-      title="Einstellungen"
-      lede="Hinweise, Kalender und Datenschutz — so steuern Sie Ihr Portal."
+      title={L('Einstellungen', 'Settings')}
+      lede={L('Hinweise, Kalender und Datenschutz — so steuern Sie Ihr Portal.', 'Notifications, calendar and privacy — this is how you control your portal.')}
     >
       <div className="broker-panel broker-settings broker-settings--wide">
         {error ? (
@@ -5768,8 +5769,8 @@ export function BeraterSettings() {
               <Bell size={16} strokeWidth={2.2} />
             </span>
             <div className="broker-settings-section__heading">
-              <h3>Benachrichtigungen</h3>
-              <p>Legen Sie fest, wofür Sie Hinweise bekommen — oder schalten Sie sie komplett aus.</p>
+              <h3>{L('Benachrichtigungen', 'Notifications')}</h3>
+              <p>{L('Legen Sie fest, wofür Sie Hinweise bekommen — oder schalten Sie sie komplett aus.', 'Choose what you get notified about — or switch notifications off completely.')}</p>
             </div>
           </header>
           <div className="broker-setting-rows">
@@ -5778,32 +5779,32 @@ export function BeraterSettings() {
               checked={prefs.terminAlerts}
               disabled={saving}
               onChange={(checked) => applyPrefs({ terminAlerts: checked })}
-              label="Neue Termine"
-              hint="Mail, Glocke und Kalender, wenn ein Termin gelegt wird oder näher rückt."
+              label={L('Neue Termine', 'New appointments')}
+              hint={L('Mail, Glocke und Kalender, wenn ein Termin gelegt wird oder näher rückt.', 'E-mail, bell and calendar when an appointment is scheduled or approaching.')}
             />
             <SettingSwitch
               id="setting-wiedervorlage"
               checked={prefs.wiedervorlageAlerts}
               disabled={saving}
               onChange={(checked) => applyPrefs({ wiedervorlageAlerts: checked })}
-              label="Neue Wiedervorlagen"
-              hint="Mail, Glocke und Kalender, wenn eine Wiedervorlage gelegt wird oder näher rückt."
+              label={L('Neue Wiedervorlagen', 'New follow-ups')}
+              hint={L('Mail, Glocke und Kalender, wenn eine Wiedervorlage gelegt wird oder näher rückt.', 'E-mail, bell and calendar when a follow-up is scheduled or approaching.')}
             />
             <SettingSwitch
               id="setting-toast"
               checked={prefs.toastAlerts}
               disabled={saving}
               onChange={(checked) => applyPrefs({ toastAlerts: checked })}
-              label="Hinweise in der Glocke"
-              hint="Rote Markierung und Kurzhinweis im Portal, wenn ein Termin näher rückt."
+              label={L('Hinweise in der Glocke', 'Bell notifications')}
+              hint={L('Rote Markierung und Kurzhinweis im Portal, wenn ein Termin näher rückt.', 'Red badge and short notice in the portal when an appointment is approaching.')}
             />
             <SettingSwitch
               id="setting-browser"
               checked={prefs.browserAlerts}
               disabled={saving}
               onChange={toggleBrowserAlerts}
-              label="Browser-Benachrichtigungen"
-              hint="Meldung auf dem Rechner, auch wenn das Portal im Hintergrund liegt."
+              label={L('Browser-Benachrichtigungen', 'Browser notifications')}
+              hint={L('Meldung auf dem Rechner, auch wenn das Portal im Hintergrund liegt.', 'Alert on your computer, even when the portal is in the background.')}
             />
             {browserNote ? <p className="broker-setting-note">{browserNote}</p> : null}
             <SettingSwitch
@@ -5811,8 +5812,8 @@ export function BeraterSettings() {
               checked={prefs.emailReminders}
               disabled={saving}
               onChange={(checked) => applyPrefs({ emailReminders: checked })}
-              label="E-Mail-Erinnerungen"
-              hint="Eine Mail 1 Stunde vorher, eine weitere 15 Minuten vorher."
+              label={L('E-Mail-Erinnerungen', 'E-mail reminders')}
+              hint={L('Eine Mail 1 Stunde vorher, eine weitere 15 Minuten vorher.', 'One e-mail 1 hour before, another 15 minutes before.')}
             />
           </div>
         </section>
@@ -5823,21 +5824,21 @@ export function BeraterSettings() {
               <CalendarClock size={16} strokeWidth={2.2} />
             </span>
             <div className="broker-settings-section__heading">
-              <h3>Google Kalender</h3>
+              <h3>{L('Google Kalender', 'Google Calendar')}</h3>
               <p>
-                Termine und Wiedervorlagen gehen als Kalendereinladung an Ihre Konto-E-Mail und erscheinen in Google Kalender. Trennen Sie die Verbindung, wenn das nicht mehr geschehen soll.
+                {L('Termine und Wiedervorlagen gehen als Kalendereinladung an Ihre Konto-E-Mail und erscheinen in Google Kalender. Trennen Sie die Verbindung, wenn das nicht mehr geschehen soll.', 'Appointments and follow-ups are sent as calendar invitations to your account e-mail and appear in Google Calendar. Disconnect if you no longer want this.')}
               </p>
             </div>
           </header>
           <div className="broker-setting-connect">
             <div>
               <span className={`broker-setting-status${prefs.googleCalendar ? ' is-on' : ''}`}>
-                {prefs.googleCalendar ? 'Verbunden' : 'Nicht verbunden'}
+                {prefs.googleCalendar ? L('Verbunden', 'Connected') : L('Nicht verbunden', 'Not connected')}
               </span>
               <p>
                 {prefs.googleCalendar
-                  ? `Einladungen gehen an ${user?.email || 'Ihre Konto-E-Mail'}. Speichern Sie einen Termin oder eine Wiedervorlage erneut, damit der Eintrag im Kalender erscheint.`
-                  : 'Nicht verbunden. Termine bleiben nur im Portal — ohne Einladung an Google Kalender.'}
+                  ? L(`Einladungen gehen an ${user?.email || 'Ihre Konto-E-Mail'}. Speichern Sie einen Termin oder eine Wiedervorlage erneut, damit der Eintrag im Kalender erscheint.`, `Invitations are sent to ${user?.email || 'your account e-mail'}. Save an appointment or follow-up again so that the entry appears in the calendar.`)
+                  : L('Nicht verbunden. Termine bleiben nur im Portal — ohne Einladung an Google Kalender.', 'Not connected. Appointments stay in the portal only — without an invitation to Google Calendar.')}
               </p>
             </div>
             <button
@@ -5849,12 +5850,12 @@ export function BeraterSettings() {
                 const ok = await applyPrefs({ googleCalendar: next });
                 if (ok) {
                   showToast(next
-                    ? 'Google Kalender ist verbunden.'
-                    : 'Google Kalender wurde getrennt.');
+                    ? L('Google Kalender ist verbunden.', 'Google Calendar is connected.')
+                    : L('Google Kalender wurde getrennt.', 'Google Calendar has been disconnected.'));
                 }
               }}
             >
-              {prefs.googleCalendar ? 'Verbindung trennen' : 'Google Kalender verbinden'}
+              {prefs.googleCalendar ? L('Verbindung trennen', 'Disconnect') : L('Google Kalender verbinden', 'Connect Google Calendar')}
             </button>
           </div>
         </section>
@@ -5865,8 +5866,8 @@ export function BeraterSettings() {
               <Cookie size={16} strokeWidth={2.2} />
             </span>
             <div className="broker-settings-section__heading">
-              <h3>Datenschutz</h3>
-              <p>Notwendige Cookies bleiben immer aktiv. Statistik und Marketing können Sie abwählen.</p>
+              <h3>{L('Datenschutz', 'Privacy')}</h3>
+              <p>{L('Notwendige Cookies bleiben immer aktiv. Statistik und Marketing können Sie abwählen.', 'Necessary cookies always remain active. You can opt out of statistics and marketing.')}</p>
             </div>
           </header>
           <div className="broker-setting-rows">
@@ -5875,22 +5876,22 @@ export function BeraterSettings() {
               checked
               disabled
               onChange={() => {}}
-              label="Notwendig"
-              hint="Anmeldung, Sicherheit und grundlegende Funktionen."
+              label={L('Notwendig', 'Necessary')}
+              hint={L('Anmeldung, Sicherheit und grundlegende Funktionen.', 'Login, security and basic functions.')}
             />
             <SettingSwitch
               id="setting-cookie-analytics"
               checked={Boolean(cookies.analytics)}
               onChange={(checked) => toggleCookie('analytics', checked)}
-              label="Statistik"
-              hint="Hilft uns zu verstehen, wie das Portal genutzt wird."
+              label={L('Statistik', 'Statistics')}
+              hint={L('Hilft uns zu verstehen, wie das Portal genutzt wird.', 'Helps us understand how the portal is used.')}
             />
             <SettingSwitch
               id="setting-cookie-marketing"
               checked={Boolean(cookies.marketing)}
               onChange={(checked) => toggleCookie('marketing', checked)}
-              label="Marketing"
-              hint="Optional für eingebettete Inhalte und Messung."
+              label={L('Marketing', 'Marketing')}
+              hint={L('Optional für eingebettete Inhalte und Messung.', 'Optional, for embedded content and measurement.')}
             />
           </div>
         </section>

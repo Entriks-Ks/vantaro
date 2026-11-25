@@ -5,6 +5,7 @@ import {
   loadGoogleMaps,
   placeFromPrediction,
 } from '../lib/googleMaps';
+import { L } from '../lib/i18n';
 
 /**
  * Street input with PlaceAutocompleteElement (DE only).
@@ -17,7 +18,7 @@ export default function AddressAutocomplete({
   name = 'street',
   disabled = false,
   required = false,
-  placeholder = 'Adresse suchen oder eingeben',
+  placeholder = L('Adresse suchen oder eingeben', 'Search for or enter an address'),
   autoComplete = 'street-address',
 }) {
   const hostRef = useRef(null);
@@ -48,7 +49,7 @@ export default function AddressAutocomplete({
       .then((maps) => {
         if (cancelled || !hostRef.current || widgetRef.current) return;
         if (!maps.places?.PlaceAutocompleteElement) {
-          throw new Error('PlaceAutocompleteElement nicht verfügbar.');
+          throw new Error(L('PlaceAutocompleteElement nicht verfügbar.', 'PlaceAutocompleteElement not available.'));
         }
 
         const widget = new maps.places.PlaceAutocompleteElement({

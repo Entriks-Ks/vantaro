@@ -5,6 +5,7 @@ import { useAuth } from '../hooks/useAuth';
 import useBackForwardCacheRestore from '../hooks/useBackForwardCacheRestore';
 import useNavigate from '../hooks/useNavigate';
 import { validatePassword } from '../lib/profile';
+import { L } from '../lib/i18n';
 import { rememberOAuthVertical } from '../lib/auth';
 import {
   clearSignupCategory,
@@ -91,11 +92,11 @@ export default function Register() {
 
     if (!formData.firstName.trim() || !formData.lastName.trim() || !formData.email.trim()
       || !formData.password || !formData.confirmPassword) {
-      setError('Bitte alle Felder ausfüllen');
+      setError(L('Bitte alle Felder ausfüllen', 'Please fill in all fields'));
       return;
     }
     if (formData.firstName.trim().length < 2 || formData.lastName.trim().length < 2) {
-      setError('Vor- und Nachname müssen mindestens 2 Zeichen haben');
+      setError(L('Vor- und Nachname müssen mindestens 2 Zeichen haben', 'First and last name must be at least 2 characters long'));
       return;
     }
     const pwdError = passwordError(formData.password);
@@ -104,11 +105,11 @@ export default function Register() {
       return;
     }
     if (formData.password !== formData.confirmPassword) {
-      setError('Passwörter stimmen nicht überein');
+      setError(L('Passwörter stimmen nicht überein', 'Passwords do not match'));
       return;
     }
     if (!isVertical(formData.vertical)) {
-      setError('Bitte wählen Sie Versicherung oder Energie.');
+      setError(L('Bitte wählen Sie Versicherung oder Energie.', 'Please choose insurance or energy.'));
       return;
     }
 
@@ -138,7 +139,7 @@ export default function Register() {
   const handleGoogle = async () => {
     setError('');
     if (!isVertical(formData.vertical)) {
-      setError('Bitte wählen Sie Versicherung oder Energie.');
+      setError(L('Bitte wählen Sie Versicherung oder Energie.', 'Please choose insurance or energy.'));
       return;
     }
     setSubmitting(true);
@@ -146,7 +147,7 @@ export default function Register() {
       rememberOAuthVertical(formData.vertical);
       await loginWithGoogle('/dashboard');
     } catch (err) {
-      setError(err.message || 'Google-Anmeldung ist fehlgeschlagen.');
+      setError(err.message || L('Google-Anmeldung ist fehlgeschlagen.', 'Google login failed.'));
       setSubmitting(false);
     }
   };
@@ -154,7 +155,7 @@ export default function Register() {
   const handleApple = async () => {
     setError('');
     if (!isVertical(formData.vertical)) {
-      setError('Bitte wählen Sie Versicherung oder Energie.');
+      setError(L('Bitte wählen Sie Versicherung oder Energie.', 'Please choose insurance or energy.'));
       return;
     }
     setSubmitting(true);
@@ -162,7 +163,7 @@ export default function Register() {
       rememberOAuthVertical(formData.vertical);
       await loginWithApple('/dashboard');
     } catch (err) {
-      setError(err.message || 'Apple-Anmeldung ist fehlgeschlagen.');
+      setError(err.message || L('Apple-Anmeldung ist fehlgeschlagen.', 'Apple login failed.'));
       setSubmitting(false);
     }
   };
@@ -194,15 +195,15 @@ export default function Register() {
             <img className="brand-mark" src="/favicon.svg" alt="" width={48} height={48} />
           </div>
 
-          <h1 className="auth-title">Konto erstellen</h1>
-          <p className="auth-subtitle">Wählen Sie den Bereich. Den Rest ergänzen Sie nach dem ersten Login.</p>
+          <h1 className="auth-title">{L('Konto erstellen', 'Create account')}</h1>
+          <p className="auth-subtitle">{L('Wählen Sie den Bereich. Den Rest ergänzen Sie nach dem ersten Login.', 'Choose your field. You can add the rest after your first login.')}</p>
 
           {error && <div className="auth-error">{error}</div>}
 
           <form className="auth-form" onSubmit={handleSubmit}>
             <fieldset className="vertical-choice">
               <legend>
-                Bereich <span className="auth-required">*</span>
+                {L('Bereich', 'Field')} <span className="auth-required">*</span>
               </legend>
               {VERTICALS.map((option) => {
                 const selected = formData.vertical === option.id;
@@ -225,7 +226,7 @@ export default function Register() {
             <div className="form-row">
               <div className="form-group">
                 <label htmlFor="firstName">
-                  Vorname <span className="auth-required">*</span>
+                  {L('Vorname', 'First name')} <span className="auth-required">*</span>
                 </label>
                 <input
                   type="text"
@@ -234,14 +235,14 @@ export default function Register() {
                   autoComplete="given-name"
                   value={formData.firstName}
                   onChange={handleInputChange}
-                  placeholder="Max"
+                  placeholder={L('Max', 'John')}
                   required
                   disabled={submitting}
                 />
               </div>
               <div className="form-group">
                 <label htmlFor="lastName">
-                  Nachname <span className="auth-required">*</span>
+                  {L('Nachname', 'Last name')} <span className="auth-required">*</span>
                 </label>
                 <input
                   type="text"
@@ -250,7 +251,7 @@ export default function Register() {
                   autoComplete="family-name"
                   value={formData.lastName}
                   onChange={handleInputChange}
-                  placeholder="Mustermann"
+                  placeholder={L('Mustermann', 'Smith')}
                   required
                   disabled={submitting}
                 />
@@ -259,7 +260,7 @@ export default function Register() {
 
             <div className="form-group">
               <label htmlFor="email">
-                Geschäftliche E-Mail-Adresse <span className="auth-required">*</span>
+                {L('Geschäftliche E-Mail-Adresse', 'Business email address')} <span className="auth-required">*</span>
               </label>
               <input
                 type="email"
@@ -268,7 +269,7 @@ export default function Register() {
                 autoComplete="email"
                 value={formData.email}
                 onChange={handleInputChange}
-                placeholder="name@makler.de"
+                placeholder={L('name@makler.de', 'name@company.com')}
                 required
                 disabled={submitting}
               />
@@ -276,7 +277,7 @@ export default function Register() {
 
             <div className="form-group">
               <label htmlFor="password">
-                Passwort <span className="auth-required">*</span>
+                {L('Passwort', 'Password')} <span className="auth-required">*</span>
               </label>
               <div className="password-input-wrapper">
                 <input
@@ -286,7 +287,7 @@ export default function Register() {
                   autoComplete="new-password"
                   value={formData.password}
                   onChange={handleInputChange}
-                  placeholder="Mind. 8 Zeichen, Buchstabe und Zahl"
+                  placeholder={L('Mind. 8 Zeichen, Buchstabe und Zahl', 'Min. 8 characters, a letter and a number')}
                   required
                   disabled={submitting}
                 />
@@ -294,17 +295,17 @@ export default function Register() {
                   type="button"
                   className="password-toggle"
                   onClick={() => setShowPassword(!showPassword)}
-                  aria-label={showPassword ? 'Passwort verbergen' : 'Passwort anzeigen'}
+                  aria-label={showPassword ? L('Passwort verbergen', 'Hide password') : L('Passwort anzeigen', 'Show password')}
                 >
                   <EyeIcon off={showPassword} />
                 </button>
               </div>
-              <p className="auth-hint">Mindestens 8 Zeichen, inkl. Buchstabe und Zahl.</p>
+              <p className="auth-hint">{L('Mindestens 8 Zeichen, inkl. Buchstabe und Zahl.', 'At least 8 characters, including a letter and a number.')}</p>
             </div>
 
             <div className="form-group">
               <label htmlFor="confirmPassword">
-                Passwort bestätigen <span className="auth-required">*</span>
+                {L('Passwort bestätigen', 'Confirm password')} <span className="auth-required">*</span>
               </label>
               <div className="password-input-wrapper">
                 <input
@@ -314,7 +315,7 @@ export default function Register() {
                   autoComplete="new-password"
                   value={formData.confirmPassword}
                   onChange={handleInputChange}
-                  placeholder="Passwort wiederholen"
+                  placeholder={L('Passwort wiederholen', 'Repeat password')}
                   required
                   disabled={submitting}
                 />
@@ -322,7 +323,7 @@ export default function Register() {
                   type="button"
                   className="password-toggle"
                   onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  aria-label={showConfirmPassword ? 'Passwort verbergen' : 'Passwort anzeigen'}
+                  aria-label={showConfirmPassword ? L('Passwort verbergen', 'Hide password') : L('Passwort anzeigen', 'Show password')}
                 >
                   <EyeIcon off={showConfirmPassword} />
                 </button>
@@ -330,7 +331,7 @@ export default function Register() {
             </div>
 
             <button type="submit" className="auth-submit" disabled={submitting}>
-              {submitting ? 'Konto wird erstellt…' : 'Konto erstellen'}
+              {submitting ? L('Konto wird erstellt…', 'Creating account…') : L('Konto erstellen', 'Create account')}
             </button>
           </form>
 
@@ -341,25 +342,25 @@ export default function Register() {
           />
 
           <div className="auth-footer">
-            <span>Bereits ein Konto?</span>
-            <Link to={loginHref}>Anmelden</Link>
+            <span>{L('Bereits ein Konto?', 'Already have an account?')}</span>
+            <Link to={loginHref}>{L('Anmelden', 'Log in')}</Link>
           </div>
         </div>
 
         <div className="auth-visual-panel">
           <div className="auth-visual-wrapper">
             <div className="auth-cutout-panel">
-              <div className="eyebrow light">Schnell starten</div>
+              <div className="eyebrow light">{L('Schnell starten', 'Get started quickly')}</div>
               <h2>
-                Konto anlegen, E-Mail bestätigen,{' '}
-                <span>einloggen.</span>
+                {L('Konto anlegen, E-Mail bestätigen,', 'Create an account, confirm your email,')}{' '}
+                <span>{L('einloggen.', 'log in.')}</span>
               </h2>
               <p>
-                Beim ersten Login ergänzen Sie Telefon und Unternehmensdaten in einem kurzen Dialog.
+                {L('Beim ersten Login ergänzen Sie Telefon und Unternehmensdaten in einem kurzen Dialog.', 'At your first login, you add your phone number and company details in a short dialog.')}
               </p>
               <div className="auth-cutout-actions">
                 <Link className="btn btn-primary" to="/">
-                  Zurück zur Startseite <span className="arrow">←</span>
+                  {L('Zurück zur Startseite', 'Back to home page')} <span className="arrow">←</span>
                 </Link>
               </div>
             </div>

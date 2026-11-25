@@ -1,9 +1,11 @@
+import { L, locale } from '../../lib/i18n';
+
 export function firstName(user) {
   const direct = String(user?.firstName || '').trim();
   if (direct) return direct;
   const name = String(user?.fullName || '').trim();
   if (name) return name.split(/\s+/)[0];
-  return user?.email?.split('@')[0] || 'dort';
+  return user?.email?.split('@')[0] || L('dort', 'there');
 }
 
 export function displayName(user) {
@@ -35,13 +37,13 @@ export function initials(user) {
 
 export function greeting() {
   const hour = new Date().getHours();
-  if (hour < 11) return 'Guten Morgen';
-  if (hour < 18) return 'Guten Tag';
-  return 'Guten Abend';
+  if (hour < 11) return L('Guten Morgen', 'Good morning');
+  if (hour < 18) return L('Guten Tag', 'Good afternoon');
+  return L('Guten Abend', 'Good evening');
 }
 
 export function formatEuro(cents) {
-  return new Intl.NumberFormat('de-DE', {
+  return new Intl.NumberFormat(locale(), {
     style: 'currency',
     currency: 'EUR',
     maximumFractionDigits: 0,
@@ -49,7 +51,7 @@ export function formatEuro(cents) {
 }
 
 export function formatEuroExact(cents) {
-  return new Intl.NumberFormat('de-DE', {
+  return new Intl.NumberFormat(locale(), {
     style: 'currency',
     currency: 'EUR',
     minimumFractionDigits: 2,
@@ -58,7 +60,7 @@ export function formatEuroExact(cents) {
 
 export function formatDate(value) {
   if (!value) return '—';
-  return new Intl.DateTimeFormat('de-DE', {
+  return new Intl.DateTimeFormat(locale(), {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
@@ -67,7 +69,7 @@ export function formatDate(value) {
 
 export function formatDateTime(value) {
   if (!value) return '—';
-  return new Intl.DateTimeFormat('de-DE', {
+  return new Intl.DateTimeFormat(locale(), {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
@@ -115,7 +117,7 @@ export function accountSetupGaps(user) {
       id: 'profil',
       nav: 'profil',
       to: '/dashboard/profil#kontakt',
-      label: 'Name & Telefon',
+      label: L('Name & Telefon', 'Name & phone'),
     });
   }
   if (!isFirmComplete(user)) {
@@ -123,7 +125,7 @@ export function accountSetupGaps(user) {
       id: 'firma',
       nav: 'unternehmen',
       to: '/dashboard/unternehmen#firma',
-      label: 'Unternehmen',
+      label: L('Unternehmen', 'Company'),
     });
   }
   if (!isAddressComplete(user)) {
@@ -131,7 +133,7 @@ export function accountSetupGaps(user) {
       id: 'adresse',
       nav: 'unternehmen',
       to: '/dashboard/unternehmen#adresse',
-      label: 'Geschäftsadresse',
+      label: L('Geschäftsadresse', 'Business address'),
     });
   }
   return gaps;
@@ -143,7 +145,7 @@ export function accountSetupCta(user) {
   const first = gaps[0];
   return {
     to: first.to,
-    label: first.nav === 'profil' ? 'Profil einrichten' : 'Unternehmen einrichten',
+    label: first.nav === 'profil' ? L('Profil einrichten', 'Set up profile') : L('Unternehmen einrichten', 'Set up company'),
     count: gaps.length,
     gaps,
   };
@@ -152,43 +154,43 @@ export function accountSetupCta(user) {
 export function dashboardDocumentTitle(pathname, isAdmin = false) {
   const path = String(pathname || '').replace(/\/+$/, '') || '/dashboard';
 
-  if (path === '/dashboard') return 'Übersicht — VANTARO';
-  if (path.startsWith('/dashboard/leads/abgelehnt')) return 'Abgelehnte Leads — VANTARO';
-  if (path === '/dashboard/leads/new') return 'Neuer Lead — VANTARO';
+  if (path === '/dashboard') return L('Übersicht — VANTARO', 'Overview — VANTARO');
+  if (path.startsWith('/dashboard/leads/abgelehnt')) return L('Abgelehnte Leads — VANTARO', 'Rejected leads — VANTARO');
+  if (path === '/dashboard/leads/new') return L('Neuer Lead — VANTARO', 'New lead — VANTARO');
   if (path.startsWith('/dashboard/leads/') && path !== '/dashboard/leads') return 'Lead — VANTARO';
-  if (path.startsWith('/dashboard/leads')) return isAdmin ? 'Leads — VANTARO' : 'Meine Leads — VANTARO';
-  if (path.startsWith('/dashboard/kalender')) return 'Kalender — VANTARO';
-  if (path.startsWith('/dashboard/paket')) return 'Pakete & Guthaben — VANTARO';
+  if (path.startsWith('/dashboard/leads')) return isAdmin ? 'Leads — VANTARO' : L('Meine Leads — VANTARO', 'My leads — VANTARO');
+  if (path.startsWith('/dashboard/kalender')) return L('Kalender — VANTARO', 'Calendar — VANTARO');
+  if (path.startsWith('/dashboard/paket')) return L('Pakete & Guthaben — VANTARO', 'Packages & credit — VANTARO');
   if (path.startsWith('/dashboard/partner')) return 'Partner — VANTARO';
   if (path.startsWith('/dashboard/support')) return 'Support — VANTARO';
-  if (path.startsWith('/dashboard/zahlung')) return 'Zahlung — VANTARO';
-  if (path.startsWith('/dashboard/profil')) return 'Profil — VANTARO';
-  if (path.startsWith('/dashboard/unternehmen')) return 'Unternehmen — VANTARO';
-  if (path.startsWith('/dashboard/sicherheit')) return 'Sicherheit — VANTARO';
-  if (path.startsWith('/dashboard/nutzer')) return 'Nutzer — VANTARO';
-  if (path.startsWith('/dashboard/berater')) return 'Berater — VANTARO';
+  if (path.startsWith('/dashboard/zahlung')) return L('Zahlung — VANTARO', 'Payment — VANTARO');
+  if (path.startsWith('/dashboard/profil')) return L('Profil — VANTARO', 'Profile — VANTARO');
+  if (path.startsWith('/dashboard/unternehmen')) return L('Unternehmen — VANTARO', 'Company — VANTARO');
+  if (path.startsWith('/dashboard/sicherheit')) return L('Sicherheit — VANTARO', 'Security — VANTARO');
+  if (path.startsWith('/dashboard/nutzer')) return L('Nutzer — VANTARO', 'Users — VANTARO');
+  if (path.startsWith('/dashboard/berater')) return L('Berater — VANTARO', 'Advisors — VANTARO');
   if (/^\/dashboard\/anfordern\/[^/]+/.test(path) || /^\/dashboard\/anfragen\/[^/]+/.test(path)) {
-    return 'Anforderung — VANTARO';
+    return L('Anforderung — VANTARO', 'Request — VANTARO');
   }
   if (path.startsWith('/dashboard/anfordern') || path.startsWith('/dashboard/anfragen')) {
-    return 'Anforderungen — VANTARO';
+    return L('Anforderungen — VANTARO', 'Requests — VANTARO');
   }
-  if (path.startsWith('/dashboard/reklamationen')) return 'Reklamationen — VANTARO';
+  if (path.startsWith('/dashboard/reklamationen')) return L('Reklamationen — VANTARO', 'Complaints — VANTARO');
   return 'Portal — VANTARO';
 }
 
 export function documentTitle(pathname, hash = '', isAdmin = false) {
-  if (hash === '#impressum' || pathname === '/impressum') return 'Impressum — VANTARO';
-  if (hash === '#datenschutz' || pathname === '/datenschutz') return 'Datenschutz — VANTARO';
-  if (hash === '#agb' || pathname === '/agb') return 'AGB — VANTARO';
-  if (hash === '#erstattung' || pathname === '/erstattung') return 'Erstattungsrichtlinie — VANTARO';
-  if (pathname === '/login') return 'Anmelden — VANTARO';
-  if (pathname === '/auth/callback') return 'Anmeldung — VANTARO';
-  if (pathname === '/register') return 'Registrieren — VANTARO';
-  if (pathname === '/forgot-password') return 'Passwort zurücksetzen — VANTARO';
-  if (pathname === '/reset-password') return 'Neues Passwort — VANTARO';
-  if (pathname === '/einladung') return 'Einladung annehmen — VANTARO';
-  if (pathname === '/verify-email') return 'E-Mail bestätigen — VANTARO';
+  if (hash === '#impressum' || pathname === '/impressum') return L('Impressum — VANTARO', 'Legal notice — VANTARO');
+  if (hash === '#datenschutz' || pathname === '/datenschutz') return L('Datenschutz — VANTARO', 'Privacy policy — VANTARO');
+  if (hash === '#agb' || pathname === '/agb') return L('AGB — VANTARO', 'Terms & conditions — VANTARO');
+  if (hash === '#erstattung' || pathname === '/erstattung') return L('Erstattungsrichtlinie — VANTARO', 'Refund policy — VANTARO');
+  if (pathname === '/login') return L('Anmelden — VANTARO', 'Log in — VANTARO');
+  if (pathname === '/auth/callback') return L('Anmeldung — VANTARO', 'Login — VANTARO');
+  if (pathname === '/register') return L('Registrieren — VANTARO', 'Sign up — VANTARO');
+  if (pathname === '/forgot-password') return L('Passwort zurücksetzen — VANTARO', 'Reset password — VANTARO');
+  if (pathname === '/reset-password') return L('Neues Passwort — VANTARO', 'New password — VANTARO');
+  if (pathname === '/einladung') return L('Einladung annehmen — VANTARO', 'Accept invitation — VANTARO');
+  if (pathname === '/verify-email') return L('E-Mail bestätigen — VANTARO', 'Confirm email — VANTARO');
   if (pathname.startsWith('/dashboard')) return dashboardDocumentTitle(pathname, isAdmin);
-  return 'VANTARO — Vertriebsplattform für Versicherung & Energie';
+  return L('VANTARO — Vertriebsplattform für Versicherung & Energie', 'VANTARO — Sales platform for insurance & energy');
 }

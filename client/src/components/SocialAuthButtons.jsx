@@ -1,8 +1,10 @@
+import { L } from '../lib/i18n';
+
 export default function SocialAuthButtons({ onGoogle, onApple, disabled }) {
   return (
     <>
       <div className="auth-divider">
-        <span>Oder fortfahren mit</span>
+        <span>{L('Oder fortfahren mit', 'Or continue with')}</span>
       </div>
 
       <div className="social-buttons">

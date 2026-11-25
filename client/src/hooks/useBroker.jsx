@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from './useAuth';
 import { MIN_LEAD_PACK, packageById, packTotalCents } from '../pages/dashboard/packages';
+import { L } from '../lib/i18n';
 
 const BrokerContext = createContext(null);
 
@@ -43,7 +44,7 @@ function emptyState() {
         id: 'demo-invoice',
         type: 'invoice',
         number: makeInvoiceNumber(at),
-        label: '10er-Paket PKV / deutschlandweit',
+        label: L('10er-Paket PKV / deutschlandweit', 'PKV / nationwide package of 10'),
         packageId: 'pkv-deutschlandweit',
         cents: -netCents,
         taxCents: 0,
@@ -103,7 +104,7 @@ export function BrokerProvider({ children }) {
         const pkg = packageById(packageId);
         if (!pkg) return { ok: false };
         updateState({ ...state, activePackageId: packageId });
-        showToast(`${pkg.label} ist Ihr aktives Paket.`);
+        showToast(L(`${pkg.label} ist Ihr aktives Paket.`, `${pkg.label} is your active package.`));
         return { ok: true };
       },
       buyLeadPack(packageId, count = MIN_LEAD_PACK) {
@@ -111,7 +112,10 @@ export function BrokerProvider({ children }) {
         if (!pkg) return { ok: false };
         const leads = Math.max(MIN_LEAD_PACK, Number(count) || MIN_LEAD_PACK);
         if (leads % 5 !== 0) {
-          showToast(`Abnahme in 5er-Schritten möglich (mind. ${MIN_LEAD_PACK} Leads).`);
+          showToast(L(
+            `Abnahme in 5er-Schritten möglich (mind. ${MIN_LEAD_PACK} Leads).`,
+            `Orders are possible in steps of 5 (min. ${MIN_LEAD_PACK} leads).`,
+          ));
           return { ok: false, reason: 'min' };
         }
         const netCents = packTotalCents(pkg, leads);
@@ -125,7 +129,7 @@ export function BrokerProvider({ children }) {
               id: `${Date.now()}-invoice`,
               type: 'invoice',
               number: makeInvoiceNumber(at),
-              label: `${leads}er-Paket ${pkg.label}`,
+              label: L(`${leads}er-Paket ${pkg.label}`, `${pkg.label} package of ${leads}`),
               packageId,
               cents: -netCents,
               taxCents: 0,
@@ -136,7 +140,7 @@ export function BrokerProvider({ children }) {
             ...state.transactions,
           ],
         });
-        showToast(`Rechnung erstellt · ${leads} Leads im Kontingent.`);
+        showToast(L(`Rechnung erstellt · ${leads} Leads im Kontingent.`, `Invoice created · ${leads} leads in your quota.`));
         return { ok: true };
       },
     };

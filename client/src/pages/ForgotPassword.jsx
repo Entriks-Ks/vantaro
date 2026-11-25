@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { L } from '../lib/i18n';
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState('');
@@ -15,14 +16,14 @@ export default function ForgotPassword() {
     setMessage('');
 
     if (!email) {
-      setError('Bitte E-Mail-Adresse eingeben');
+      setError(L('Bitte E-Mail-Adresse eingeben', 'Please enter your email address'));
       return;
     }
 
     setSubmitting(true);
     try {
       const result = await forgotPassword(email);
-      setMessage(result.message || 'Bitte öffnen Sie den Link in der E-Mail.');
+      setMessage(result.message || L('Bitte öffnen Sie den Link in der E-Mail.', 'Please open the link in the email.'));
     } catch (err) {
       setError(err.message);
     } finally {
@@ -63,58 +64,58 @@ export default function ForgotPassword() {
             />
           </div>
 
-          <h1 className="auth-title">Passwort zurücksetzen</h1>
-          <p className="auth-subtitle">Wir senden Ihnen einen Link per E-Mail.</p>
+          <h1 className="auth-title">{L('Passwort zurücksetzen', 'Reset password')}</h1>
+          <p className="auth-subtitle">{L('Wir senden Ihnen einen Link per E-Mail.', 'We will send you a link by email.')}</p>
 
           {error && <div className="auth-error">{error}</div>}
           {message && <div className="auth-success">{message}</div>}
 
           <form className="auth-form" onSubmit={handleSubmit}>
             <div className="form-group">
-              <label htmlFor="email">E-Mail-Adresse <span className="auth-required">*</span></label>
+              <label htmlFor="email">{L('E-Mail-Adresse', 'Email address')} <span className="auth-required">*</span></label>
               <input
                 type="email"
                 id="email"
                 autoComplete="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="E-Mail-Adresse"
+                placeholder={L('E-Mail-Adresse', 'Email address')}
                 required
                 disabled={submitting}
               />
             </div>
 
             <button type="submit" className="auth-submit" disabled={submitting}>
-              {submitting ? 'Wird gesendet…' : 'Link senden'}
+              {submitting ? L('Wird gesendet…', 'Sending…') : L('Link senden', 'Send link')}
             </button>
           </form>
 
           <div className="auth-footer">
-            <span>Zurück zur</span>
-            <Link to="/login">Anmeldung</Link>
+            <span>{L('Zurück zur', 'Back to')}</span>
+            <Link to="/login">{L('Anmeldung', 'login')}</Link>
           </div>
         </div>
 
         <div className="auth-visual-panel">
           <div className="auth-visual-wrapper">
             <div className="auth-cutout-panel">
-              <div className="eyebrow light">Sicherer Zugang zu Ihrem Konto</div>
+              <div className="eyebrow light">{L('Sicherer Zugang zu Ihrem Konto', 'Secure access to your account')}</div>
               <h2>
-                Setzen Sie Ihr Passwort zurück und{' '}
-                <span>kehren Sie in Ihr Portal zurück.</span>
+                {L('Setzen Sie Ihr Passwort zurück und', 'Reset your password and')}{' '}
+                <span>{L('kehren Sie in Ihr Portal zurück.', 'return to your portal.')}</span>
               </h2>
               <p>
-                Wir senden Ihnen einen sicheren Link per E-Mail. Mit einem Klick legen Sie Ihr neues Passwort fest.
+                {L('Wir senden Ihnen einen sicheren Link per E-Mail. Mit einem Klick legen Sie Ihr neues Passwort fest.', 'We will send you a secure link by email. With one click you set your new password.')}
               </p>
               <div className="auth-cutout-actions">
                 <Link className="btn btn-primary" to="/">
-                  Zurück zur Startseite <span className="arrow">←</span>
+                  {L('Zurück zur Startseite', 'Back to home page')} <span className="arrow">←</span>
                 </Link>
                 <a
                   className="btn btn-outline-light"
                   href="mailto:info@vantaro.io?subject=VANTARO%20Support"
                 >
-                  Support kontaktieren <span className="arrow">↗</span>
+                  {L('Support kontaktieren', 'Contact support')} <span className="arrow">↗</span>
                 </a>
               </div>
             </div>

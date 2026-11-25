@@ -1,5 +1,6 @@
 import { apiUrl } from './api';
 import { readStoredSession } from './auth';
+import { L } from './i18n';
 
 function authHeaders(json = false) {
   const session = readStoredSession();
@@ -11,7 +12,7 @@ function authHeaders(json = false) {
 
 async function parse(response) {
   const payload = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(payload.error || 'Etwas ist schiefgelaufen.');
+  if (!response.ok) throw new Error(payload.error || L('Etwas ist schiefgelaufen.', 'Something went wrong.'));
   return payload;
 }
 

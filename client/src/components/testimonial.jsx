@@ -1,5 +1,6 @@
 import * as React from "react";
 import { cn } from "../lib/utils";
+import { L } from "../lib/i18n";
 
 function initials(name) {
   if (!name) return "";
@@ -13,7 +14,7 @@ function initials(name) {
 
 function Stars({ count }) {
   return (
-    <div className="testimonial-stars" aria-label={`${count} von 5 Sternen`}>
+    <div className="testimonial-stars" aria-label={L(`${count} von 5 Sternen`, `${count} out of 5 stars`)}>
       {Array.from({ length: 5 }, (_, i) => (
         <svg
           key={i}

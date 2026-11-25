@@ -1,35 +1,36 @@
 import { apiUrl } from './api';
 import { readStoredSession } from './auth';
+import { L } from './i18n';
 
 export const LEAD_TYPE_OPTIONS = [
   { id: 'PKV', label: 'PKV' },
   { id: 'bAV', label: 'bAV' },
   { id: 'BU', label: 'BU' },
-  { id: 'PV_LEAD', label: 'Photovoltaik-Lead' },
-  { id: 'PV_APPOINTMENT', label: 'Photovoltaik-Termin' },
-  { id: 'HP_LEAD', label: 'Wärmepumpen-Lead' },
-  { id: 'HP_APPOINTMENT', label: 'Wärmepumpen-Termin' },
+  { id: 'PV_LEAD', label: L('Photovoltaik-Lead', 'Solar PV lead') },
+  { id: 'PV_APPOINTMENT', label: L('Photovoltaik-Termin', 'Solar PV appointment') },
+  { id: 'HP_LEAD', label: L('Wärmepumpen-Lead', 'Heat pump lead') },
+  { id: 'HP_APPOINTMENT', label: L('Wärmepumpen-Termin', 'Heat pump appointment') },
 ];
 
 export const REQUEST_STATUS_OPTIONS = [
-  { id: 'active', label: 'Aktiv' },
-  { id: 'cancelled', label: 'Pausiert' },
-  { id: 'completed', label: 'Erfüllt' },
-  { id: 'rejected', label: 'Abgelehnt' },
-  { id: 'pending', label: 'Aktiv' },
+  { id: 'active', label: L('Aktiv', 'Active') },
+  { id: 'cancelled', label: L('Pausiert', 'Paused') },
+  { id: 'completed', label: L('Erfüllt', 'Fulfilled') },
+  { id: 'rejected', label: L('Abgelehnt', 'Rejected') },
+  { id: 'pending', label: L('Aktiv', 'Active') },
 ];
 
 export const FULFILLMENT_MODE_OPTIONS = [
-  { id: 'manual', label: 'Manuell' },
-  { id: 'auto', label: 'Automatisch' },
+  { id: 'manual', label: L('Manuell', 'Manual') },
+  { id: 'auto', label: L('Automatisch', 'Automatic') },
 ];
 
 export function requestStatusLabel(id) {
-  return REQUEST_STATUS_OPTIONS.find((option) => option.id === id)?.label || id || 'Kein Auftrag';
+  return REQUEST_STATUS_OPTIONS.find((option) => option.id === id)?.label || id || L('Kein Auftrag', 'No order');
 }
 
 export function fulfillmentModeLabel(id) {
-  return FULFILLMENT_MODE_OPTIONS.find((option) => option.id === id)?.label || 'Manuell';
+  return FULFILLMENT_MODE_OPTIONS.find((option) => option.id === id)?.label || L('Manuell', 'Manual');
 }
 
 export function isAutoFulfillment(request) {
@@ -59,7 +60,7 @@ function authHeaders(json = false) {
 async function parseResponse(response) {
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new Error(payload.error || 'Etwas ist schiefgelaufen. Bitte versuchen Sie es erneut.');
+    throw new Error(payload.error || L('Etwas ist schiefgelaufen. Bitte versuchen Sie es erneut.', 'Something went wrong. Please try again.'));
   }
   return payload;
 }

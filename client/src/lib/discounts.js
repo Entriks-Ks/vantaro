@@ -1,6 +1,7 @@
 import { apiUrl } from './api';
 import { readStoredSession } from './auth';
 import { quoteDiscounts } from './discountQuote';
+import { L } from './i18n';
 
 export { quoteDiscounts, discountedUnitCents, purchaseAppliesKind, shopPriceUnits, matchingOneTimes, remainingTimeLabel, isDiscountExpired, isDiscountLive } from './discountQuote';
 
@@ -15,7 +16,7 @@ function authHeaders(json = false) {
 async function parseResponse(response) {
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new Error(payload.error || 'Etwas ist schiefgelaufen. Bitte versuchen Sie es erneut.');
+    throw new Error(payload.error || L('Etwas ist schiefgelaufen. Bitte versuchen Sie es erneut.', 'Something went wrong. Please try again.'));
   }
   return payload;
 }
@@ -69,25 +70,25 @@ export async function revokeBeraterDiscount(discountId) {
 }
 
 export function appliesToLabel(value) {
-  if (value === 'leads') return 'Leads';
-  if (value === 'appointments') return 'Termine';
-  return 'Alle Pakete';
+  if (value === 'leads') return L('Leads', 'Leads');
+  if (value === 'appointments') return L('Termine', 'Appointments');
+  return L('Alle Pakete', 'All packages');
 }
 
 export function discountKindLabel(kind) {
-  return kind === 'one_time' ? 'Einmal-Rabatt' : 'Dauerkondition';
+  return kind === 'one_time' ? L('Einmal-Rabatt', 'One-time discount') : L('Dauerkondition', 'Standing discount');
 }
 
 export function discountStatusLabel(status) {
   switch (String(status || '')) {
     case 'active':
-      return 'Aktiv';
+      return L('Aktiv', 'Active');
     case 'reserved':
-      return 'Reserviert';
+      return L('Reserviert', 'Reserved');
     case 'consumed':
-      return 'Eingelöst';
+      return L('Eingelöst', 'Redeemed');
     case 'revoked':
-      return 'Entzogen';
+      return L('Entzogen', 'Revoked');
     default:
       return status || '—';
   }
@@ -97,15 +98,15 @@ export function discountValueLabel(discount, formatEuro) {
   if (!discount) return '—';
   if (discount.valueType === 'percent') return `${discount.value} %`;
   const amount = formatEuro ? formatEuro(discount.value) : `${(discount.value / 100).toFixed(2)} €`;
-  return `${amount} / Einheit`;
+  return L(`${amount} / Einheit`, `${amount} / unit`);
 }
 
 export function discountLineLabel(line) {
   const discount = line?.discount || line;
-  if (!discount) return 'Rabatt';
+  if (!discount) return L('Rabatt', 'Discount');
   const code = discount.code ? ` ${discount.code}` : '';
-  if (discount.valueType === 'percent') return `Rabatt${code} (−${discount.value} %)`;
-  return `Rabatt${code}`.trim();
+  if (discount.valueType === 'percent') return L(`Rabatt${code} (−${discount.value} %)`, `Discount${code} (−${discount.value}%)`);
+  return L(`Rabatt${code}`, `Discount${code}`).trim();
 }
 
 export function quoteForPackage(listCents, count, packageId, discounts, leadType, useOneTimeId) {

@@ -29,6 +29,7 @@ import {
 } from '../../lib/payments';
 import { energyPackageById } from '../../lib/vertical';
 import { formatDate, formatDateTime, formatEuro, formatEuroExact } from './helpers';
+import { L, locale } from '../../lib/i18n';
 import { packageById } from './packages';
 import { CountUp, StatusDonut, Trend } from './paymentCharts';
 import { SelectDropdown } from './SelectDropdown';
@@ -45,9 +46,9 @@ import {
 const PAGE_SIZE = 10;
 
 const RANGES = [
-  { id: '6m', label: '6 Monate', months: 6 },
-  { id: '12m', label: '12 Monate', months: 12 },
-  { id: 'all', label: 'Gesamt' },
+  { id: '6m', label: L('6 Monate', '6 months'), months: 6 },
+  { id: '12m', label: L('12 Monate', '12 months'), months: 12 },
+  { id: 'all', label: L('Gesamt', 'All time') },
 ];
 
 const STATUS_BADGE = {
@@ -57,16 +58,16 @@ const STATUS_BADGE = {
   refunded: 'is-refunded',
 };
 
-const monthLabel = new Intl.DateTimeFormat('de-DE', { month: 'short', year: '2-digit' });
-const monthLong = new Intl.DateTimeFormat('de-DE', { month: 'long', year: 'numeric' });
+const monthLabel = new Intl.DateTimeFormat(locale(), { month: 'short', year: '2-digit' });
+const monthLong = new Intl.DateTimeFormat(locale(), { month: 'long', year: 'numeric' });
 
 function isAppointment(payment) {
   return String(payment?.leadType || payment?.packageId || '').includes('APPOINTMENT');
 }
 
 function unitWord(payment, count) {
-  if (isAppointment(payment)) return count === 1 ? 'Termin' : 'Termine';
-  return count === 1 ? 'Lead' : 'Leads';
+  if (isAppointment(payment)) return count === 1 ? L('Termin', 'appointment') : L('Termine', 'appointments');
+  return count === 1 ? L('Lead', 'lead') : L('Leads', 'leads');
 }
 
 function packageName(payment) {
@@ -132,7 +133,7 @@ function SpendChart({ buckets }) {
 
   return (
     <div className="dash-pay-chart broker-pay-chart" onMouseLeave={() => setHover(null)}>
-      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Monatliche Ausgaben">
+      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={L('Monatliche Ausgaben', 'Monthly spending')}>
         <defs>
           <linearGradient id="broker-pay-bar" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor="#56d3c4" />
@@ -186,7 +187,7 @@ function SpendChart({ buckets }) {
           <g className="broker-pay-avg">
             <line x1={pad.left} x2={width - pad.right} y1={y(average)} y2={y(average)} />
             <text x={width - pad.right} y={y(average) - 6} textAnchor="end">
-              Ø {formatEuro(average)} / Monat
+              Ø {formatEuro(average)} / {L('Monat', 'month')}
             </text>
           </g>
         ) : null}
@@ -213,8 +214,11 @@ function SpendChart({ buckets }) {
           <span>{active.longLabel}</span>
           <strong>{formatEuroExact(active.spent)}</strong>
           <small>
-            {active.count} Zahlung{active.count === 1 ? '' : 'en'}
-            {active.units ? ` · ${active.units} gebucht` : ''}
+            {L(
+              `${active.count} Zahlung${active.count === 1 ? '' : 'en'}`,
+              `${active.count} payment${active.count === 1 ? '' : 's'}`,
+            )}
+            {active.units ? L(` · ${active.units} gebucht`, ` · ${active.units} booked`) : ''}
           </small>
         </div>
       ) : null}
@@ -402,11 +406,11 @@ export function BeraterBilling() {
       const result = await syncMyPayment(paymentId);
       await load(true);
       if (result.outcome === 'paid') {
-        setNotice('Zahlung bestätigt. Ihre Anforderung wurde angelegt.');
+        setNotice(L('Zahlung bestätigt. Ihre Anforderung wurde angelegt.', 'Payment confirmed. Your request has been created.'));
       } else if (result.outcome === 'failed') {
-        setError('Zahlung wurde von der Bank abgelehnt oder abgebrochen.');
+        setError(L('Zahlung wurde von der Bank abgelehnt oder abgebrochen.', 'The payment was declined by the bank or cancelled.'));
       } else {
-        setNotice('Zahlung ist bei der Bank noch offen. Bitte später erneut prüfen.');
+        setNotice(L('Zahlung ist bei der Bank noch offen. Bitte später erneut prüfen.', 'The payment is still pending at the bank. Please check again later.'));
       }
     } catch (err) {
       setError(err.message);
@@ -422,15 +426,17 @@ export function BeraterBilling() {
     try {
       await action(paymentId);
     } catch (err) {
-      setError(err.message || 'Rechnung konnte nicht geladen werden.');
+      setError(err.message || L('Rechnung konnte nicht geladen werden.', 'Could not load the invoice.'));
     } finally {
       setInvoiceBusyId('');
     }
   };
 
   const rangeLabel = RANGES.find((entry) => entry.id === range)?.label;
-  const compareHint = range === 'all' ? 'seit Ihrer ersten Buchung' : `vs. vorherige ${rangeLabel}`;
-  const unitsTitle = energy ? 'Leads & Termine' : 'Gebuchte Leads';
+  const compareHint = range === 'all'
+    ? L('seit Ihrer ersten Buchung', 'since your first booking')
+    : L(`vs. vorherige ${rangeLabel}`, `vs. previous ${rangeLabel}`);
+  const unitsTitle = energy ? L('Leads & Termine', 'Leads & appointments') : L('Gebuchte Leads', 'Booked leads');
   const statusSegments = STATUS_IDS.map((id) => ({
     id,
     label: paymentStatusLabel(id),
@@ -448,15 +454,18 @@ export function BeraterBilling() {
           onClick={() => navigate('/dashboard/paket')}
         >
           <ArrowLeft size={16} aria-hidden="true" />
-          <span>Zurück zu Pakete & Guthaben</span>
+          <span>{L('Zurück zu Pakete & Guthaben', 'Back to packages & credit')}</span>
         </button>
       )}
       <div className="broker-heading">
         <div>
-          <div className="eyebrow">Abrechnung</div>
-          <h1>Zahlungen &amp; <em>Rechnungen</em></h1>
+          <div className="eyebrow">{L('Abrechnung', 'Billing')}</div>
+          <h1>{L('Zahlungen', 'Payments')} &amp; <em>{L('Rechnungen', 'invoices')}</em></h1>
           <p className="lede">
-            Alle Ausgaben, Zahlungen und Rechnungen auf einen Blick — bezahlt über die ProCredit Bank.
+            {L(
+              'Alle Ausgaben, Zahlungen und Rechnungen auf einen Blick — bezahlt über die ProCredit Bank.',
+              'All spending, payments and invoices at a glance — paid via ProCredit Bank.',
+            )}
           </p>
         </div>
       </div>
@@ -464,7 +473,7 @@ export function BeraterBilling() {
       <div className="broker-filterbar broker-pay-head-actions">
         <div className="broker-filter-start">
           <SelectDropdown
-            label="Zeitraum"
+            label={L('Zeitraum', 'Period')}
             icon={CalendarRange}
             value={range}
             onChange={setRange}
@@ -474,7 +483,7 @@ export function BeraterBilling() {
         <div className="broker-filterbar-end">
           {updatedAt ? (
             <span className="broker-filter-count">
-              Aktualisiert {updatedAt.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}
+              {L('Aktualisiert', 'Updated')} {updatedAt.toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit' })}
             </span>
           ) : null}
           <button
@@ -482,14 +491,14 @@ export function BeraterBilling() {
             className="broker-pay-icon-btn"
             onClick={() => load(true)}
             disabled={loading || refreshing}
-            aria-label="Aktualisieren"
-            title="Aktualisieren"
+            aria-label={L('Aktualisieren', 'Refresh')}
+            title={L('Aktualisieren', 'Refresh')}
           >
             <RefreshCw size={16} className={refreshing ? 'is-spinning' : undefined} aria-hidden="true" />
           </button>
           <Link to="/dashboard/paket" className="btn btn-primary">
             <CreditCard size={15} aria-hidden="true" />
-            {energy ? 'Leads / Termine buchen' : 'Leads buchen'}
+            {energy ? L('Leads / Termine buchen', 'Book leads / appointments') : L('Leads buchen', 'Book leads')}
           </Link>
         </div>
       </div>
@@ -510,7 +519,7 @@ export function BeraterBilling() {
       <div className="broker-home-metrics broker-home-metrics--leads broker-pay-metrics">
         <article className="broker-home-metric is-signal">
           <div className="broker-home-metric-body">
-            <span>Ausgaben</span>
+            <span>{L('Ausgaben', 'Spending')}</span>
             <strong>{dash ?? <CountUp value={stats.spent} format={formatEuroExact} />}</strong>
             <small className="broker-pay-metric-hint">
               {loading ? null : <Trend current={stats.spent} previous={stats.prevSpent} />}
@@ -525,27 +534,33 @@ export function BeraterBilling() {
             <strong>{dash ?? <CountUp value={stats.units} />}</strong>
             <small className="broker-pay-metric-hint">
               {loading ? null : <Trend current={stats.units} previous={stats.prevUnits} />}
-              in {stats.paidCount} Zahlung{stats.paidCount === 1 ? '' : 'en'}
+              {L(
+                `in ${stats.paidCount} Zahlung${stats.paidCount === 1 ? '' : 'en'}`,
+                `in ${stats.paidCount} payment${stats.paidCount === 1 ? '' : 's'}`,
+              )}
             </small>
           </div>
           <span className="broker-home-metric-icon" aria-hidden="true"><Layers size={22} /></span>
         </article>
         <article className="broker-home-metric">
           <div className="broker-home-metric-body">
-            <span>Ø Preis pro {energy ? 'Einheit' : 'Lead'}</span>
+            <span>{L('Ø Preis pro', 'Avg. price per')} {energy ? L('Einheit', 'unit') : L('Lead', 'lead')}</span>
             <strong>{dash ?? <CountUp value={stats.perUnit} format={formatEuroExact} />}</strong>
-            <small>{stats.units ? 'netto, ohne MwSt.' : 'noch keine Buchungen'}</small>
+            <small>{stats.units ? L('netto, ohne MwSt.', 'net, excl. VAT') : L('noch keine Buchungen', 'no bookings yet')}</small>
           </div>
           <span className="broker-home-metric-icon" aria-hidden="true"><Receipt size={22} /></span>
         </article>
         <article className="broker-home-metric">
           <div className="broker-home-metric-body">
-            <span>Offen</span>
+            <span>{L('Offen', 'Pending')}</span>
             <strong>{dash ?? <CountUp value={stats.pendingCount} />}</strong>
             <small>
               {stats.pendingCount
-                ? `${formatEuroExact(stats.pendingAmount)} warten auf Bestätigung`
-                : 'keine offenen Zahlungen'}
+                ? L(
+                  `${formatEuroExact(stats.pendingAmount)} warten auf Bestätigung`,
+                  `${formatEuroExact(stats.pendingAmount)} awaiting confirmation`,
+                )
+                : L('keine offenen Zahlungen', 'no pending payments')}
             </small>
           </div>
           <span className="broker-home-metric-icon" aria-hidden="true"><Hourglass size={22} /></span>
@@ -556,9 +571,9 @@ export function BeraterBilling() {
         <section className="broker-panel">
           <div className="broker-panel-header">
             <div>
-              <div className="eyebrow">Verlauf</div>
-              <h2>Ausgaben pro Monat</h2>
-              <p>Bezahlte Buchungen · {rangeLabel}</p>
+              <div className="eyebrow">{L('Verlauf', 'History')}</div>
+              <h2>{L('Ausgaben pro Monat', 'Spending per month')}</h2>
+              <p>{L('Bezahlte Buchungen', 'Paid bookings')} · {rangeLabel}</p>
             </div>
             {!loading ? <strong className="broker-pay-total">{formatEuroExact(stats.spent)}</strong> : null}
           </div>
@@ -575,8 +590,8 @@ export function BeraterBilling() {
           <div className="broker-panel-header">
             <div>
               <div className="eyebrow">Status</div>
-              <h2>Zahlungsstatus</h2>
-              <p>{stats.inRange.length} Vorgänge im Zeitraum</p>
+              <h2>{L('Zahlungsstatus', 'Payment status')}</h2>
+              <p>{L(`${stats.inRange.length} Vorgänge im Zeitraum`, `${stats.inRange.length} transactions in this period`)}</p>
             </div>
           </div>
           <div className="broker-pay-body">
@@ -587,7 +602,7 @@ export function BeraterBilling() {
                 key={range}
                 segments={statusSegments}
                 centerValue={`${stats.successRate}%`}
-                centerLabel="Erfolgreich"
+                centerLabel={L('Erfolgreich', 'Successful')}
               />
             )}
           </div>
@@ -599,9 +614,14 @@ export function BeraterBilling() {
       <section className="broker-panel broker-invoice-panel broker-pay-table-panel">
         <div className="broker-panel-header">
           <div>
-            <h2>Alle Zahlungen</h2>
+            <h2>{L('Alle Zahlungen', 'All payments')}</h2>
             <p>
-              {loading ? 'Laden…' : `${rows.length} von ${stats.inRange.length} Vorgängen · ${rangeLabel}`}
+              {loading
+                ? L('Laden…', 'Loading…')
+                : L(
+                  `${rows.length} von ${stats.inRange.length} Vorgängen · ${rangeLabel}`,
+                  `${rows.length} of ${stats.inRange.length} transactions · ${rangeLabel}`,
+                )}
             </p>
           </div>
           <button
@@ -611,13 +631,13 @@ export function BeraterBilling() {
             disabled={loading || !rows.length}
           >
             <Download size={15} aria-hidden="true" />
-            CSV exportieren
+            {L('CSV exportieren', 'Export CSV')}
           </button>
         </div>
 
         <div className="broker-pay-toolbar">
           <div className="broker-pills" role="tablist" aria-label="Status">
-            {[{ id: 'all', label: 'Alle', count: stats.inRange.length }, ...STATUS_IDS.map((id) => ({
+            {[{ id: 'all', label: L('Alle', 'All'), count: stats.inRange.length }, ...STATUS_IDS.map((id) => ({
               id,
               label: paymentStatusLabel(id),
               count: stats.statusCounts[id],
@@ -640,26 +660,26 @@ export function BeraterBilling() {
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Rechnung, Paket, Gebiet"
-              aria-label="Zahlungen durchsuchen"
+              placeholder={L('Rechnung, Paket, Gebiet', 'Invoice, package, area')}
+              aria-label={L('Zahlungen durchsuchen', 'Search payments')}
             />
           </label>
         </div>
 
         {loading ? (
-          <div className="broker-empty"><p>Zahlungen werden geladen…</p></div>
+          <div className="broker-empty"><p>{L('Zahlungen werden geladen…', 'Loading payments…')}</p></div>
         ) : rows.length ? (
           <>
             <div className="broker-invoice-table-wrap">
               <table className="broker-invoice-table broker-pay-table">
                 <thead>
                   <tr>
-                    <SortHead id="date" label="Datum" sort={sort} onSort={onSort} />
-                    <th>Paket</th>
-                    <th>Zahlungsart</th>
+                    <SortHead id="date" label={L('Datum', 'Date')} sort={sort} onSort={onSort} />
+                    <th>{L('Paket', 'Package')}</th>
+                    <th>{L('Zahlungsart', 'Payment method')}</th>
                     <th>Status</th>
-                    <SortHead id="amount" label="Betrag" sort={sort} onSort={onSort} align="end" />
-                    <th className="broker-invoice-actions-col">Rechnung</th>
+                    <SortHead id="amount" label={L('Betrag', 'Amount')} sort={sort} onSort={onSort} align="end" />
+                    <th className="broker-invoice-actions-col">{L('Rechnung', 'Invoice')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -678,7 +698,7 @@ export function BeraterBilling() {
                       </td>
                       <td>
                         <span>{formatCardMask(entry)}</span>
-                        {entry.testMode ? <small className="dash-pay-test">Testmodus</small> : null}
+                        {entry.testMode ? <small className="dash-pay-test">{L('Testmodus', 'Test mode')}</small> : null}
                       </td>
                       <td>
                         <span className={`broker-invoice-status ${STATUS_BADGE[entry.status] || 'is-refunded'}`}>
@@ -691,16 +711,16 @@ export function BeraterBilling() {
                             disabled={Boolean(syncingId)}
                             onClick={() => handleSyncPending(entry.id)}
                           >
-                            {syncingId === entry.id ? 'Prüfe…' : 'Status prüfen'}
+                            {syncingId === entry.id ? L('Prüfe…', 'Checking…') : L('Status prüfen', 'Check status')}
                           </button>
                         ) : null}
                       </td>
                       <td style={{ textAlign: 'right' }}>
                         <strong className="broker-inv-amount">{formatEuroExact(amountOf(entry))}</strong>
                         {entry.discountCents > 0 ? (
-                          <small>inkl. Rabatt · {formatEuroExact(entry.listCents)}</small>
+                          <small>{L('inkl. Rabatt', 'incl. discount')} · {formatEuroExact(entry.listCents)}</small>
                         ) : null}
-                        {entry.taxCents ? <small>zzgl. {formatEuroExact(entry.taxCents)} MwSt.</small> : null}
+                        {entry.taxCents ? <small>{L(`zzgl. ${formatEuroExact(entry.taxCents)} MwSt.`, `plus ${formatEuroExact(entry.taxCents)} VAT`)}</small> : null}
                       </td>
                       <td>
                         {hasInvoice(entry) ? (
@@ -708,8 +728,8 @@ export function BeraterBilling() {
                             <button
                               type="button"
                               className="broker-invoice-action"
-                              title="Rechnung öffnen"
-                              aria-label={`Rechnung ${entry.invoiceNumber} öffnen`}
+                              title={L('Rechnung öffnen', 'Open invoice')}
+                              aria-label={L(`Rechnung ${entry.invoiceNumber} öffnen`, `Open invoice ${entry.invoiceNumber}`)}
                               disabled={Boolean(invoiceBusyId)}
                               onClick={() => runInvoiceAction(entry.id, openPaymentInvoice)}
                             >
@@ -718,8 +738,8 @@ export function BeraterBilling() {
                             <button
                               type="button"
                               className="broker-invoice-action"
-                              title="Rechnung herunterladen"
-                              aria-label={`Rechnung ${entry.invoiceNumber} herunterladen`}
+                              title={L('Rechnung herunterladen', 'Download invoice')}
+                              aria-label={L(`Rechnung ${entry.invoiceNumber} herunterladen`, `Download invoice ${entry.invoiceNumber}`)}
                               disabled={Boolean(invoiceBusyId)}
                               onClick={() => runInvoiceAction(entry.id, downloadPaymentInvoice)}
                             >
@@ -742,7 +762,10 @@ export function BeraterBilling() {
                   className="btn btn-outline"
                   onClick={() => setVisibleCount((count) => count + PAGE_SIZE)}
                 >
-                  Weitere {Math.min(PAGE_SIZE, rows.length - visibleCount)} anzeigen
+                  {L(
+                    `Weitere ${Math.min(PAGE_SIZE, rows.length - visibleCount)} anzeigen`,
+                    `Show ${Math.min(PAGE_SIZE, rows.length - visibleCount)} more`,
+                  )}
                 </button>
               </div>
             ) : null}
@@ -751,8 +774,11 @@ export function BeraterBilling() {
           <div className="broker-empty">
             <p>
               {payments.length
-                ? 'Keine Zahlungen für diese Auswahl.'
-                : 'Noch keine Zahlungen. Sobald Sie ein Paket buchen, erscheinen Zahlung und Rechnung hier.'}
+                ? L('Keine Zahlungen für diese Auswahl.', 'No payments for this selection.')
+                : L(
+                  'Noch keine Zahlungen. Sobald Sie ein Paket buchen, erscheinen Zahlung und Rechnung hier.',
+                  'No payments yet. As soon as you book a package, the payment and invoice will appear here.',
+                )}
             </p>
           </div>
         )}

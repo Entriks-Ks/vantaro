@@ -4,6 +4,7 @@ import { consumeOAuthNext } from '../lib/auth';
 import { useAuth } from '../hooks/useAuth';
 import useNavigate from '../hooks/useNavigate';
 import BootScreen from '../components/BootScreen';
+import { L } from '../lib/i18n';
 
 export default function AuthCallback() {
   const { completeOAuthLogin } = useAuth();
@@ -21,7 +22,7 @@ export default function AuthCallback() {
       })
       .catch((err) => {
         if (!active) return;
-        setError(err.message || 'Anmeldung ist fehlgeschlagen.');
+        setError(err.message || L('Anmeldung ist fehlgeschlagen.', 'Login failed.'));
       });
 
     return () => {
@@ -34,10 +35,10 @@ export default function AuthCallback() {
       <section className="auth-page" id="inhalt">
         <div className="auth-layout wrap">
           <div className="auth-form-container">
-            <h1 className="auth-title">Anmeldung fehlgeschlagen</h1>
+            <h1 className="auth-title">{L('Anmeldung fehlgeschlagen', 'Login failed')}</h1>
             <div className="auth-error">{error}</div>
             <div className="auth-footer">
-              <Link to="/login">Zurück zur Anmeldung</Link>
+              <Link to="/login">{L('Zurück zur Anmeldung', 'Back to login')}</Link>
             </div>
           </div>
         </div>
@@ -45,5 +46,5 @@ export default function AuthCallback() {
     );
   }
 
-  return <BootScreen caption="Anmeldung wird abgeschlossen" />;
+  return <BootScreen caption={L('Anmeldung wird abgeschlossen', 'Completing login')} />;
 }
