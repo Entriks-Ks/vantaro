@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { Link, Navigate, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import {
   CalendarClock,
-  CircleUserRound,
   CreditCard,
   Database,
   Gauge,
@@ -10,18 +9,15 @@ import {
   ListChecks,
   LogOut,
   Menu,
-  Moon,
   PlugZap,
   ScrollText,
   Search,
-  Sun,
   TriangleAlert,
   Users,
   X,
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { ROLES } from '../../lib/roles';
-import { readThemePreference, resolveTheme, subscribeTheme, writeThemePreference } from '../../lib/theme';
 import { getLang, L, pick, setLang } from './i18n';
 import { ToastProvider, useApi } from './ui';
 import Overview from './Overview';
@@ -96,44 +92,6 @@ function badgeCounts(overview) {
     integrations: (overview.integrations || []).filter((entry) => entry.status === 'error').length + (overview.schema?.missingCount || 0),
     errors: overview.errors?.errors || 0,
   };
-}
-
-function ThemeToggle() {
-  const { updateProfile } = useAuth();
-  const [resolved, setResolved] = useState(() => resolveTheme(readThemePreference()));
-  useEffect(() => subscribeTheme((applied) => setResolved(applied?.resolved || resolveTheme(readThemePreference()))), []);
-  const next = resolved === 'dark' ? 'light' : 'dark';
-  const Icon = resolved === 'dark' ? Sun : Moon;
-  const text = next === 'light' ? L('Helles Design', 'Light theme') : L('Dunkles Design', 'Dark theme');
-  const toggle = () => {
-    setResolved(writeThemePreference(next).resolved);
-    // Saved on the account like in the portal, so the choice survives reloads and other devices.
-    updateProfile({ settings: { appearance: next } }).catch(() => {});
-  };
-  return (
-    <button type="button" className="its-icon-btn" onClick={toggle} aria-label={text} title={text}>
-      <Icon size={16} />
-    </button>
-  );
-}
-
-function LanguageToggle({ lang, onChange }) {
-  return (
-    <div className="its-lang" role="group" aria-label={L('Sprache', 'Language')}>
-      {[['en', 'EN', 'English'], ['de', 'DE', 'Deutsch']].map(([value, short, name]) => (
-        <button
-          key={value}
-          type="button"
-          className={lang === value ? 'is-active' : undefined}
-          aria-pressed={lang === value}
-          title={name}
-          onClick={() => onChange(value)}
-        >
-          {short}
-        </button>
-      ))}
-    </div>
-  );
 }
 
 function GlobalSearch() {
@@ -231,24 +189,19 @@ function Shell({ lang, onLang }) {
               <span>{L('Zum Admin-Portal', 'Back to admin portal')}</span>
             </Link>
           ) : null}
-          <NavLink to="/it-support/profile" className={({ isActive }) => `its-nav-link${isActive ? ' is-active' : ''}`}>
-            <CircleUserRound size={16} aria-hidden="true" />
-            <span>{L('Mein Profil', 'My profile')}</span>
-          </NavLink>
-          <div className="its-user">
-            <Link to="/it-support/profile" className="its-user-link" title={L('Mein Profil', 'My profile')}>
+          {/* The whole block opens "My profile" (the link stretches over it); sign-out sits on top. */}
+          <div className={`its-user${location.pathname.startsWith('/it-support/profile') ? ' is-active' : ''}`}>
+            <Link to="/it-support/profile" className="its-user-link" aria-label={L('Mein Profil öffnen', 'Open my profile')}>
               <Avatar user={user} />
               <span className="its-user-text">
                 <strong>{user?.fullName || user?.email}</strong>
                 <em>{isAdmin ? 'Admin' : L('IT-Support', 'IT Support')}</em>
               </span>
             </Link>
-            <ThemeToggle />
             <button type="button" className="its-icon-btn" onClick={logout} aria-label={L('Abmelden', 'Sign out')} title={L('Abmelden', 'Sign out')}>
               <LogOut size={16} />
             </button>
           </div>
-          <LanguageToggle lang={lang} onChange={onLang} />
         </div>
       </aside>
       {menuOpen ? <button type="button" className="its-side-scrim" aria-label={L('Menü schließen', 'Close menu')} onClick={() => setMenuOpen(false)} /> : null}
